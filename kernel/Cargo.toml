@@ -1,0 +1,17 @@
+[package]
+name = "kernel"
+version = "0.1.0"
+authors = ["Philipp Oppermann <dev@phil-opp.com>", "Harald Hoyer <harald@redhat.com>"]
+edition = "2018"
+
+[dependencies]
+bootinfo = {version = "0", path="../bootinfo"}
+xmas-elf = "0.7.0"
+spin = "0.5.2"
+x86_64 = "0.7.5"
+pic8259_simple = "0.1.1"
+linked_list_allocator = "0.6.4"
+
+[dependencies.lazy_static]
+version = "1.0"
+features = ["spin_no_std"]

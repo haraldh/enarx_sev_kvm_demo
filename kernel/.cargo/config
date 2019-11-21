@@ -1,0 +1,5 @@
+[build]
+target = "x86_64-kernel.json"
+
+[target.'cfg(target_os = "none")']
+runner = "vmrun"
