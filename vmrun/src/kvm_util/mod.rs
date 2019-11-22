@@ -575,7 +575,7 @@ impl KvmVm {
         program_invocation_name: &str,
         data_memslot: u32,
         pgd_memslot: u32,
-        start_symbol: &str,
+        start_symbol: Option<&str>,
     ) -> Result<VirtAddr, Error> {
         use mmap::{MapOption, MemoryMap};
         use std::fs::File;
@@ -601,27 +601,34 @@ impl KvmVm {
 
         let mut guest_code: Option<VirtAddr> = None;
 
-        let mut sect_iter = elf_file.section_iter();
-        // Skip the first (dummy) section
-        sect_iter.next();
-        for sect in sect_iter {
-            sections::sanity_check(sect, &elf_file).unwrap();
+        match start_symbol {
+            Some(start_symbol) => {
+                let mut sect_iter = elf_file.section_iter();
+                // Skip the first (dummy) section
+                sect_iter.next();
+                for sect in sect_iter {
+                    sections::sanity_check(sect, &elf_file).unwrap();
 
-            if sect.get_type() == Ok(sections::ShType::SymTab) {
-                if let Ok(sections::SectionData::SymbolTable64(data)) = sect.get_data(&elf_file) {
-                    for datum in data {
-                        if datum.get_name(&elf_file).unwrap().eq(start_symbol) {
-                            guest_code = Some(VirtAddr::new(datum.value()));
+                    if sect.get_type() == Ok(sections::ShType::SymTab) {
+                        if let Ok(sections::SectionData::SymbolTable64(data)) = sect.get_data(&elf_file) {
+                            for datum in data {
+                                if datum.get_name(&elf_file).unwrap().eq(start_symbol) {
+                                    guest_code = Some(VirtAddr::new(datum.value()));
+                                }
+                            }
+                        } else {
+                            unreachable!();
                         }
                     }
-                } else {
-                    unreachable!();
                 }
-            }
-        }
 
-        if guest_code.is_none() {
-            return Err(ErrorKind::GuestCodeNotFound.into());
+                if guest_code.is_none() {
+                    return Err(ErrorKind::GuestCodeNotFound.into());
+                }
+            },
+            None => {
+                guest_code = Some(VirtAddr::new(elf_file.header.pt2.entry_point()))
+            }
         }
 
         for program_header in elf_file.program_iter() {
@@ -971,7 +978,7 @@ impl KvmVm {
         program_invocation_name: &str,
         vcpuid: u8,
         extra_mem_pages: u64,
-        entry_symbol: &str,
+        entry_symbol: Option<&str>,
     ) -> Result<Self, Error> {
         let extra_pg_pages: u64 = extra_mem_pages / 512 * 2;
 
