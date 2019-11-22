@@ -4,6 +4,7 @@
 #![deny(improper_ctypes)]
 
 pub use self::memory_map::*;
+use core::fmt;
 
 mod memory_map;
 
@@ -41,7 +42,6 @@ macro_rules! entry_point {
 /// Note that no type checking occurs for the entry point function, so be careful to
 /// use the correct argument types. To ensure that the entry point function has the correct
 /// signature, use the [`entry_point`] macro.
-#[derive(Debug)]
 #[repr(C)]
 pub struct BootInfo {
     /// A map of the physical memory regions of the underlying machine.
@@ -62,7 +62,7 @@ pub struct BootInfo {
     /// cause undefined behavior. Only frames reported as `USABLE` by the memory map in the `BootInfo`
     /// can be safely accessed.
     pub physical_memory_offset: u64,
-    _non_exhaustive: u8, // `()` is not FFI safe
+    //_non_exhaustive: u8, // `()` is not FFI safe
 }
 
 impl BootInfo {
@@ -78,10 +78,20 @@ impl BootInfo {
             memory_map,
             //recursive_page_table_addr,
             physical_memory_offset,
-            _non_exhaustive: 0,
+            //_non_exhaustive: 0,
         }
     }
 }
+
+impl fmt::Debug for BootInfo {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("BootInfo")
+            .field("memory_map", &self.memory_map)
+            .field("physical_memory_offset", &format_args!("{:#X}", self.physical_memory_offset))
+            .finish()
+    }
+}
+
 
 extern "C" {
     fn _improper_ctypes_check(_boot_info: BootInfo);
