@@ -989,7 +989,7 @@ impl KvmVm {
         let guest_code = vm.elf_load(program_invocation_name, 0, 0, entry_symbol)?;
 
         /* Setup IRQ Chip */
-        // vm.create_irqchip()?;
+        vm.create_irqchip()?;
 
         /* Add the first vCPU. */
         vm.vcpu_add_default(vcpuid, guest_code)?;
