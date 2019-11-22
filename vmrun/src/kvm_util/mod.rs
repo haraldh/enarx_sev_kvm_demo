@@ -29,7 +29,7 @@ const KVM_UTIL_MIN_VADDR: u64 = 0x2000;
 const KVM_UTIL_MIN_PFN: u64 = 2;
 const DEFAULT_STACK_PGS: u64 = 5;
 const DEFAULT_GUEST_STACK_VADDR_MIN: u64 = 0xab6000;
-const PHYSICAL_MEMORY_OFFSET: u64 = 0xFFFF_F000_0000_0000;
+const PHYSICAL_MEMORY_OFFSET: u64 = 0x0000_7000_0000_0000;
 
 struct UserspaceMemRegion {
     region: kvm_userspace_memory_region,
