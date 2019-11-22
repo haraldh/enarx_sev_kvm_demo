@@ -29,18 +29,17 @@ fn main() {
                     eprintln!("Hypervisor: Creating and running took {:?}", elapsed);
                     break;
                 }
+                0xf4 if data.eq(&[0x10, 0, 0, 0]) => {
+                    std::process::exit(0);
+                }
+                0xf4 if data.eq(&[0x11, 0, 0, 0]) => {
+                    std::process::exit(1);
+                }
                 // Serial line out
                 0x03f8 => {
                     let _err = handle.write_all(data);
-                    /*                    for b in data {
-                        unsafe {
-                            print!("{}")libc::putchar(*b as i32);
-
-                        }
-                    }
-                        */
                 }
-                _ => panic!("Hypervisor: Unexpected IO port {:x} !", port),
+                _ => panic!("Hypervisor: Unexpected IO port {:#X} {:#?}!", port, data),
             },
             VcpuExit::Hlt => {
                 let elapsed = start.elapsed();
@@ -48,7 +47,8 @@ fn main() {
                 eprintln!("Hypervisor: Creating and running took {:?}", elapsed);
                 break;
             }
-            exit_reason => panic!("Hypervisor: unexpected exit reason: {:?}", exit_reason),
+            exit_reason => {eprintln!("Hypervisor: unexpected exit reason: {:?}", exit_reason);                    std::process::exit(1);
+            },
         }
     }
     eprintln!("Hypervisor: Done");
