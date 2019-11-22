@@ -8,7 +8,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
 
     if args.len() != 2 {
-        eprintln!("Usage: {} <kernelblob>", args[0]);
+        eprintln!("Usage: {} <kernelblob> - {:#?}", args[0], std::env::current_dir());
         std::process::exit(1);
     }
 

@@ -1,0 +1,11 @@
+[workspace]
+members = [
+    "bootinfo",
+    "vmrun",
+    "kernel"
+]
+
+default-members = [
+    "bootinfo",
+    "vmrun",
+]

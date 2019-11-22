@@ -1,8 +1,7 @@
 target/
 **/*.rs.bk
-*/Cargo.lock
 .settings/
 .DS_store/
-.idea/
 .project/
+/Cargo.lock
 
