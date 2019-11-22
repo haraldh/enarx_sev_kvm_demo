@@ -49,10 +49,10 @@ pub enum QemuExitCode {
 }
 
 pub fn exit_qemu(exit_code: QemuExitCode) {
-    use x86_64::instructions::port::Port;
+    use x86_64::instructions::port::PortWriteOnly;
 
     unsafe {
-        let mut port = Port::new(0xf4);
+        let mut port = PortWriteOnly::new(0xf4);
         port.write(exit_code as u32);
     }
 }
@@ -64,7 +64,7 @@ pub fn hlt_loop() -> ! {
 }
 
 #[cfg(test)]
-use bootloader::{entry_point, BootInfo};
+use bootinfo::{entry_point, BootInfo};
 
 #[cfg(test)]
 entry_point!(test_kernel_main);
