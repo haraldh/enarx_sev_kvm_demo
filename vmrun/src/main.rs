@@ -14,7 +14,7 @@ fn main() {
 
     let kernel_blob = args[1].to_string();
 
-    let kvm = kvm_util::KvmVm::vm_create_default(&kernel_blob, 0, 1024, "_start").unwrap();
+    let kvm = kvm_util::KvmVm::vm_create_default(&kernel_blob, 0, 1024, None, /*"_start"*/).unwrap();
 
     use std::io::{self, Write};
     let stdout = io::stdout();
