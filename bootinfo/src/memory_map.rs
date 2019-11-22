@@ -65,6 +65,12 @@ impl MemoryMap {
     }
 }
 
+impl Default for MemoryMap {
+    fn default() -> Self {
+         Self::new()
+    }
+}
+
 impl Deref for MemoryMap {
     type Target = [MemoryRegion];
 

@@ -26,12 +26,12 @@ impl SegmentSelector {
     }
 
     /// Returns the GDT index.
-    pub fn index(&self) -> u16 {
+    pub fn index(self) -> u16 {
         self.0 >> 3
     }
 
     /// Returns the requested privilege level.
-    pub fn rpl(&self) -> PrivilegeLevel {
+    pub fn rpl(self) -> PrivilegeLevel {
         PrivilegeLevel::from_u16(self.0.get_bits(0..2))
     }
 }

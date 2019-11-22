@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 #![allow(non_upper_case_globals)]
+#![allow(clippy::unreadable_literal)]
 
 pub const X86_EFLAGS_FIXED: u32 = 2;
 pub const X86_CR4_VME: u32 = 1;

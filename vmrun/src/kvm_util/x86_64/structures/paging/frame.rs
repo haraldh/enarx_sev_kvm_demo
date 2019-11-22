@@ -34,12 +34,12 @@ impl<S: PageSize> PhysFrame<S> {
     }
 
     /// Returns the start address of the frame.
-    pub fn start_address(&self) -> PhysAddr {
+    pub fn start_address(self) -> PhysAddr {
         self.start_address
     }
 
     /// Returns the size the frame (4KB, 2MB or 1GB).
-    pub fn size(&self) -> u64 {
+    pub fn size(self) -> u64 {
         S::SIZE
     }
 
@@ -67,26 +67,26 @@ impl<S: PageSize> fmt::Debug for PhysFrame<S> {
 impl<S: PageSize> Add<u64> for PhysFrame<S> {
     type Output = Self;
     fn add(self, rhs: u64) -> Self::Output {
-        PhysFrame::containing_address(self.start_address() + rhs * u64::from(S::SIZE))
+        PhysFrame::containing_address(self.start_address() + rhs * S::SIZE)
     }
 }
 
 impl<S: PageSize> AddAssign<u64> for PhysFrame<S> {
     fn add_assign(&mut self, rhs: u64) {
-        *self = self.clone() + rhs;
+        *self = *self + rhs;
     }
 }
 
 impl<S: PageSize> Sub<u64> for PhysFrame<S> {
     type Output = Self;
     fn sub(self, rhs: u64) -> Self::Output {
-        PhysFrame::containing_address(self.start_address() - rhs * u64::from(S::SIZE))
+        PhysFrame::containing_address(self.start_address() - rhs * S::SIZE)
     }
 }
 
 impl<S: PageSize> SubAssign<u64> for PhysFrame<S> {
     fn sub_assign(&mut self, rhs: u64) {
-        *self = self.clone() - rhs;
+        *self = *self - rhs;
     }
 }
 
@@ -110,7 +110,7 @@ pub struct PhysFrameRange<S: PageSize = Size4KiB> {
 impl<S: PageSize> PhysFrameRange<S> {
     /// Returns whether the range contains no frames.
     pub fn is_empty(&self) -> bool {
-        !(self.start < self.end)
+        self.start >= self.end
     }
 }
 
@@ -119,7 +119,7 @@ impl<S: PageSize> Iterator for PhysFrameRange<S> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.start < self.end {
-            let frame = self.start.clone();
+            let frame = self.start;
             self.start += 1;
             Some(frame)
         } else {
@@ -150,7 +150,7 @@ pub struct PhysFrameRangeInclusive<S: PageSize = Size4KiB> {
 impl<S: PageSize> PhysFrameRangeInclusive<S> {
     /// Returns whether the range contains no frames.
     pub fn is_empty(&self) -> bool {
-        !(self.start <= self.end)
+        self.start > self.end
     }
 }
 
@@ -159,7 +159,7 @@ impl<S: PageSize> Iterator for PhysFrameRangeInclusive<S> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.start <= self.end {
-            let frame = self.start.clone();
+            let frame = self.start;
             self.start += 1;
             Some(frame)
         } else {

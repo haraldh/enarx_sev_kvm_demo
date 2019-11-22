@@ -82,22 +82,22 @@ impl<S: PageSize> Page<S> {
     }
 
     /// Returns the start address of the page.
-    pub fn start_address(&self) -> VirtAddr {
+    pub fn start_address(self) -> VirtAddr {
         self.start_address
     }
 
     /// Returns the size the page (4KB, 2MB or 1GB).
-    pub fn size(&self) -> u64 {
+    pub fn size(self) -> u64 {
         S::SIZE
     }
 
     /// Returns the level 4 page table index of this page.
-    pub fn p4_index(&self) -> u9 {
+    pub fn p4_index(self) -> u9 {
         self.start_address().p4_index()
     }
 
     /// Returns the level 3 page table index of this page.
-    pub fn p3_index(&self) -> u9 {
+    pub fn p3_index(self) -> u9 {
         self.start_address().p3_index()
     }
 
@@ -114,7 +114,7 @@ impl<S: PageSize> Page<S> {
 
 impl<S: NotGiantPageSize> Page<S> {
     /// Returns the level 2 page table index of this page.
-    pub fn p2_index(&self) -> u9 {
+    pub fn p2_index(self) -> u9 {
         self.start_address().p2_index()
     }
 }
@@ -158,7 +158,7 @@ impl Page<Size4KiB> {
     }
 
     /// Returns the level 1 page table index of this page.
-    pub fn p1_index(&self) -> u9 {
+    pub fn p1_index(self) -> u9 {
         self.start_address().p1_index()
     }
 }
@@ -176,26 +176,26 @@ impl<S: PageSize> fmt::Debug for Page<S> {
 impl<S: PageSize> Add<u64> for Page<S> {
     type Output = Self;
     fn add(self, rhs: u64) -> Self::Output {
-        Page::containing_address(self.start_address() + rhs * u64::from(S::SIZE))
+        Page::containing_address(self.start_address() + rhs * S::SIZE)
     }
 }
 
 impl<S: PageSize> AddAssign<u64> for Page<S> {
     fn add_assign(&mut self, rhs: u64) {
-        *self = self.clone() + rhs;
+        *self = *self + rhs;
     }
 }
 
 impl<S: PageSize> Sub<u64> for Page<S> {
     type Output = Self;
     fn sub(self, rhs: u64) -> Self::Output {
-        Page::containing_address(self.start_address() - rhs * u64::from(S::SIZE))
+        Page::containing_address(self.start_address() - rhs * S::SIZE)
     }
 }
 
 impl<S: PageSize> SubAssign<u64> for Page<S> {
     fn sub_assign(&mut self, rhs: u64) {
-        *self = self.clone() - rhs;
+        *self = *self - rhs;
     }
 }
 
@@ -219,7 +219,7 @@ pub struct PageRange<S: PageSize = Size4KiB> {
 impl<S: PageSize> PageRange<S> {
     /// Returns wether this range contains no pages.
     pub fn is_empty(&self) -> bool {
-        !(self.start < self.end)
+        self.start >= self.end
     }
 }
 
@@ -228,7 +228,7 @@ impl<S: PageSize> Iterator for PageRange<S> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.start < self.end {
-            let page = self.start.clone();
+            let page = self.start;
             self.start += 1;
             Some(page)
         } else {
@@ -269,7 +269,7 @@ pub struct PageRangeInclusive<S: PageSize = Size4KiB> {
 impl<S: PageSize> PageRangeInclusive<S> {
     /// Returns wether this range contains no pages.
     pub fn is_empty(&self) -> bool {
-        !(self.start <= self.end)
+        self.start > self.end
     }
 }
 
@@ -278,7 +278,7 @@ impl<S: PageSize> Iterator for PageRangeInclusive<S> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.start <= self.end {
-            let page = self.start.clone();
+            let page = self.start;
             self.start += 1;
             Some(page)
         } else {

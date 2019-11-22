@@ -8,7 +8,7 @@
 extern crate alloc;
 
 use alloc::{boxed::Box, rc::Rc, vec, vec::Vec};
-use kernel::println;
+use kernel::{println, exit_qemu, QemuExitCode};
 use bootinfo::{entry_point, BootInfo, MemoryRegion, MemoryRegionType};
 use core::panic::PanicInfo;
 use core::slice;
@@ -33,7 +33,7 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     use kernel::allocator;
     use kernel::memory::{self, BootInfoFrameAllocator};
 
-    println!("Hello World{}", "!");
+    println!("Hello World!");
 
     kernel::init();
     //println!("{}:{}", file!(), line!());
@@ -114,7 +114,8 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     }
 
     println!("It did not crash!");
-    kernel::hlt_loop();
+    exit_qemu(QemuExitCode::Success);
+    kernel::hlt_loop()
 }
 
 /// This function is called on panic.
@@ -122,7 +123,8 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     println!("{}", info);
-    kernel::hlt_loop();
+    exit_qemu(QemuExitCode::Failed);
+    kernel::hlt_loop()
 }
 
 #[cfg(test)]

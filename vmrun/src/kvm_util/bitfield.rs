@@ -33,7 +33,7 @@ impl Rangefield {
             }
             return true;
         }
-        return false;
+        false
     }
     pub fn next_set_num(&self, prev: usize, num: usize) -> Option<usize> {
         let start = prev + 1;
@@ -46,7 +46,7 @@ impl Rangefield {
             }
             return Some(r.start);
         }
-        return None;
+        None
     }
 }
 

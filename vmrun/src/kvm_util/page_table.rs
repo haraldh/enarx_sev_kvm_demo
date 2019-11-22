@@ -4,6 +4,7 @@ bitflags! {
     /// Possible flags for a page table entry.
     pub struct PageTableFlags: u64 {
         /// Specifies whether the mapped frame or page table is loaded in memory.
+        #[allow(clippy::identity_op)]
         const PRESENT =         1 << 0;
         /// Controls whether writes to the mapped frames are allowed.
         ///
@@ -65,12 +66,12 @@ bitflags! {
 }
 
 impl PageTableFlags {
-    pub fn addr(&self) -> u64 {
+    pub fn addr(self) -> u64 {
         (self.bits & 0x000fffff_fffff000) >> 12
     }
     pub fn set_addr(&mut self, addr: u64) {
         let addr = addr << 12;
         let addr = addr & 0x000fffff_fffff000;
-        self.bits = self.bits | addr;
+        self.bits |= addr;
     }
 }

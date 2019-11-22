@@ -13,6 +13,10 @@ impl SerialPort {
     ///
     /// This function is unsafe because the caller must ensure that the given base address
     /// really points to a serial port device.
+    ///
+    /// # Safety
+    /// FIXME
+    ///
     pub const unsafe fn new(base: u16) -> SerialPort {
         SerialPort {
             data: PortWriteOnly::<u8>::new(base),

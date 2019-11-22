@@ -146,6 +146,8 @@ fn bindgen_test_layout_desc64() {
         )
     );
 }
+
+#[allow(clippy::useless_transmute)]
 impl desc64 {
     #[inline]
     pub fn base1(&self) -> ::std::os::raw::c_uint {
@@ -269,6 +271,7 @@ impl desc64 {
         }
     }
     #[inline]
+    #[allow(clippy::too_many_arguments)]
     pub fn new_bitfield_1(
         base1: ::std::os::raw::c_uint,
         s: ::std::os::raw::c_uint,

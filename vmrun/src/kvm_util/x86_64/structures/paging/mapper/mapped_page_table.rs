@@ -370,6 +370,7 @@ impl<'a, P: PhysToVirt> MapperAllSizes for MappedPageTable<'a, P> {
             Err(PageTableWalkError::NotMapped) => return TranslateResult::PageNotMapped,
             Err(PageTableWalkError::MappedToHugePage) => {
                 let frame = PhysFrame::containing_address(p3[addr.p3_index()].addr());
+                #[allow(clippy::inconsistent_digit_grouping)]
                 let offset = addr.as_u64() & 0o_777_777_7777;
                 return TranslateResult::Frame1GiB { frame, offset };
             }
@@ -379,6 +380,7 @@ impl<'a, P: PhysToVirt> MapperAllSizes for MappedPageTable<'a, P> {
             Err(PageTableWalkError::NotMapped) => return TranslateResult::PageNotMapped,
             Err(PageTableWalkError::MappedToHugePage) => {
                 let frame = PhysFrame::containing_address(p2[addr.p2_index()].addr());
+                #[allow(clippy::inconsistent_digit_grouping)]
                 let offset = addr.as_u64() & 0o_777_7777;
                 return TranslateResult::Frame2MiB { frame, offset };
             }
@@ -471,7 +473,7 @@ impl<P: PhysToVirt> PageTableWalker<P> {
 
         let page_table = match self.next_table_mut(entry) {
             Err(PageTableWalkError::MappedToHugePage) => {
-                Err(PageTableCreateError::MappedToHugePage)?
+                return Err(PageTableCreateError::MappedToHugePage);
             }
             Err(PageTableWalkError::NotMapped) => panic!("entry should be mapped at this point"),
             Ok(page_table) => page_table,

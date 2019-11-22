@@ -24,11 +24,11 @@ use x86_64::structures::paging::{frame::PhysFrameRange, PhysFrame};
 
 const KVM_UTIL_PGS_PER_HUGEPG: usize = 512;
 const DEFAULT_GUEST_PHY_PAGES: u64 = 512;
-const KVM_GUEST_PAGE_TABLE_MIN_PADDR: u64 = 0x180000;
+const KVM_GUEST_PAGE_TABLE_MIN_PADDR: u64 = 0x18_0000;
 const KVM_UTIL_MIN_VADDR: u64 = 0x2000;
 const KVM_UTIL_MIN_PFN: u64 = 2;
 const DEFAULT_STACK_PGS: u64 = 5;
-const DEFAULT_GUEST_STACK_VADDR_MIN: u64 = 0xab6000;
+const DEFAULT_GUEST_STACK_VADDR_MIN: u64 = 0xab_6000;
 const PHYSICAL_MEMORY_OFFSET: u64 = 0x0000_7000_0000_0000;
 
 struct UserspaceMemRegion {
@@ -107,23 +107,23 @@ impl KvmVm {
             tss: None,
         };
 
-        let end = (1usize << (vm.va_bits as usize - 1)) >> vm.page_shift as usize;
+        let end = ((1u64 << (vm.va_bits - 1)) >> vm.page_shift) as _;
         vm.vpages_valid.push(0..end);
         /*
                 for i in 0..((1usize << (vm.va_bits as usize - 1)) >> vm.page_shift as usize) {
                     vm.vpages_valid.set(i, true);
                 }
         */
-        let start = (!((1usize << (vm.va_bits as usize - 1)) - 1)) >> vm.page_shift as usize;
-        let len = (1usize << (vm.va_bits as usize - 1)) >> vm.page_shift as usize;
+        let start = (!((1u64 << (vm.va_bits - 1)) - 1)) >> vm.page_shift;
+        let len = (1u64 << (vm.va_bits - 1)) >> vm.page_shift;
 
-        vm.vpages_valid.push(start..(start + len));
+        vm.vpages_valid.push(start as _ ..(start + len) as _);
         /*
                 for i in start..(start + len) {
                     vm.vpages_valid.set(i, true);
                 }
         */
-        vm.max_gfn = ((1u64 << vm.pa_bits as u64) >> vm.page_shift as u64) - 1;
+        vm.max_gfn = ((1u64 << vm.pa_bits) >> vm.page_shift) - 1;
 
         if phy_pages != 0 {
             vm.vm_userspace_mem_region_add(
@@ -148,7 +148,7 @@ impl KvmVm {
     ) -> Result<(), Error> {
         let huge_page_size: usize = KVM_UTIL_PGS_PER_HUGEPG * self.page_size as usize;
 
-        if (guest_paddr.as_u64() % self.page_size as u64) != 0 {
+        if (guest_paddr.as_u64() % self.page_size) != 0 {
             return Err(ErrorKind::Generic.into()); // FIXME: Error
         }
 
@@ -463,7 +463,7 @@ impl KvmVm {
             region_type,
         });
 
-        return Ok(start);
+        Ok(start)
     }
 
     pub fn vm_phy_page_alloc(
@@ -673,7 +673,7 @@ impl KvmVm {
                             ..(segment.offset + segment.file_size) as usize],
                     );
 
-                    for i in &mut seg[segment.file_size as usize..] {
+                    for i in &mut seg[segment.file_size as _..] {
                         *i = 0;
                     }
                 }
@@ -737,7 +737,7 @@ impl KvmVm {
         /* memset(segp, 0, sizeof(*segp)); */
         *segp = kvm_segment {
             base: 0,
-            limit: 0xFFFFFFFFu32,
+            limit: 0xFFFF_FFFFu32,
             selector,
             type_: 0x08 | 0x01 | 0x02, // kFlagCode | kFlagCodeAccessed | kFlagCodeReadable
             present: 1,
@@ -762,9 +762,9 @@ impl KvmVm {
         /* memset(segp, 0, sizeof(*segp)); */
         *segp = kvm_segment {
             selector,
-            limit: 0xFFFFFFFFu32,
+            limit: 0xFFFF_FFFFu32,
             s: 0x1,                    // kTypeCodeData
-            type_: 0x00 | 0x01 | 0x02, // kFlagData | kFlagDataAccessed | kFlagDataWritable
+            type_: 0x01 | 0x02, // kFlagData | kFlagDataAccessed | kFlagDataWritable
             g: 1,
             present: 1,
             base: 0,
@@ -950,7 +950,7 @@ impl KvmVm {
         let mut regs = self.cpu_fd[vcpuid as usize]
             .get_regs()
             .map_err(map_context!())?;
-        regs.rflags = regs.rflags | 0x2;
+        regs.rflags |= 0x2;
         regs.rsp = stack_vaddr_end;
         regs.rip = guest_code.as_u64();
         regs.rdi = boot_info_vaddr.as_u64();

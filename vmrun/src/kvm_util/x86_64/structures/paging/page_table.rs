@@ -100,6 +100,7 @@ bitflags! {
     /// Possible flags for a page table entry.
     pub struct PageTableFlags: u64 {
         /// Specifies whether the mapped frame or page table is loaded in memory.
+        #[allow(clippy::identity_op)]
         const PRESENT =         1 << 0;
         /// Controls whether writes to the mapped frames are allowed.
         ///
