@@ -25,10 +25,23 @@ impl MemoryMap {
     }
 
     pub fn add_region(&mut self, region: MemoryRegion) {
+        if let Err(true) = self.entries.iter_mut().try_for_each(|last_region| {
+            if last_region.region_type == region.region_type
+                && last_region.range.end_frame_number == region.range.start_frame_number
+            {
+                last_region.range.end_frame_number = region.range.end_frame_number;
+                return Err(true);
+            }
+            Ok(())
+        }) {
+            return;
+        };
+
         assert!(
             self.next_entry_index() < MAX_MEMORY_MAP_SIZE,
             "too many memory regions in memory map"
         );
+
         self.entries[self.next_entry_index()] = region;
         self.next_entry_index += 1;
         self.sort();
@@ -67,7 +80,7 @@ impl MemoryMap {
 
 impl Default for MemoryMap {
     fn default() -> Self {
-         Self::new()
+        Self::new()
     }
 }
 

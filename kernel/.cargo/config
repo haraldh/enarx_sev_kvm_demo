@@ -2,4 +2,4 @@
 target = "x86_64-kernel.json"
 
 [target.'cfg(target_os = "none")']
-runner = "../target/release/vmrun"
+runner = "../target/debug/vmrun"

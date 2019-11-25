@@ -34,21 +34,21 @@ $ cargo install cargo-xbuild
 ## Run
 
 ```bash
-$ cargo build --package vmrun --release
-$ cargo +nightly xrun --package kernel --release --target kernel/x86_64-kernel.json
+$ cargo build --package vmrun
+$ cargo +nightly xrun --package kernel --target kernel/x86_64-kernel.json
 ```
 
 or
 
 ```bash
-$ cargo +nightly xbuild --package kernel --release --target kernel/x86_64-kernel.json
-$ cargo run --package vmrun --bin vmrun -- target/x86_64-kernel/release/kernel
+$ cargo +nightly xbuild --package kernel --target kernel/x86_64-kernel.json
+$ cargo run --package vmrun --bin vmrun -- target/x86_64-kernel/debug/kernel
 ```
 
 ## Test
 
 ```bash
-$ cargo build --package vmrun --release
+$ cargo build --package vmrun
 $ cargo +nightly xtest --package kernel --target kernel/x86_64-kernel.json
 ```
 

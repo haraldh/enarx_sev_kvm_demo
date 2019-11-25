@@ -117,7 +117,7 @@ impl KvmVm {
         let start = (!((1u64 << (vm.va_bits - 1)) - 1)) >> vm.page_shift;
         let len = (1u64 << (vm.va_bits - 1)) >> vm.page_shift;
 
-        vm.vpages_valid.push(start as _ ..(start + len) as _);
+        vm.vpages_valid.push(start as _..(start + len) as _);
         /*
                 for i in start..(start + len) {
                     vm.vpages_valid.set(i, true);
@@ -245,6 +245,7 @@ impl KvmVm {
         });
 
         let zero_frame: PhysFrame = PhysFrame::from_start_address(PhysAddr::new(0)).unwrap();
+
         self.frame_allocator.mark_allocated_region(MemoryRegion {
             range: frame_range(PhysFrame::range(zero_frame, zero_frame + 1)),
             region_type: MemoryRegionType::FrameZero,
@@ -458,6 +459,7 @@ impl KvmVm {
         let start_frame = PhysFrame::containing_address(start);
         let end_frame = PhysFrame::containing_address(start + num - 1u64);
         let memory_area = PhysFrame::range(start_frame, end_frame + 1);
+
         self.frame_allocator.mark_allocated_region(MemoryRegion {
             range: frame_range(memory_area),
             region_type,
@@ -577,7 +579,6 @@ impl KvmVm {
         pgd_memslot: u32,
         start_symbol: Option<&str>,
     ) -> Result<VirtAddr, Error> {
-        use mmap::{MapOption, MemoryMap};
         use std::fs::File;
         use std::os::unix::io::AsRawFd;
         use xmas_elf::program::{self, ProgramHeader};
@@ -587,9 +588,12 @@ impl KvmVm {
 
         let file = File::open(program_invocation_name).map_err(map_context!())?;
         let mmap_size = file.metadata().map_err(map_context!())?.len() as usize;
-        let mm = MemoryMap::new(
+        let mm = mmap::MemoryMap::new(
             mmap_size,
-            &[MapOption::MapFd(file.as_raw_fd()), MapOption::MapReadable],
+            &[
+                mmap::MapOption::MapFd(file.as_raw_fd()),
+                mmap::MapOption::MapReadable,
+            ],
         )
         .map_err(|_| Error::from(ErrorKind::MmapFailed))?;
 
@@ -610,7 +614,9 @@ impl KvmVm {
                     sections::sanity_check(sect, &elf_file).unwrap();
 
                     if sect.get_type() == Ok(sections::ShType::SymTab) {
-                        if let Ok(sections::SectionData::SymbolTable64(data)) = sect.get_data(&elf_file) {
+                        if let Ok(sections::SectionData::SymbolTable64(data)) =
+                            sect.get_data(&elf_file)
+                        {
                             for datum in data {
                                 if datum.get_name(&elf_file).unwrap().eq(start_symbol) {
                                     guest_code = Some(VirtAddr::new(datum.value()));
@@ -625,10 +631,8 @@ impl KvmVm {
                 if guest_code.is_none() {
                     return Err(ErrorKind::GuestCodeNotFound.into());
                 }
-            },
-            None => {
-                guest_code = Some(VirtAddr::new(elf_file.header.pt2.entry_point()))
             }
+            None => guest_code = Some(VirtAddr::new(elf_file.header.pt2.entry_point())),
         }
 
         for program_header in elf_file.program_iter() {
@@ -763,7 +767,7 @@ impl KvmVm {
         *segp = kvm_segment {
             selector,
             limit: 0xFFFF_FFFFu32,
-            s: 0x1,                    // kTypeCodeData
+            s: 0x1,             // kTypeCodeData
             type_: 0x01 | 0x02, // kFlagData | kFlagDataAccessed | kFlagDataWritable
             g: 1,
             present: 1,
