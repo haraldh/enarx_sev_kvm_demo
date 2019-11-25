@@ -28,7 +28,6 @@ macro_rules! entry_point {
     };
 }
 
-
 /// This structure represents the information that the bootloader passes to the kernel.
 ///
 /// The information is passed as an argument to the entry point:
@@ -87,11 +86,13 @@ impl fmt::Debug for BootInfo {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("BootInfo")
             .field("memory_map", &self.memory_map)
-            .field("physical_memory_offset", &format_args!("{:#X}", self.physical_memory_offset))
+            .field(
+                "physical_memory_offset",
+                &format_args!("{:#X}", self.physical_memory_offset),
+            )
             .finish()
     }
 }
-
 
 extern "C" {
     fn _improper_ctypes_check(_boot_info: BootInfo);

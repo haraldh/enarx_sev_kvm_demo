@@ -78,7 +78,6 @@ extern "x86-interrupt" fn double_fault_handler(
     hlt_loop();
 }
 
-
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: &mut InterruptStackFrame) {
     println!(".");
     unsafe {

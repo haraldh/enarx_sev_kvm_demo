@@ -8,10 +8,10 @@
 extern crate alloc;
 
 use alloc::{boxed::Box, rc::Rc, vec, vec::Vec};
-use kernel::{println, exit_qemu, QemuExitCode};
 use bootinfo::{entry_point, BootInfo, MemoryRegion, MemoryRegionType};
 use core::panic::PanicInfo;
 use core::slice;
+use kernel::{exit_qemu, println, QemuExitCode};
 use x86_64::{PhysAddr, VirtAddr};
 use xmas_elf::program::ProgramHeader;
 

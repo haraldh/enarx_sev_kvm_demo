@@ -2,8 +2,8 @@
 #![no_main]
 #![feature(abi_x86_interrupt)]
 
-use kernel::{exit_qemu, serial_print, serial_println, QemuExitCode};
 use core::panic::PanicInfo;
+use kernel::{exit_qemu, serial_print, serial_println, QemuExitCode};
 use lazy_static::lazy_static;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 
