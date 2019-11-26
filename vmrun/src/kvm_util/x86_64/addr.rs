@@ -74,6 +74,26 @@ impl HostVirtAddr {
     pub fn as_mut_ptr<T>(self) -> *mut T {
         self.as_ptr::<T>() as *mut T
     }
+
+    /// Aligns the virtual address upwards to the given alignment.
+    ///
+    /// See the `align_up` function for more information.
+    pub fn align_up<U>(self, align: U) -> Self
+    where
+        U: Into<u64>,
+    {
+        HostVirtAddr(align_up(self.0, align.into()))
+    }
+
+    /// Aligns the virtual address downwards to the given alignment.
+    ///
+    /// See the `align_down` function for more information.
+    pub fn align_down<U>(self, align: U) -> Self
+    where
+        U: Into<u64>,
+    {
+        HostVirtAddr(align_down(self.0, align.into()))
+    }
 }
 
 /// A canonical 64-bit virtual memory address.

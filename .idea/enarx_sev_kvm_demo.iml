@@ -14,10 +14,15 @@
       <sourceFolder url="file://$MODULE_DIR$/vmrun/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/vmrun/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/vmrun/benches" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/vmsyscall/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/vmsyscall/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/vmsyscall/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/vmsyscall/benches" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/bootinfo/target" />
       <excludeFolder url="file://$MODULE_DIR$/kernel/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/vmrun/target" />
+      <excludeFolder url="file://$MODULE_DIR$/vmsyscall/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

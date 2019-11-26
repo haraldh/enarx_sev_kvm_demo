@@ -27,7 +27,8 @@ impl MemoryMap {
     pub fn add_region(&mut self, region: MemoryRegion) {
         if let Err(true) = self.entries.iter_mut().try_for_each(|last_region| {
             if last_region.region_type == region.region_type
-                && last_region.range.end_frame_number == region.range.start_frame_number
+                && last_region.range.end_frame_number >= region.range.start_frame_number
+                && last_region.range.end_frame_number <= region.range.end_frame_number
             {
                 last_region.range.end_frame_number = region.range.end_frame_number;
                 return Err(true);
@@ -161,6 +162,10 @@ impl FrameRange {
         self.start_frame_number == self.end_frame_number
     }
 
+    pub fn len(&self) -> u64 {
+        self.end_frame_number - self.start_frame_number
+    }
+
     /// Returns the physical start address of the memory region.
     pub fn start_addr(&self) -> u64 {
         self.start_frame_number * PAGE_SIZE
@@ -205,6 +210,8 @@ pub enum MemoryRegionType {
     App,
     /// Memory used for the kernel stack.
     KernelStack,
+    /// Memory used for GDT table.
+    Gdt,
     /// Memory used for creating page tables.
     PageTable,
     /// Memory used by the bootloader.
@@ -217,6 +224,8 @@ pub enum MemoryRegionType {
     Empty,
     /// Memory used for storing the boot information.
     BootInfo,
+    /// Memory used for storing the boot information.
+    SysCall,
     /// Memory used for storing the supplied package
     Package,
     /// Additional variant to ensure that we can add more variants in the future without

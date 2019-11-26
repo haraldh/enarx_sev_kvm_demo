@@ -1,5 +1,5 @@
 [build]
 target = "x86_64-kernel.json"
 
-[target.'cfg(target_os = "none")']
+[target.'cfg(target_os = "enarx")']
 runner = "../target/debug/vmrun"

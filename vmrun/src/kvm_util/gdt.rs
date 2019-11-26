@@ -1,375 +1,116 @@
-#![allow(dead_code)]
-#![allow(non_upper_case_globals)]
+// Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: Apache-2.0
+//
+// Portions Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// Portions Copyright 2017 The Chromium OS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the THIRD-PARTY file.
 
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct __BindgenBitfieldUnit<Storage, Align>
-where
-    Storage: AsRef<[u8]> + AsMut<[u8]>,
-{
-    storage: Storage,
-    align: [Align; 0],
-}
-impl<Storage, Align> __BindgenBitfieldUnit<Storage, Align>
-where
-    Storage: AsRef<[u8]> + AsMut<[u8]>,
-{
-    #[inline]
-    pub fn new(storage: Storage) -> Self {
-        Self { storage, align: [] }
-    }
-    #[inline]
-    pub fn get_bit(&self, index: usize) -> bool {
-        debug_assert!(index / 8 < self.storage.as_ref().len());
-        let byte_index = index / 8;
-        let byte = self.storage.as_ref()[byte_index];
-        let bit_index = if cfg!(target_endian = "big") {
-            7 - (index % 8)
-        } else {
-            index % 8
-        };
-        let mask = 1 << bit_index;
-        byte & mask == mask
-    }
-    #[inline]
-    pub fn set_bit(&mut self, index: usize, val: bool) {
-        debug_assert!(index / 8 < self.storage.as_ref().len());
-        let byte_index = index / 8;
-        let byte = &mut self.storage.as_mut()[byte_index];
-        let bit_index = if cfg!(target_endian = "big") {
-            7 - (index % 8)
-        } else {
-            index % 8
-        };
-        let mask = 1 << bit_index;
-        if val {
-            *byte |= mask;
-        } else {
-            *byte &= !mask;
-        }
-    }
-    #[inline]
-    pub fn get(&self, bit_offset: usize, bit_width: u8) -> u64 {
-        debug_assert!(bit_width <= 64);
-        debug_assert!(bit_offset / 8 < self.storage.as_ref().len());
-        debug_assert!((bit_offset + (bit_width as usize)) / 8 <= self.storage.as_ref().len());
-        let mut val = 0;
-        for i in 0..(bit_width as usize) {
-            if self.get_bit(i + bit_offset) {
-                let index = if cfg!(target_endian = "big") {
-                    bit_width as usize - 1 - i
-                } else {
-                    i
-                };
-                val |= 1 << index;
-            }
-        }
-        val
-    }
-    #[inline]
-    pub fn set(&mut self, bit_offset: usize, bit_width: u8, val: u64) {
-        debug_assert!(bit_width <= 64);
-        debug_assert!(bit_offset / 8 < self.storage.as_ref().len());
-        debug_assert!((bit_offset + (bit_width as usize)) / 8 <= self.storage.as_ref().len());
-        for i in 0..(bit_width as usize) {
-            let mask = 1 << i;
-            let val_bit_is_set = val & mask == mask;
-            let index = if cfg!(target_endian = "big") {
-                bit_width as usize - 1 - i
-            } else {
-                i
-            };
-            self.set_bit(index + bit_offset, val_bit_is_set);
-        }
-    }
+// For GDT details see arch/x86/include/asm/segment.h
+
+use kvm_bindings::kvm_segment;
+
+/// Constructor for a conventional segment GDT (or LDT) entry. Derived from the kernel's segment.h.
+pub const fn gdt_entry(flags: u16, base: u32, limit: u32) -> u64 {
+    (((base as u64 & 0xff00_0000u64) << (56 - 24))
+        | ((flags as u64 & 0x0000_f0ffu64) << 40)
+        | ((limit as u64 & 0x000f_0000u64) << (48 - 16))
+        | ((base as u64 & 0x00ff_ffffu64) << 16)
+        | (limit as u64 & 0x0000_ffffu64))
 }
 
-#[repr(C, packed)]
-#[derive(Debug, Copy, Clone)]
-pub struct desc64 {
-    pub limit0: u16,
-    pub base0: u16,
-    pub _bitfield_1: __BindgenBitfieldUnit<[u8; 4usize], u8>,
-    pub base3: u32,
-    pub zero1: u32,
-}
-#[test]
-fn bindgen_test_layout_desc64() {
-    assert_eq!(
-        ::std::mem::size_of::<desc64>(),
-        16usize,
-        concat!("Size of: ", stringify!(desc64))
-    );
-    assert_eq!(
-        ::std::mem::align_of::<desc64>(),
-        1usize,
-        concat!("Alignment of ", stringify!(desc64))
-    );
-    assert_eq!(
-        unsafe { &(*(::std::ptr::null::<desc64>())).limit0 as *const _ as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(desc64),
-            "::",
-            stringify!(limit0)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(::std::ptr::null::<desc64>())).base0 as *const _ as usize },
-        2usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(desc64),
-            "::",
-            stringify!(base0)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(::std::ptr::null::<desc64>())).base3 as *const _ as usize },
-        8usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(desc64),
-            "::",
-            stringify!(base3)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(::std::ptr::null::<desc64>())).zero1 as *const _ as usize },
-        12usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(desc64),
-            "::",
-            stringify!(zero1)
-        )
-    );
+const fn get_base(entry: u64) -> u64 {
+    ((((entry) & 0xFF00_0000_0000_0000) >> 32)
+        | (((entry) & 0x0000_00FF_0000_0000) >> 16)
+        | (((entry) & 0x0000_0000_FFFF_0000) >> 16))
 }
 
-#[allow(clippy::useless_transmute)]
-impl desc64 {
-    #[inline]
-    pub fn base1(&self) -> ::std::os::raw::c_uint {
-        unsafe { ::std::mem::transmute(self._bitfield_1.get(0usize, 8u8) as u32) }
-    }
-    #[inline]
-    pub fn set_base1(&mut self, val: ::std::os::raw::c_uint) {
-        unsafe {
-            let val: u32 = ::std::mem::transmute(val);
-            self._bitfield_1.set(0usize, 8u8, val as u64)
-        }
-    }
-    #[inline]
-    pub fn s(&self) -> ::std::os::raw::c_uint {
-        unsafe { ::std::mem::transmute(self._bitfield_1.get(8usize, 1u8) as u32) }
-    }
-    #[inline]
-    pub fn set_s(&mut self, val: ::std::os::raw::c_uint) {
-        unsafe {
-            let val: u32 = ::std::mem::transmute(val);
-            self._bitfield_1.set(8usize, 1u8, val as u64)
-        }
-    }
-    #[inline]
-    pub fn type_(&self) -> ::std::os::raw::c_uint {
-        unsafe { ::std::mem::transmute(self._bitfield_1.get(9usize, 4u8) as u32) }
-    }
-    #[inline]
-    pub fn set_type(&mut self, val: ::std::os::raw::c_uint) {
-        unsafe {
-            let val: u32 = ::std::mem::transmute(val);
-            self._bitfield_1.set(9usize, 4u8, val as u64)
-        }
-    }
-    #[inline]
-    pub fn dpl(&self) -> ::std::os::raw::c_uint {
-        unsafe { ::std::mem::transmute(self._bitfield_1.get(13usize, 2u8) as u32) }
-    }
-    #[inline]
-    pub fn set_dpl(&mut self, val: ::std::os::raw::c_uint) {
-        unsafe {
-            let val: u32 = ::std::mem::transmute(val);
-            self._bitfield_1.set(13usize, 2u8, val as u64)
-        }
-    }
-    #[inline]
-    pub fn p(&self) -> ::std::os::raw::c_uint {
-        unsafe { ::std::mem::transmute(self._bitfield_1.get(15usize, 1u8) as u32) }
-    }
-    #[inline]
-    pub fn set_p(&mut self, val: ::std::os::raw::c_uint) {
-        unsafe {
-            let val: u32 = ::std::mem::transmute(val);
-            self._bitfield_1.set(15usize, 1u8, val as u64)
-        }
-    }
-    #[inline]
-    pub fn limit1(&self) -> ::std::os::raw::c_uint {
-        unsafe { ::std::mem::transmute(self._bitfield_1.get(16usize, 4u8) as u32) }
-    }
-    #[inline]
-    pub fn set_limit1(&mut self, val: ::std::os::raw::c_uint) {
-        unsafe {
-            let val: u32 = ::std::mem::transmute(val);
-            self._bitfield_1.set(16usize, 4u8, val as u64)
-        }
-    }
-    #[inline]
-    pub fn avl(&self) -> ::std::os::raw::c_uint {
-        unsafe { ::std::mem::transmute(self._bitfield_1.get(20usize, 1u8) as u32) }
-    }
-    #[inline]
-    pub fn set_avl(&mut self, val: ::std::os::raw::c_uint) {
-        unsafe {
-            let val: u32 = ::std::mem::transmute(val);
-            self._bitfield_1.set(20usize, 1u8, val as u64)
-        }
-    }
-    #[inline]
-    pub fn l(&self) -> ::std::os::raw::c_uint {
-        unsafe { ::std::mem::transmute(self._bitfield_1.get(21usize, 1u8) as u32) }
-    }
-    #[inline]
-    pub fn set_l(&mut self, val: ::std::os::raw::c_uint) {
-        unsafe {
-            let val: u32 = ::std::mem::transmute(val);
-            self._bitfield_1.set(21usize, 1u8, val as u64)
-        }
-    }
-    #[inline]
-    pub fn db(&self) -> ::std::os::raw::c_uint {
-        unsafe { ::std::mem::transmute(self._bitfield_1.get(22usize, 1u8) as u32) }
-    }
-    #[inline]
-    pub fn set_db(&mut self, val: ::std::os::raw::c_uint) {
-        unsafe {
-            let val: u32 = ::std::mem::transmute(val);
-            self._bitfield_1.set(22usize, 1u8, val as u64)
-        }
-    }
-    #[inline]
-    pub fn g(&self) -> ::std::os::raw::c_uint {
-        unsafe { ::std::mem::transmute(self._bitfield_1.get(23usize, 1u8) as u32) }
-    }
-    #[inline]
-    pub fn set_g(&mut self, val: ::std::os::raw::c_uint) {
-        unsafe {
-            let val: u32 = ::std::mem::transmute(val);
-            self._bitfield_1.set(23usize, 1u8, val as u64)
-        }
-    }
-    #[inline]
-    pub fn base2(&self) -> ::std::os::raw::c_uint {
-        unsafe { ::std::mem::transmute(self._bitfield_1.get(24usize, 8u8) as u32) }
-    }
-    #[inline]
-    pub fn set_base2(&mut self, val: ::std::os::raw::c_uint) {
-        unsafe {
-            let val: u32 = ::std::mem::transmute(val);
-            self._bitfield_1.set(24usize, 8u8, val as u64)
-        }
-    }
-    #[inline]
-    #[allow(clippy::too_many_arguments)]
-    pub fn new_bitfield_1(
-        base1: ::std::os::raw::c_uint,
-        s: ::std::os::raw::c_uint,
-        type_: ::std::os::raw::c_uint,
-        dpl: ::std::os::raw::c_uint,
-        p: ::std::os::raw::c_uint,
-        limit1: ::std::os::raw::c_uint,
-        avl: ::std::os::raw::c_uint,
-        l: ::std::os::raw::c_uint,
-        db: ::std::os::raw::c_uint,
-        g: ::std::os::raw::c_uint,
-        base2: ::std::os::raw::c_uint,
-    ) -> __BindgenBitfieldUnit<[u8; 4usize], u8> {
-        let mut __bindgen_bitfield_unit: __BindgenBitfieldUnit<[u8; 4usize], u8> =
-            Default::default();
-        __bindgen_bitfield_unit.set(0usize, 8u8, {
-            let base1: u32 = unsafe { ::std::mem::transmute(base1) };
-            base1 as u64
-        });
-        __bindgen_bitfield_unit.set(8usize, 1u8, {
-            let s: u32 = unsafe { ::std::mem::transmute(s) };
-            s as u64
-        });
-        __bindgen_bitfield_unit.set(9usize, 4u8, {
-            let type_: u32 = unsafe { ::std::mem::transmute(type_) };
-            type_ as u64
-        });
-        __bindgen_bitfield_unit.set(13usize, 2u8, {
-            let dpl: u32 = unsafe { ::std::mem::transmute(dpl) };
-            dpl as u64
-        });
-        __bindgen_bitfield_unit.set(15usize, 1u8, {
-            let p: u32 = unsafe { ::std::mem::transmute(p) };
-            p as u64
-        });
-        __bindgen_bitfield_unit.set(16usize, 4u8, {
-            let limit1: u32 = unsafe { ::std::mem::transmute(limit1) };
-            limit1 as u64
-        });
-        __bindgen_bitfield_unit.set(20usize, 1u8, {
-            let avl: u32 = unsafe { ::std::mem::transmute(avl) };
-            avl as u64
-        });
-        __bindgen_bitfield_unit.set(21usize, 1u8, {
-            let l: u32 = unsafe { ::std::mem::transmute(l) };
-            l as u64
-        });
-        __bindgen_bitfield_unit.set(22usize, 1u8, {
-            let db: u32 = unsafe { ::std::mem::transmute(db) };
-            db as u64
-        });
-        __bindgen_bitfield_unit.set(23usize, 1u8, {
-            let g: u32 = unsafe { ::std::mem::transmute(g) };
-            g as u64
-        });
-        __bindgen_bitfield_unit.set(24usize, 8u8, {
-            let base2: u32 = unsafe { ::std::mem::transmute(base2) };
-            base2 as u64
-        });
-        __bindgen_bitfield_unit
+const fn get_limit(entry: u64) -> u32 {
+    ((((entry) & 0x000F_0000_0000_0000) >> 32) | ((entry) & 0x0000_0000_0000_FFFF)) as u32
+}
+
+const fn get_g(entry: u64) -> u8 {
+    ((entry & 0x0080_0000_0000_0000) >> 55) as u8
+}
+
+const fn get_db(entry: u64) -> u8 {
+    ((entry & 0x0040_0000_0000_0000) >> 54) as u8
+}
+
+const fn get_l(entry: u64) -> u8 {
+    ((entry & 0x0020_0000_0000_0000) >> 53) as u8
+}
+
+const fn get_avl(entry: u64) -> u8 {
+    ((entry & 0x0010_0000_0000_0000) >> 52) as u8
+}
+
+const fn get_p(entry: u64) -> u8 {
+    ((entry & 0x0000_8000_0000_0000) >> 47) as u8
+}
+
+const fn get_dpl(entry: u64) -> u8 {
+    ((entry & 0x0000_6000_0000_0000) >> 45) as u8
+}
+
+const fn get_s(entry: u64) -> u8 {
+    ((entry & 0x0000_1000_0000_0000) >> 44) as u8
+}
+
+const fn get_type(entry: u64) -> u8 {
+    ((entry & 0x0000_0F00_0000_0000) >> 40) as u8
+}
+
+/// Automatically build the kvm struct for SET_SREGS from the kernel bit fields.
+///
+/// # Arguments
+///
+/// * `entry` - The gdt entry.
+/// * `table_index` - Index of the entry in the gdt table.
+pub fn kvm_segment_from_gdt(entry: u64, table_index: u8) -> kvm_segment {
+    kvm_segment {
+        base: get_base(entry),
+        limit: get_limit(entry),
+        selector: u16::from(table_index * 8),
+        type_: get_type(entry),
+        present: get_p(entry),
+        dpl: get_dpl(entry),
+        db: get_db(entry),
+        s: get_s(entry),
+        l: get_l(entry),
+        g: get_g(entry),
+        avl: get_avl(entry),
+        padding: 0,
+        unusable: match get_p(entry) {
+            0 => 1,
+            _ => 0,
+        },
     }
 }
-#[repr(C, packed)]
-#[derive(Debug, Copy, Clone)]
-pub struct desc_ptr {
-    pub size: u16,
-    pub address: u64,
-}
-#[test]
-fn bindgen_test_layout_desc_ptr() {
-    assert_eq!(
-        ::std::mem::size_of::<desc_ptr>(),
-        10usize,
-        concat!("Size of: ", stringify!(desc_ptr))
-    );
-    assert_eq!(
-        ::std::mem::align_of::<desc_ptr>(),
-        1usize,
-        concat!("Alignment of ", stringify!(desc_ptr))
-    );
-    assert_eq!(
-        unsafe { &(*(::std::ptr::null::<desc_ptr>())).size as *const _ as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(desc_ptr),
-            "::",
-            stringify!(size)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(::std::ptr::null::<desc_ptr>())).address as *const _ as usize },
-        2usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(desc_ptr),
-            "::",
-            stringify!(address)
-        )
-    );
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn field_parse() {
+        let gdt = gdt_entry(0xA09B, 0x10_0000, 0xfffff);
+        let seg = kvm_segment_from_gdt(gdt, 0);
+        // 0xA09B
+        // 'A'
+        assert_eq!(0x1, seg.g);
+        assert_eq!(0x0, seg.db);
+        assert_eq!(0x1, seg.l);
+        assert_eq!(0x0, seg.avl);
+        // '9'
+        assert_eq!(0x1, seg.present);
+        assert_eq!(0x0, seg.dpl);
+        assert_eq!(0x1, seg.s);
+        // 'B'
+        assert_eq!(0xB, seg.type_);
+        // base and limit
+        assert_eq!(0x10_0000, seg.base);
+        assert_eq!(0xfffff, seg.limit);
+        assert_eq!(0x0, seg.unusable);
+    }
 }

@@ -8,6 +8,41 @@ use core::fmt;
 
 mod memory_map;
 
+pub const BOOT_GDT_OFFSET: usize = 0x500;
+pub const BOOT_IDT_OFFSET: usize = 0x520;
+
+// Initial pagetables.
+pub const PML4_START: usize = 0x9000;
+pub const PDPTE_START: usize = 0xA000;
+pub const PDE_START: usize = 0xB000;
+pub const PDPTE_OFFSET_START: usize = 0xF000;
+
+pub const PAGETABLE_LEN: u64 = core::mem::size_of::<PageTables>() as _;
+pub const BOOTINFO_PHYS_ADDR: u64 = PML4_START as u64 + PAGETABLE_LEN;
+pub const SYSCALL_PHYS_ADDR: u64 = BOOTINFO_PHYS_ADDR + 0x1000;
+pub const HIMEM_START: usize = 0x0010_0000; //1 MB.
+pub const BOOT_STACK_POINTER: u64 = HIMEM_START as u64 - 0x1000;
+pub const BOOT_STACK_POINTER_SIZE: u64 = 0xE0000;
+
+#[repr(C)]
+pub struct PageTables {
+    pub pml4t: [u64; 512],           // 0x9000
+    pub pml3t_ident: [u64; 512],     // 0xA000
+    pub pml2t_ident: [u64; 512 * 4], // 0xB000
+    pub pml3t_offset: [u64; 512],    // 0xF000
+}
+
+impl Default for PageTables {
+    fn default() -> Self {
+        PageTables {
+            pml4t: [0u64; 512],
+            pml3t_ident: [0u64; 512],
+            pml2t_ident: [0u64; 512 * 4],
+            pml3t_offset: [0u64; 512],
+        }
+    }
+}
+
 /// Defines the entry point function.
 ///
 /// The function must have the signature `fn(&'static BootInfo) -> !`.
@@ -61,7 +96,8 @@ pub struct BootInfo {
     /// cause undefined behavior. Only frames reported as `USABLE` by the memory map in the `BootInfo`
     /// can be safely accessed.
     pub physical_memory_offset: u64,
-    //_non_exhaustive: u8, // `()` is not FFI safe
+    pub syscall_page: u64,
+    pub recursive_page_table_addr: u64,
 }
 
 impl BootInfo {
@@ -72,12 +108,13 @@ impl BootInfo {
         memory_map: MemoryMap,
         recursive_page_table_addr: u64,
         physical_memory_offset: u64,
+        syscall_page: u64,
     ) -> Self {
         BootInfo {
             memory_map,
-            //recursive_page_table_addr,
+            recursive_page_table_addr,
             physical_memory_offset,
-            //_non_exhaustive: 0,
+            syscall_page,
         }
     }
 }
@@ -89,6 +126,11 @@ impl fmt::Debug for BootInfo {
             .field(
                 "physical_memory_offset",
                 &format_args!("{:#X}", self.physical_memory_offset),
+            )
+            .field("syscall_page", &format_args!("{:#X}", self.syscall_page))
+            .field(
+                "recursive_page_table_addr",
+                &format_args!("{:#X}", self.recursive_page_table_addr),
             )
             .finish()
     }

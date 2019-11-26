@@ -10,8 +10,11 @@ extern crate alloc;
 use alloc::{boxed::Box, rc::Rc, vec, vec::Vec};
 use bootinfo::{entry_point, BootInfo, MemoryRegion, MemoryRegionType};
 use core::panic::PanicInfo;
+use core::ptr::null_mut;
 use core::slice;
-use kernel::{exit_qemu, println, QemuExitCode};
+use kernel::libc::madvise;
+use kernel::{exit_qemu, println, QemuExitCode, BOOTINFO, MAPPER};
+use x86_64::structures::paging::MapperAllSizes;
 use x86_64::{PhysAddr, VirtAddr};
 use xmas_elf::program::ProgramHeader;
 
@@ -32,25 +35,45 @@ impl PhysOffset {
 fn kernel_main(boot_info: &'static BootInfo) -> ! {
     use kernel::allocator;
     use kernel::memory::{self, BootInfoFrameAllocator};
-
     println!("Hello World!");
 
+    println!("{}:{}", file!(), line!());
     kernel::init();
-    //println!("{}:{}", file!(), line!());
+    println!("{}:{}", file!(), line!());
 
     println!("{:#?}", boot_info);
+    println!("{}:{}", file!(), line!());
+
     let phys_off = PhysOffset {
         offset: VirtAddr::new(boot_info.physical_memory_offset),
     };
+    println!("{}:{}", file!(), line!());
     let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
-    let mut mapper = unsafe { memory::init(phys_mem_offset) };
-    let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_map) };
+    println!("{}:{}", file!(), line!());
+    unsafe { MAPPER.replace(memory::init(phys_mem_offset)) };
 
-    allocator::init_heap(&mut mapper, &mut frame_allocator).expect("heap initialization failed");
+    println!("{}:{}", file!(), line!());
+    let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_map) };
+    println!("{}:{}", file!(), line!());
+
+    allocator::init_heap(unsafe { MAPPER.as_mut().unwrap() }, &mut frame_allocator)
+        .expect("heap initialization failed");
+
+    println!("{}:{}", file!(), line!());
+
+    unsafe {
+        BOOTINFO.replace(boot_info);
+    }
+    println!("{}:{}", file!(), line!());
+
+    let ret = madvise(null_mut(), 0, 0);
+    println!("madvise() = {:#?}", ret);
+    println!("{}:{}", file!(), line!());
 
     // allocate a number on the heap
     let heap_value = Box::new(41);
     println!("heap_value at {:p}", heap_value);
+    println!("{}:{}", file!(), line!());
 
     // create a dynamically sized vector
     let mut vec = Vec::new();
@@ -58,6 +81,7 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
         vec.push(i);
     }
     println!("vec at {:p}", vec.as_slice());
+    println!("{}:{}", file!(), line!());
 
     // create a reference counted vector -> will be freed when count reaches 0
     let reference_counted = Rc::new(vec![1, 2, 3]);

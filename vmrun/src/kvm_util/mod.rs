@@ -1,69 +1,50 @@
-use bitfield::Bitfield;
-use kvm_bindings::{kvm_dtable, kvm_mp_state, kvm_segment, kvm_userspace_memory_region};
+use kvm_bindings::{kvm_mp_state, kvm_userspace_memory_region};
 use kvm_ioctls::{Kvm, VcpuFd, VmFd, MAX_KVM_CPUID_ENTRIES};
 use nix;
 pub use x86_64::{HostVirtAddr, PhysAddr, VirtAddr};
-mod bitfield;
 mod frame_allocator;
 mod gdt;
 mod page_table;
 mod x86;
-mod x86_64;
+pub mod x86_64;
 
 use crate::error::*;
-use crate::kvm_util::bitfield::Rangefield;
-use crate::map_context;
-use bootinfo::{BootInfo, FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
+use crate::{context, map_context};
+use bootinfo::{
+    BootInfo, FrameRange, MemoryMap, MemoryRegion, MemoryRegionType, PageTables,
+    BOOTINFO_PHYS_ADDR, BOOT_GDT_OFFSET, BOOT_IDT_OFFSET, BOOT_STACK_POINTER,
+    BOOT_STACK_POINTER_SIZE, HIMEM_START, PAGETABLE_LEN, PDE_START, PDPTE_OFFSET_START,
+    PDPTE_START, PML4_START, SYSCALL_PHYS_ADDR,
+};
 
-use crate::kvm_util::x86_64::structures::paging::Size4KiB;
+use crate::kvm_util::gdt::{gdt_entry, kvm_segment_from_gdt};
 use core::ptr::null_mut;
-use nix::sys::mman::{madvise, mmap, MapFlags, ProtFlags};
-use page_table::PageTableFlags;
+use nix::sys::mman::{mmap, MapFlags, ProtFlags};
+use vmsyscall::{KvmSyscall, KvmSyscallRet};
 use x86::*;
 use x86_64::structures::paging::{frame::PhysFrameRange, PhysFrame};
 
-const KVM_UTIL_PGS_PER_HUGEPG: usize = 512;
-const DEFAULT_GUEST_PHY_PAGES: u64 = 512;
-const KVM_GUEST_PAGE_TABLE_MIN_PADDR: u64 = 0x18_0000;
-const KVM_UTIL_MIN_VADDR: u64 = 0x2000;
-const KVM_UTIL_MIN_PFN: u64 = 2;
-const DEFAULT_STACK_PGS: u64 = 5;
-const DEFAULT_GUEST_STACK_VADDR_MIN: u64 = 0xab_6000;
-const PHYSICAL_MEMORY_OFFSET: u64 = 0x0000_7000_0000_0000;
+const DEFAULT_GUEST_MEM: u64 = 100 * 1024 * 1024;
+const DEFAULT_GUEST_PAGE_SIZE: usize = 4096;
+
+const PHYSICAL_MEMORY_OFFSET: u64 = 0xFFFF_8000_0000_0000;
 
 struct UserspaceMemRegion {
     region: kvm_userspace_memory_region,
-    used_phy_pages: Bitfield,
-    host_mem: PhysAddr,
-    mmap_start: PhysAddr,
+    host_mem: HostVirtAddr,
+    mmap_start: HostVirtAddr,
     mmap_size: usize,
-}
-
-#[allow(non_camel_case_types)]
-#[derive(Clone, Copy)]
-pub enum VmMemBackingSrcType {
-    VM_MEM_SRC_ANONYMOUS,
-    VM_MEM_SRC_ANONYMOUS_THP,
-    VM_MEM_SRC_ANONYMOUS_HUGETLB,
 }
 
 pub struct KvmVm {
     kvm: Kvm,
     pub cpu_fd: Vec<VcpuFd>,
     kvm_fd: VmFd,
-    page_size: u64,
-    page_shift: u32,
-    pa_bits: u32,
-    va_bits: u32,
-    max_gfn: u64,
+    page_size: usize,
     frame_allocator: frame_allocator::FrameAllocator,
     userspace_mem_regions: Vec<UserspaceMemRegion>,
-    vpages_valid: Rangefield,
-    vpages_mapped: Bitfield,
     has_irqchip: bool,
-    pgd: Option<PhysAddr>,
-    gdt: Option<VirtAddr>,
-    tss: Option<VirtAddr>,
+    pub syscall_hostvaddr: Option<HostVirtAddr>,
 }
 
 fn frame_range(range: PhysFrameRange) -> FrameRange {
@@ -90,49 +71,64 @@ impl KvmVm {
             kvm,
             cpu_fd: vec![],
             kvm_fd,
-            page_size: 0x1000,
-            page_shift: 12,
-            pa_bits: 52,
-            va_bits: 48,
-            max_gfn: 0,
+            page_size: DEFAULT_GUEST_PAGE_SIZE,
             frame_allocator: frame_allocator::FrameAllocator {
                 memory_map: MemoryMap::new(),
             },
             userspace_mem_regions: vec![],
-            vpages_valid: Default::default(),
-            vpages_mapped: Default::default(),
             has_irqchip: false,
-            pgd: None,
-            gdt: None,
-            tss: None,
+            syscall_hostvaddr: None,
         };
 
-        let end = ((1u64 << (vm.va_bits - 1)) >> vm.page_shift) as _;
-        vm.vpages_valid.push(0..end);
-        /*
-                for i in 0..((1usize << (vm.va_bits as usize - 1)) >> vm.page_shift as usize) {
-                    vm.vpages_valid.set(i, true);
-                }
-        */
-        let start = (!((1u64 << (vm.va_bits - 1)) - 1)) >> vm.page_shift;
-        let len = (1u64 << (vm.va_bits - 1)) >> vm.page_shift;
-
-        vm.vpages_valid.push(start as _..(start + len) as _);
-        /*
-                for i in start..(start + len) {
-                    vm.vpages_valid.set(i, true);
-                }
-        */
-        vm.max_gfn = ((1u64 << vm.pa_bits) >> vm.page_shift) - 1;
-
+        //FIXME: remove phy_pages
         if phy_pages != 0 {
-            vm.vm_userspace_mem_region_add(
-                VmMemBackingSrcType::VM_MEM_SRC_ANONYMOUS,
-                PhysAddr::new(0),
-                0,
-                phy_pages,
-                0,
-            )?;
+            vm.vm_userspace_mem_region_add(PhysAddr::new(0), 0, phy_pages, 0)?;
+
+            let zero_frame: PhysFrame = PhysFrame::from_start_address(PhysAddr::new(0)).unwrap();
+            let page_table_frame: PhysFrame =
+                PhysFrame::from_start_address(PhysAddr::new(PML4_START as _)).unwrap();
+
+            vm.frame_allocator.mark_allocated_region(MemoryRegion {
+                range: frame_range(PhysFrame::range(zero_frame, page_table_frame)),
+                region_type: MemoryRegionType::FrameZero,
+            });
+
+            vm.frame_allocator.mark_allocated_region(MemoryRegion {
+                range: frame_range(PhysFrame::range(
+                    page_table_frame,
+                    page_table_frame + PAGETABLE_LEN / vm.page_size as u64,
+                )),
+                region_type: MemoryRegionType::PageTable,
+            });
+
+            let bootinfo_frame: PhysFrame =
+                PhysFrame::from_start_address(PhysAddr::new(BOOTINFO_PHYS_ADDR)).unwrap();
+            vm.frame_allocator.mark_allocated_region(MemoryRegion {
+                range: frame_range(PhysFrame::range(bootinfo_frame, bootinfo_frame + 1)),
+                region_type: MemoryRegionType::BootInfo,
+            });
+
+            let syscall_frame: PhysFrame =
+                PhysFrame::from_start_address(PhysAddr::new(SYSCALL_PHYS_ADDR)).unwrap();
+            vm.frame_allocator.mark_allocated_region(MemoryRegion {
+                range: frame_range(PhysFrame::range(syscall_frame, syscall_frame + 1)),
+                region_type: MemoryRegionType::SysCall,
+            });
+
+            // FIXME: add stack guard page
+            let stack_frame: PhysFrame = PhysFrame::from_start_address(PhysAddr::new(
+                BOOT_STACK_POINTER - BOOT_STACK_POINTER_SIZE,
+            ))
+            .unwrap();
+            let stack_frame_end: PhysFrame =
+                PhysFrame::from_start_address(PhysAddr::new(HIMEM_START as u64)).unwrap();
+
+            vm.frame_allocator.mark_allocated_region(MemoryRegion {
+                range: frame_range(PhysFrame::range(stack_frame, stack_frame_end)),
+                region_type: MemoryRegionType::KernelStack,
+            });
+
+            vm.setup_page_tables()?;
         }
 
         Ok(vm)
@@ -140,97 +136,51 @@ impl KvmVm {
 
     pub fn vm_userspace_mem_region_add(
         &mut self,
-        src_type: VmMemBackingSrcType,
         guest_paddr: PhysAddr,
         slot: u32,
         npages: u64,
         flags: u32,
     ) -> Result<(), Error> {
-        let huge_page_size: usize = KVM_UTIL_PGS_PER_HUGEPG * self.page_size as usize;
-
-        if (guest_paddr.as_u64() % self.page_size) != 0 {
-            return Err(ErrorKind::Generic.into()); // FIXME: Error
-        }
-
-        if (guest_paddr.as_u64() >> self.page_shift as u64) + npages - 1 > self.max_gfn {
-            return Err(ErrorKind::Generic.into()); // FIXME: Error
-        }
-
         for r in self.userspace_mem_regions.iter() {
             if r.region.slot == slot {
-                return Err(ErrorKind::MemRegionWithSlotAlreadyExists.into());
+                return Err(context!(ErrorKind::MemRegionWithSlotAlreadyExists));
             }
 
             if guest_paddr.as_u64() <= (r.region.guest_phys_addr + r.region.memory_size)
-                && (guest_paddr.as_u64() + npages * self.page_size) >= r.region.guest_phys_addr
+                && (guest_paddr.as_u64() + npages * self.page_size as u64)
+                    >= r.region.guest_phys_addr
             {
-                return Err(ErrorKind::OverlappingUserspaceMemRegionExists.into());
+                return Err(context!(ErrorKind::OverlappingUserspaceMemRegionExists));
             }
         }
 
         let mut region = UserspaceMemRegion {
             region: Default::default(),
-            used_phy_pages: Default::default(),
-            host_mem: PhysAddr::new(0),
-            mmap_start: PhysAddr::new(0),
-            mmap_size: (npages * self.page_size) as _,
+            host_mem: HostVirtAddr::new(0),
+            mmap_start: HostVirtAddr::new(0),
+            mmap_size: (npages * self.page_size as u64) as _,
         };
-
-        if let VmMemBackingSrcType::VM_MEM_SRC_ANONYMOUS_THP = src_type {
-            region.mmap_size += huge_page_size;
-        }
 
         let mmap_start = unsafe {
             mmap(
                 null_mut(),
                 region.mmap_size,
                 ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
-                MapFlags::MAP_PRIVATE
-                    | MapFlags::MAP_ANONYMOUS
-                    | match src_type {
-                        VmMemBackingSrcType::VM_MEM_SRC_ANONYMOUS_HUGETLB => MapFlags::MAP_HUGETLB,
-                        _ => MapFlags::empty(),
-                    },
+                MapFlags::MAP_PRIVATE | MapFlags::MAP_ANONYMOUS,
                 -1,
                 0,
             )
         }
-        .map_err(|_| Error::from(ErrorKind::MmapFailed))?;
+        .map_err(|_| context!(ErrorKind::MmapFailed))?;
 
-        region.mmap_start = PhysAddr::new(mmap_start as u64);
+        region.mmap_start = HostVirtAddr::new(mmap_start as u64);
 
-        if let VmMemBackingSrcType::VM_MEM_SRC_ANONYMOUS_THP = src_type {
-            region.host_mem = region.mmap_start.align_up(huge_page_size as u64);
-        } else {
-            region.host_mem = region.mmap_start;
-        }
-
-        use nix::sys::mman::MmapAdvise;
-
-        match src_type {
-            VmMemBackingSrcType::VM_MEM_SRC_ANONYMOUS => unsafe {
-                madvise(
-                    region.host_mem.as_u64() as *mut _,
-                    (npages * self.page_size as u64) as usize,
-                    MmapAdvise::MADV_NOHUGEPAGE,
-                )
-                .map_err(|_| Error::from(ErrorKind::MadviseFailed))?;
-            },
-            VmMemBackingSrcType::VM_MEM_SRC_ANONYMOUS_THP => unsafe {
-                nix::sys::mman::madvise(
-                    region.host_mem.as_u64() as *mut _,
-                    (npages * self.page_size as u64) as usize,
-                    MmapAdvise::MADV_HUGEPAGE,
-                )
-                .map_err(|_| Error::from(ErrorKind::MadviseFailed))?;
-            },
-            VmMemBackingSrcType::VM_MEM_SRC_ANONYMOUS_HUGETLB => { /* FIXME: no madvise? */ }
-        }
+        region.host_mem = region.mmap_start;
 
         region.region.slot = slot;
         region.region.flags = flags;
         region.region.guest_phys_addr = guest_paddr.as_u64();
-        region.region.memory_size = npages * self.page_size;
+        region.region.memory_size = npages * self.page_size as u64;
         region.region.userspace_addr = region.host_mem.as_u64();
 
         unsafe {
@@ -242,13 +192,6 @@ impl KvmVm {
         self.frame_allocator.memory_map.add_region(MemoryRegion {
             range: FrameRange::new(region.region.guest_phys_addr, region.region.memory_size),
             region_type: MemoryRegionType::Usable,
-        });
-
-        let zero_frame: PhysFrame = PhysFrame::from_start_address(PhysAddr::new(0)).unwrap();
-
-        self.frame_allocator.mark_allocated_region(MemoryRegion {
-            range: frame_range(PhysFrame::range(zero_frame, zero_frame + 1)),
-            region_type: MemoryRegionType::FrameZero,
         });
 
         self.userspace_mem_regions.push(region);
@@ -266,317 +209,75 @@ impl KvmVm {
                 ));
             }
         }
-        Err(ErrorKind::NoMappingForVirtualAddress.into())
-    }
-
-    pub fn addr_gva2gpa(&self, gva: VirtAddr) -> Result<PhysAddr, Error> {
-        let pgd = self
-            .pgd
-            .ok_or_else(|| Error::from(ErrorKind::NoMappingForVirtualAddress))?;
-
-        let index: [usize; 4] = [
-            (gva.as_u64() >> 12) as usize & 0x1ffusize,
-            (gva.as_u64() >> 21) as usize & 0x1ffusize,
-            (gva.as_u64() >> 30) as usize & 0x1ffusize,
-            (gva.as_u64() >> 39) as usize & 0x1ffusize,
-        ];
-        let pml4e = self.addr_gpa2hva(pgd)?;
-        let pml4e = unsafe {
-            core::slice::from_raw_parts(pml4e.as_u64() as *mut PageTableFlags, 512 as usize)
-        };
-
-        if !pml4e[index[3]].contains(PageTableFlags::PRESENT) {
-            return Err(ErrorKind::NoMappingForVirtualAddress.into());
-        }
-
-        let pdpe = self.addr_gpa2hva(PhysAddr::new(pml4e[index[3]].addr() * self.page_size))?;
-        let pdpe = unsafe {
-            core::slice::from_raw_parts(pdpe.as_u64() as *mut PageTableFlags, 512 as usize)
-        };
-
-        if !pdpe[index[2]].contains(PageTableFlags::PRESENT) {
-            return Err(ErrorKind::NoMappingForVirtualAddress.into());
-        }
-
-        let pde = self.addr_gpa2hva(PhysAddr::new(pdpe[index[2]].addr() * self.page_size))?;
-        let pde = unsafe {
-            core::slice::from_raw_parts(pde.as_u64() as *mut PageTableFlags, 512 as usize)
-        };
-
-        if !pde[index[1]].contains(PageTableFlags::PRESENT) {
-            return Err(ErrorKind::NoMappingForVirtualAddress.into());
-        }
-
-        let pte = self.addr_gpa2hva(PhysAddr::new(pde[index[1]].addr() * self.page_size))?;
-        let pte = unsafe {
-            core::slice::from_raw_parts(pte.as_u64() as *mut PageTableFlags, 512 as usize)
-        };
-
-        if !pte[index[0]].contains(PageTableFlags::PRESENT) {
-            return Err(ErrorKind::NoMappingForVirtualAddress.into());
-        }
-
-        Ok(PhysAddr::new(
-            (pte[index[0]].addr() * self.page_size) + (gva.as_u64() & 0xfffu64),
-        ))
-    }
-
-    pub fn virt_pg_map(
-        &mut self,
-        vaddr: VirtAddr,
-        paddr: PhysAddr,
-        pgd_memslot: u32,
-    ) -> Result<(), Error> {
-        let pgd = self
-            .pgd
-            .ok_or_else(|| Error::from(ErrorKind::NoMappingForVirtualAddress))?;
-
-        /* FIXME:
-            TEST_ASSERT((vaddr % vm->page_size) == 0,
-                "Virtual address not on page boundary,\n"
-                "  vaddr: 0x%lx vm->page_size: 0x%x",
-                vaddr, vm->page_size);
-            TEST_ASSERT(sparsebit_is_set(vm->vpages_valid,
-                (vaddr >> vm->page_shift)),
-                "Invalid virtual address, vaddr: 0x%lx",
-                vaddr);
-            TEST_ASSERT((paddr % vm->page_size) == 0,
-                "Physical address not on page boundary,\n"
-                "  paddr: 0x%lx vm->page_size: 0x%x",
-                paddr, vm->page_size);
-            TEST_ASSERT((paddr >> vm->page_shift) <= vm->max_gfn,
-                "Physical address beyond beyond maximum supported,\n"
-                "  paddr: 0x%lx vm->max_gfn: 0x%lx vm->page_size: 0x%x",
-                paddr, vm->max_gfn, vm->page_size);
-        */
-
-        let index: [usize; 4] = [
-            (vaddr.as_u64() >> 12) as usize & 0x1ffusize,
-            (vaddr.as_u64() >> 21) as usize & 0x1ffusize,
-            (vaddr.as_u64() >> 30) as usize & 0x1ffusize,
-            (vaddr.as_u64() >> 39) as usize & 0x1ffusize,
-        ];
-
-        let pml4e = self.addr_gpa2hva(pgd)?;
-        let pml4e = unsafe {
-            core::slice::from_raw_parts_mut(pml4e.as_u64() as *mut PageTableFlags, 512 as usize)
-        };
-
-        if !pml4e[index[3]].contains(PageTableFlags::PRESENT) {
-            pml4e[index[3]].insert(PageTableFlags::PRESENT | PageTableFlags::WRITABLE);
-            pml4e[index[3]].set_addr(
-                self.vm_phy_page_alloc(
-                    PhysAddr::new(KVM_GUEST_PAGE_TABLE_MIN_PADDR),
-                    pgd_memslot,
-                    MemoryRegionType::PageTable,
-                )?
-                .as_u64()
-                    >> self.page_shift,
-            );
-        }
-
-        let pdpe = self.addr_gpa2hva(PhysAddr::new(pml4e[index[3]].addr() * self.page_size))?;
-        let pdpe = unsafe {
-            core::slice::from_raw_parts_mut(pdpe.as_u64() as *mut PageTableFlags, 512 as usize)
-        };
-
-        if !pdpe[index[2]].contains(PageTableFlags::PRESENT) {
-            pdpe[index[2]].insert(PageTableFlags::PRESENT | PageTableFlags::WRITABLE);
-            pdpe[index[2]].set_addr(
-                self.vm_phy_page_alloc(
-                    PhysAddr::new(KVM_GUEST_PAGE_TABLE_MIN_PADDR),
-                    pgd_memslot,
-                    MemoryRegionType::PageTable,
-                )?
-                .as_u64()
-                    >> self.page_shift,
-            );
-        }
-
-        let pde = self.addr_gpa2hva(PhysAddr::new(pdpe[index[2]].addr() * self.page_size))?;
-        let pde = unsafe {
-            core::slice::from_raw_parts_mut(pde.as_u64() as *mut PageTableFlags, 512 as usize)
-        };
-
-        if !pde[index[1]].contains(PageTableFlags::PRESENT) {
-            pde[index[1]].insert(PageTableFlags::PRESENT | PageTableFlags::WRITABLE);
-            pde[index[1]].set_addr(
-                self.vm_phy_page_alloc(
-                    PhysAddr::new(KVM_GUEST_PAGE_TABLE_MIN_PADDR),
-                    pgd_memslot,
-                    MemoryRegionType::PageTable,
-                )?
-                .as_u64()
-                    >> self.page_shift,
-            );
-        }
-
-        let pte = self.addr_gpa2hva(PhysAddr::new(pde[index[1]].addr() * self.page_size))?;
-        let pte = unsafe {
-            core::slice::from_raw_parts_mut(pte.as_u64() as *mut PageTableFlags, 512 as usize)
-        };
-        pte[index[0]].set_addr(paddr.as_u64() >> self.page_shift);
-        pte[index[0]].insert(PageTableFlags::PRESENT | PageTableFlags::WRITABLE);
-
-        Ok(())
-    }
-
-    pub fn addr_gva2hva(&self, gva: VirtAddr) -> Result<HostVirtAddr, Error> {
-        self.addr_gpa2hva(self.addr_gva2gpa(gva)?)
-    }
-
-    fn memslot2region(&self, memslot: u32) -> Result<usize, Error> {
-        for (i, r) in self.userspace_mem_regions.iter().enumerate() {
-            if r.region.slot == memslot {
-                return Ok(i);
-            }
-        }
-        Err(ErrorKind::NoMemRegionWithSlotFound.into())
+        Err(context!(ErrorKind::NoMappingForVirtualAddress))
     }
 
     pub fn vm_phy_pages_alloc(
         &mut self,
         num: usize,
-        paddr_min: PhysAddr,
-        memslot: u32,
         region_type: MemoryRegionType,
     ) -> Result<PhysAddr, Error> {
         assert!(num > 0);
-        assert!((paddr_min.as_u64() % self.page_size) == 0);
 
-        let region_index = self.memslot2region(memslot)?;
+        let start = self
+            .frame_allocator
+            .allocate_frames(num as _, region_type)
+            .ok_or_else(|| context!(ErrorKind::NoMemFree))?;
 
-        let start = self.userspace_mem_regions[region_index]
-            .used_phy_pages
-            .find_unset_range((paddr_min.as_u64() >> self.page_shift as u64) as usize, num)
-            .ok_or_else(|| Error::from(ErrorKind::NoMemFree))?;
-
-        self.userspace_mem_regions[region_index]
-            .used_phy_pages
-            .set_range(start, num);
-
-        let start = PhysAddr::new(start as u64 * self.page_size);
-        let start_frame = PhysFrame::containing_address(start);
-        let end_frame = PhysFrame::containing_address(start + num - 1u64);
-        let memory_area = PhysFrame::range(start_frame, end_frame + 1);
-
-        self.frame_allocator.mark_allocated_region(MemoryRegion {
-            range: frame_range(memory_area),
-            region_type,
-        });
-
-        Ok(start)
+        Ok(start.start_address())
     }
 
-    pub fn vm_phy_page_alloc(
-        &mut self,
-        paddr_min: PhysAddr,
-        memslot: u32,
-        region_type: MemoryRegionType,
-    ) -> Result<PhysAddr, Error> {
-        self.vm_phy_pages_alloc(1, paddr_min, memslot, region_type)
+    pub fn vm_phy_page_alloc(&mut self, region_type: MemoryRegionType) -> Result<PhysAddr, Error> {
+        self.vm_phy_pages_alloc(1, region_type)
     }
 
-    pub fn virt_pgd_alloc(&mut self, pgd_memslot: u32) -> Result<(), Error> {
-        if self.pgd.is_none() {
-            self.pgd = Some(self.vm_phy_page_alloc(
-                PhysAddr::new(KVM_GUEST_PAGE_TABLE_MIN_PADDR),
-                pgd_memslot,
-                MemoryRegionType::PageTable,
-            )?);
+    fn setup_page_tables(&mut self) -> Result<(), Error> {
+        let mut page_tables = PageTables::default();
+
+        // Puts PML4 right after zero page but aligned to 4k.
+        let boot_pdpte_addr = PDPTE_START;
+        let mut boot_pde_addr = PDE_START;
+        let boot_pdpte_offset_addr = PDPTE_OFFSET_START;
+
+        // Entry covering VA [0..512GB)
+        page_tables.pml4t[0] = boot_pdpte_addr as u64 | 0x3;
+
+        // Entry covering VA [0..512GB) with physical offset PHYSICAL_MEMORY_OFFSET
+        page_tables.pml4t[(PHYSICAL_MEMORY_OFFSET >> 39) as usize & 0x1FFusize] =
+            boot_pdpte_offset_addr as u64 | 0x3;
+
+        // Entries covering VA [0..4GB)
+        for i_g in 0..4 {
+            // Entry covering VA [i..i+1GB)
+            page_tables.pml3t_ident[i_g] = boot_pde_addr as u64 | 0x3;
+            // 512 2MB entries together covering VA [i*1GB..(i+1)*1GB). Note we are assuming
+            // CPU supports 2MB pages (/proc/cpuinfo has 'pse'). All modern CPUs do.
+            for i in i_g * 512..(i_g + 1) * 512 {
+                page_tables.pml2t_ident[i] = ((i as u64) << 21) | 0x83u64;
+            }
+            boot_pde_addr += 0x1000;
+        }
+
+        // Entry covering VA [0..512GB) with physical offset PHYSICAL_MEMORY_OFFSET
+        for i in 0..512 {
+            page_tables.pml3t_offset[i] = ((i as u64) << 30) | 0x83u64;
+        }
+
+        let guest_pg_addr: *mut PageTables = self
+            .addr_gpa2hva(PhysAddr::new(PML4_START as _))?
+            .as_mut_ptr();
+
+        unsafe {
+            // FIXME: SEV LOAD
+            guest_pg_addr.write(page_tables);
         }
 
         Ok(())
     }
 
-    pub fn vm_vaddr_unused_gap(
-        &mut self,
-        sz: usize,
-        vaddr_min: VirtAddr,
-    ) -> Result<VirtAddr, Error> {
-        let pages: usize = (sz + self.page_size as usize - 1) >> self.page_shift as usize;
-
-        let mut pgidx_start: usize =
-            ((vaddr_min.as_u64() + self.page_size - 1) >> self.page_shift as u64) as usize;
-
-        if (pgidx_start * self.page_size as usize) < vaddr_min.as_u64() as usize {
-            return Err(ErrorKind::NoVirtualAddressAvailable.into());
-        }
-
-        if !self.vpages_valid.is_set_num(pgidx_start, pages) {
-            pgidx_start = match self.vpages_valid.next_set_num(pgidx_start, pages) {
-                Some(start) => start,
-                None => return Err(ErrorKind::NoVirtualAddressAvailable.into()),
-            };
-        }
-
-        loop {
-            if self.vpages_mapped.is_clear_num(pgidx_start, pages) {
-                return Ok(VirtAddr::new(pgidx_start as u64 * self.page_size));
-            }
-
-            pgidx_start = self.vpages_mapped.next_clear_num(pgidx_start, pages);
-
-            if !self.vpages_valid.is_set_num(pgidx_start, pages) {
-                pgidx_start = match self.vpages_valid.next_set_num(pgidx_start, pages) {
-                    Some(start) => start,
-                    None => return Err(ErrorKind::NoVirtualAddressAvailable.into()),
-                };
-            }
-        }
-    }
-
-    pub fn vm_vaddr_alloc(
-        &mut self,
-        sz: usize,
-        vaddr_min: VirtAddr,
-        data_memslot: u32,
-        pgd_memslot: u32,
-        region_type: MemoryRegionType,
-    ) -> Result<VirtAddr, Error> {
-        let mut pages: u64 = ((sz >> self.page_shift as usize) + {
-            if (sz % self.page_size as usize) == 0 {
-                0
-            } else {
-                1
-            }
-        }) as u64;
-
-        self.virt_pgd_alloc(pgd_memslot)?;
-
-        /*
-         * Find an unused range of virtual page addresses of at least
-         * pages in length.
-         */
-        let vaddr_start: VirtAddr = self.vm_vaddr_unused_gap(sz, vaddr_min)?;
-
-        let mut vaddr = vaddr_start;
-
-        /* Map the virtual pages. */
-        loop {
-            let paddr: PhysAddr = self.vm_phy_page_alloc(
-                PhysAddr::new(KVM_UTIL_MIN_PFN * self.page_size),
-                data_memslot,
-                region_type,
-            )?;
-            self.virt_pg_map(vaddr, paddr, pgd_memslot)?;
-            self.vpages_mapped
-                .set((vaddr.as_u64() >> self.page_shift) as usize, true);
-            pages -= 1;
-            if pages == 0 {
-                break;
-            }
-            vaddr += self.page_size;
-        }
-
-        Ok(vaddr_start)
-    }
-
     pub fn elf_load(
         &mut self,
         program_invocation_name: &str,
-        data_memslot: u32,
-        pgd_memslot: u32,
         start_symbol: Option<&str>,
     ) -> Result<VirtAddr, Error> {
         use std::fs::File;
@@ -595,7 +296,7 @@ impl KvmVm {
                 mmap::MapOption::MapReadable,
             ],
         )
-        .map_err(|_| Error::from(ErrorKind::MmapFailed))?;
+        .map_err(|_| context!(ErrorKind::MmapFailed))?;
 
         let data = unsafe { core::slice::from_raw_parts(mm.data(), mmap_size) };
 
@@ -629,7 +330,7 @@ impl KvmVm {
                 }
 
                 if guest_code.is_none() {
-                    return Err(ErrorKind::GuestCodeNotFound.into());
+                    return Err(context!(ErrorKind::GuestCodeNotFound));
                 }
             }
             None => guest_code = Some(VirtAddr::new(elf_file.header.pt2.entry_point())),
@@ -643,43 +344,41 @@ impl KvmVm {
                         program::Type::Load => {}
                         _ => continue,
                     }
-                    let seg_vstart = segment.virtual_addr & (!(self.page_size - 1));
-                    let seg_vend =
-                        (segment.virtual_addr + segment.mem_size - 1) | (self.page_size - 1);
-                    let seg_size = seg_vend - seg_vstart + 1;
 
-                    let flags = segment.flags;
-                    let mut page_table_flags = PageTableFlags::PRESENT;
-                    if !flags.is_execute() {
-                        page_table_flags |= PageTableFlags::NO_EXECUTE
+                    let start_phys = PhysAddr::new(segment.virtual_addr);
+                    let start_frame: PhysFrame =
+                        PhysFrame::from_start_address(start_phys.align_down(self.page_size as u64))
+                            .unwrap();
+
+                    let end_frame: PhysFrame = PhysFrame::from_start_address(
+                        PhysAddr::new(segment.virtual_addr + segment.mem_size - 1)
+                            .align_up(self.page_size as u64),
+                    )
+                    .unwrap();
+
+                    let region = MemoryRegion {
+                        range: frame_range(PhysFrame::range(start_frame, end_frame)),
+                        region_type: MemoryRegionType::Kernel,
                     };
-                    if flags.is_write() {
-                        page_table_flags |= PageTableFlags::WRITABLE
-                    };
 
-                    let vaddr = self.vm_vaddr_alloc(
-                        seg_size as usize,
-                        VirtAddr::new(seg_vstart),
-                        data_memslot,
-                        pgd_memslot,
-                        MemoryRegionType::Kernel,
-                    )?;
+                    self.frame_allocator.mark_allocated_region(region);
 
-                    let seg = unsafe {
+                    // FIXME: SEV LOAD
+                    let host_slice = unsafe {
                         core::slice::from_raw_parts_mut(
-                            self.addr_gva2hva(vaddr)?.as_u64() as *mut u8,
-                            seg_size as usize,
+                            self.addr_gpa2hva(start_phys)?.as_u64() as *mut u8,
+                            segment.mem_size as usize,
                         )
                     };
 
-                    seg[..segment.file_size as usize].copy_from_slice(
+                    host_slice[..segment.file_size as usize].copy_from_slice(
                         &data[segment.offset as usize
                             ..(segment.offset + segment.file_size) as usize],
                     );
 
-                    for i in &mut seg[segment.file_size as _..] {
-                        *i = 0;
-                    }
+                    host_slice[segment.file_size as _..]
+                        .iter_mut()
+                        .for_each(|i| *i = 0);
                 }
                 ProgramHeader::Ph32(_) => panic!("does not support 32 bit elf files"),
             }
@@ -688,179 +387,66 @@ impl KvmVm {
         Ok(guest_code.unwrap())
     }
 
-    fn kvm_setup_gdt(
-        &mut self,
-        dt: &mut kvm_dtable,
-        gdt_memslot: u32,
-        pgd_memslot: u32,
-    ) -> Result<(), Error> {
-        if self.gdt.is_none() {
-            self.gdt = Some(self.vm_vaddr_alloc(
-                self.page_size as usize,
-                VirtAddr::new(KVM_UTIL_MIN_VADDR),
-                gdt_memslot,
-                pgd_memslot,
-                MemoryRegionType::PageTable,
-            )?);
-        }
-
-        dt.base = self.gdt.unwrap().as_u64();
-        dt.limit = self.page_size as _;
-        Ok(())
-    }
-
-    fn kvm_seg_fill_gdt_64bit(&self, segp: &mut kvm_segment) -> Result<(), Error> {
-        let gdt = self.addr_gva2hva(self.gdt.unwrap())?;
-        let desc: *mut gdt::desc64 =
-            (gdt.as_u64() + (segp.selector as u64 >> 3u64) * 8u64) as *mut gdt::desc64;
-        unsafe {
-            (*desc).limit0 = (segp.limit & 0xFFFF) as _;
-            (*desc).base0 = (segp.base & 0xFFFF) as _;
-            (*desc).set_base1((segp.base >> 16) as u32);
-            (*desc).set_s(segp.s.into());
-            (*desc).set_type(segp.type_.into());
-            (*desc).set_dpl(segp.dpl.into());
-            (*desc).set_p(segp.present.into());
-            (*desc).set_limit1(segp.limit >> 16);
-            (*desc).set_l(segp.l.into());
-            (*desc).set_db(segp.db.into());
-            (*desc).set_g(segp.g.into());
-            (*desc).set_base2((segp.base >> 24) as u32);
-            if segp.s == 0 {
-                (*desc).base3 = (segp.base >> 32) as u32;
-            }
+    fn write_gdt_table(&self, table: &[u64]) -> Result<(), Error> {
+        let gdt_addr: *mut u64 = self
+            .addr_gpa2hva(PhysAddr::new(BOOT_GDT_OFFSET as _))?
+            .as_mut_ptr();
+        for (index, entry) in table.iter().enumerate() {
+            let addr = unsafe { gdt_addr.offset(index as _) };
+            unsafe { addr.write(*entry) };
         }
         Ok(())
     }
 
-    fn kvm_seg_set_kernel_code_64bit(
-        &self,
-        selector: u16,
-        segp: &mut kvm_segment,
-    ) -> Result<(), Error> {
-        /* memset(segp, 0, sizeof(*segp)); */
-        *segp = kvm_segment {
-            base: 0,
-            limit: 0xFFFF_FFFFu32,
-            selector,
-            type_: 0x08 | 0x01 | 0x02, // kFlagCode | kFlagCodeAccessed | kFlagCodeReadable
-            present: 1,
-            dpl: 0,
-            db: 0,
-            s: 0x1, // kTypeCodeData
-            l: 1,
-            g: 1,
-            avl: 0,
-            unusable: 0,
-            padding: 0,
-        };
-        self.kvm_seg_fill_gdt_64bit(segp)?;
+    fn write_idt_value(&self, val: u64) -> Result<(), Error> {
+        let boot_idt_addr: *mut u64 = self
+            .addr_gpa2hva(PhysAddr::new(BOOT_IDT_OFFSET as _))?
+            .as_mut_ptr();
+        unsafe { boot_idt_addr.write(val) }
         Ok(())
     }
 
-    fn kvm_seg_set_kernel_data_64bit(
-        &self,
-        selector: u16,
-        segp: &mut kvm_segment,
-    ) -> Result<(), Error> {
-        /* memset(segp, 0, sizeof(*segp)); */
-        *segp = kvm_segment {
-            selector,
-            limit: 0xFFFF_FFFFu32,
-            s: 0x1,             // kTypeCodeData
-            type_: 0x01 | 0x02, // kFlagData | kFlagDataAccessed | kFlagDataWritable
-            g: 1,
-            present: 1,
-            base: 0,
-            dpl: 0,
-            db: 0,
-            l: 0,
-            avl: 0,
-            unusable: 0,
-            padding: 0,
-        };
-        self.kvm_seg_fill_gdt_64bit(segp)?;
-        Ok(())
-    }
+    pub fn vcpu_setup(&mut self, vcpuid: u8) -> Result<(), Error> {
+        const BOOT_GDT_OFFSET: usize = 0x500;
+        const BOOT_IDT_OFFSET: usize = 0x520;
 
-    fn kvm_setup_tss_64bit(
-        &mut self,
-        segp: &mut kvm_segment,
-        selector: u16,
-        gdt_memslot: u32,
-        pgd_memslot: u32,
-    ) -> Result<(), Error> {
-        if self.tss.is_none() {
-            self.tss = Some(self.vm_vaddr_alloc(
-                self.page_size as _,
-                VirtAddr::new(KVM_UTIL_MIN_VADDR),
-                gdt_memslot,
-                pgd_memslot,
-                MemoryRegionType::PageTable,
-            )?);
-        }
-
-        *segp = kvm_segment {
-            base: self.tss.unwrap().as_u64(),
-            limit: 0x67,
-            selector,
-            type_: 0xb,
-            present: 1,
-            dpl: 0,
-            db: 0,
-            s: 0,
-            l: 0,
-            g: 0,
-            avl: 0,
-            unusable: 0,
-            padding: 0,
-        };
-
-        self.kvm_seg_fill_gdt_64bit(segp)?;
-        Ok(())
-    }
-
-    pub fn vcpu_setup(
-        &mut self,
-        vcpuid: u8,
-        pgd_memslot: u32,
-        gdt_memslot: u32,
-    ) -> Result<(), Error> {
         let mut sregs = self.cpu_fd[vcpuid as usize]
             .get_sregs()
             .map_err(map_context!())?;
 
-        sregs.idt.limit = 0;
+        let gdt_table: [u64; 4] = [
+            gdt_entry(0, 0, 0),            // NULL
+            gdt_entry(0xa09b, 0, 0xfffff), // CODE
+            gdt_entry(0xc093, 0, 0xfffff), // DATA
+            gdt_entry(0x808b, 0, 0xfffff), // TSS
+        ];
 
-        self.kvm_setup_gdt(&mut sregs.gdt, gdt_memslot, pgd_memslot)?;
+        let code_seg = kvm_segment_from_gdt(gdt_table[1], 1);
+        let data_seg = kvm_segment_from_gdt(gdt_table[2], 2);
+        let tss_seg = kvm_segment_from_gdt(gdt_table[3], 3);
+
+        // Write segments
+        self.write_gdt_table(&gdt_table[..])?;
+        sregs.gdt.base = BOOT_GDT_OFFSET as u64;
+        sregs.gdt.limit = core::mem::size_of_val(&gdt_table) as u16 - 1;
+
+        self.write_idt_value(0)?;
+        sregs.idt.base = BOOT_IDT_OFFSET as u64;
+        sregs.idt.limit = core::mem::size_of::<u64>() as u16 - 1;
+
+        sregs.cs = code_seg;
+        sregs.ds = data_seg;
+        sregs.es = data_seg;
+        sregs.fs = data_seg;
+        sregs.gs = data_seg;
+        sregs.ss = data_seg;
+        sregs.tr = tss_seg;
 
         sregs.cr0 = (X86_CR0_PE | X86_CR0_NE | X86_CR0_PG) as u64;
         sregs.cr4 |= (X86_CR4_PAE | X86_CR4_OSFXSR) as u64;
         sregs.efer |= (EFER_LME | EFER_LMA | EFER_NX) as u64;
 
-        // kvm_seg_set_unusable(&mut sregs.ldt);
-        sregs.ldt = kvm_segment {
-            base: 0,
-            limit: 0,
-            selector: 0,
-            type_: 0,
-            present: 0,
-            dpl: 0,
-            db: 0,
-            s: 0,
-            l: 0,
-            g: 0,
-            avl: 0,
-            padding: 0,
-            unusable: 1,
-        };
-
-        self.kvm_seg_set_kernel_code_64bit(0x8, &mut sregs.cs)?;
-        self.kvm_seg_set_kernel_data_64bit(0x10, &mut sregs.ds)?;
-        self.kvm_seg_set_kernel_data_64bit(0x10, &mut sregs.es)?;
-        self.kvm_setup_tss_64bit(&mut sregs.tr, 0x18, gdt_memslot, pgd_memslot)?;
-
-        sregs.cr3 = self.pgd.unwrap().as_u64();
+        sregs.cr3 = PML4_START as _;
 
         self.cpu_fd[vcpuid as usize]
             .set_sregs(&sregs)
@@ -869,93 +455,42 @@ impl KvmVm {
         Ok(())
     }
 
-    fn vcpu_add(&mut self, vcpuid: u8, pgd_memslot: u32, gdt_memslot: u32) -> Result<(), Error> {
+    fn vcpu_add(&mut self, vcpuid: u8) -> Result<(), Error> {
         let vcpu_fd = self.kvm_fd.create_vcpu(vcpuid).map_err(map_context!())?;
         self.cpu_fd.insert(vcpuid as usize, vcpu_fd);
-        self.vcpu_setup(vcpuid, pgd_memslot, gdt_memslot)?;
+        self.vcpu_setup(vcpuid)?;
 
         Ok(())
     }
 
     fn vcpu_add_default(&mut self, vcpuid: u8, guest_code: VirtAddr) -> Result<(), Error> {
-        let stack_vaddr: VirtAddr = self.vm_vaddr_alloc(
-            (DEFAULT_STACK_PGS * self.page_size) as usize,
-            VirtAddr::new(DEFAULT_GUEST_STACK_VADDR_MIN),
-            0,
-            0,
-            MemoryRegionType::KernelStack,
-        )?;
+        let boot_info_vaddr = PhysAddr::new(BOOTINFO_PHYS_ADDR);
+        let syscall_vaddr = PhysAddr::new(SYSCALL_PHYS_ADDR);
 
-        let stack_vaddr_end = stack_vaddr.as_u64() + (DEFAULT_STACK_PGS * self.page_size);
-
-        let physical_memory_offset = {
-            // Map complete guest physical memory to PHYSICAL_MEMORY_OFFSET
-            use x86_64::structures::paging::Page;
-
-            let physical_memory_offset = PHYSICAL_MEMORY_OFFSET;
-
-            let virt_for_phys = |phys: PhysAddr| -> VirtAddr {
-                VirtAddr::new(phys.as_u64() + physical_memory_offset)
-            };
-
-            // FIXME: change to Size2MiB
-            let start_frame = PhysFrame::<Size4KiB>::containing_address(PhysAddr::new(0));
-            let end_frame = PhysFrame::<Size4KiB>::containing_address(PhysAddr::new(
-                self.userspace_mem_regions[0].mmap_size as _,
-            ));
-
-            for frame in PhysFrame::range_inclusive(start_frame, end_frame) {
-                let page =
-                    Page::<Size4KiB>::containing_address(virt_for_phys(frame.start_address()));
-                let _flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
-                self.virt_pg_map(page.start_address(), frame.start_address(), 0)?;
-                /*
-                unsafe {
-                    page_table::map_page(
-                        page,
-                        frame,
-                        flags,
-                        &mut rec_page_table,
-                        &mut frame_allocator,
-                    )
-                }
-                    .expect("Mapping of bootinfo page failed")
-                    .flush();
-                    */
-            }
-
-            physical_memory_offset
-        };
-
-        let boot_info_vaddr: VirtAddr = self.vm_vaddr_alloc(
-            self.page_size as _,
-            VirtAddr::new(KVM_UTIL_MIN_VADDR),
-            0,
-            0,
-            MemoryRegionType::BootInfo,
-        )?;
+        self.syscall_hostvaddr = Some(self.addr_gpa2hva(syscall_vaddr)?);
 
         let mut boot_info = BootInfo::new(
-            self.frame_allocator.memory_map.clone(), // FIXME: merge continuous regions
-            self.pgd.unwrap().as_u64(),
-            physical_memory_offset,
+            self.frame_allocator.memory_map.clone(),
+            PML4_START as _,
+            PHYSICAL_MEMORY_OFFSET,
+            SYSCALL_PHYS_ADDR,
         );
 
         boot_info.memory_map.sort();
         // Write boot info to boot info page.
-        let boot_info_addr = self.addr_gva2hva(boot_info_vaddr)?;
+        let boot_info_addr = self.addr_gpa2hva(boot_info_vaddr)?;
         //serial_println!("stage4: boot_info_addr={:#?}", boot_info);
         unsafe { boot_info_addr.as_mut_ptr::<BootInfo>().write(boot_info) };
 
         /* Create VCPU */
-        self.vcpu_add(vcpuid, 0, 0)?;
+        self.vcpu_add(vcpuid)?;
 
         /* Setup guest general purpose registers */
         let mut regs = self.cpu_fd[vcpuid as usize]
             .get_regs()
             .map_err(map_context!())?;
         regs.rflags |= 0x2;
-        regs.rsp = stack_vaddr_end;
+        regs.rsp = BOOT_STACK_POINTER;
         regs.rip = guest_code.as_u64();
         regs.rdi = boot_info_vaddr.as_u64();
 
@@ -972,6 +507,82 @@ impl KvmVm {
         Ok(())
     }
 
+    pub fn handle_syscall(&self, syscall: KvmSyscall) -> KvmSyscallRet {
+        match syscall {
+            KvmSyscall::Mmap {
+                addr: _,
+                len: _,
+                prot: _,
+                flags: _,
+            } => {
+                /*
+                                let ret = unsafe {
+                                    mmap(
+                                        null_mut(),
+                                        len,
+                                        ProtFlags::from_bits_truncate(prot),
+                                        MapFlags::from_bits_truncate(flags),
+                                        -1,
+                                        0,
+                                    )
+                                };
+                                let mmap_start = match ret {
+                                    Err(nix::Error::Sys(e)) if e == nix::errno::Errno::ENOMEM => {
+                                        return KvmSyscallRet::Mmap(Err(vmsyscall::Error::ENOMEM))
+                                    }
+                                    Err(_) => return KvmSyscallRet::Mmap(Err(vmsyscall::Error::OTHERERROR)),
+                                    Ok(v) => v,
+                                };
+                */
+                return KvmSyscallRet::Mmap(Err(vmsyscall::Error::OTHERERROR));
+                /*
+                let mut region = UserspaceMemRegion {
+                    region: Default::default(),
+                    used_phy_pages: Default::default(),
+                    host_mem: PhysAddr::new(mmap_start as u64),
+                    mmap_start: PhysAddr::new(mmap_start as u64),
+                    mmap_size: len as _,
+                };
+
+                region.region.slot = 0;
+                region.region.flags = flags as _;
+                region.region.guest_phys_addr = addr as _;
+                region.region.memory_size = len as _;
+                region.region.userspace_addr = region.host_mem.as_u64();
+
+                unsafe {
+                    self.kvm_fd
+                        .set_user_memory_region(region.region)
+                        .map_err(map_context!())?
+                };
+
+                //self.userspace_mem_regions.push(region);
+
+                KvmSyscallRet::Mmap(Ok(region.mmap_start.as_u64() as _))
+                */
+            }
+            KvmSyscall::Madvise {
+                addr: _,
+                len: _,
+                advice: _,
+            } => KvmSyscallRet::Madvise(Err(vmsyscall::Error::OTHERERROR)),
+            KvmSyscall::Mremap {
+                addr: _,
+                len: _,
+                new_len: _,
+                flags: _,
+            } => KvmSyscallRet::Mremap(Err(vmsyscall::Error::OTHERERROR)),
+            KvmSyscall::Munmap { addr: _, len: _ } => {
+                KvmSyscallRet::Munmap(Err(vmsyscall::Error::OTHERERROR))
+            }
+            KvmSyscall::Mprotect {
+                addr: _,
+                len: _,
+                prot: _,
+            } => KvmSyscallRet::Mprotect(Err(vmsyscall::Error::OTHERERROR)),
+        }
+    }
+
     fn create_irqchip(&mut self) -> Result<(), Error> {
         self.kvm_fd.create_irq_chip().map_err(map_context!())?;
         self.has_irqchip = true;
@@ -981,16 +592,13 @@ impl KvmVm {
     pub fn vm_create_default(
         program_invocation_name: &str,
         vcpuid: u8,
-        extra_mem_pages: u64,
         entry_symbol: Option<&str>,
     ) -> Result<Self, Error> {
-        let extra_pg_pages: u64 = extra_mem_pages / 512 * 2;
-
         /* Create VM */
-        let mut vm = KvmVm::vm_create(DEFAULT_GUEST_PHY_PAGES + extra_pg_pages)?;
+        let mut vm = KvmVm::vm_create((DEFAULT_GUEST_MEM / DEFAULT_GUEST_PAGE_SIZE as u64) as _)?;
 
         /* Setup guest code */
-        let guest_code = vm.elf_load(program_invocation_name, 0, 0, entry_symbol)?;
+        let guest_code = vm.elf_load(program_invocation_name, entry_symbol)?;
 
         /* Setup IRQ Chip */
         vm.create_irqchip()?;

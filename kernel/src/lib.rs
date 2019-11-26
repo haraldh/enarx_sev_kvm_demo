@@ -3,6 +3,7 @@
 #![feature(custom_test_frameworks)]
 #![feature(abi_x86_interrupt)]
 #![feature(alloc_error_handler)]
+#![feature(allocator_api)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
@@ -11,18 +12,37 @@ extern crate alloc;
 use core::panic::PanicInfo;
 use linked_list_allocator::LockedHeap;
 
+pub mod alloc_fmt;
 pub mod allocator;
+pub mod bsalloc;
 pub mod gdt;
 pub mod interrupts;
+pub mod libc;
 pub mod memory;
+pub mod mmap_alloc;
+pub mod object_alloc;
 pub mod serial;
+pub mod sysconf;
+
+use crate::bsalloc::BsAlloc;
+pub use alloc_fmt::*;
 
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
+//static ALLOCATOR: BsAlloc = BsAlloc;
+
+use bootinfo::BootInfo;
+use x86_64::structures::paging::OffsetPageTable;
+
+pub static mut BOOTINFO: Option<&'static BootInfo> = None;
+pub static mut MAPPER: Option<OffsetPageTable> = None;
 
 pub fn init() {
+    println!("{}:{}", file!(), line!());
     gdt::init();
+    println!("{}:{}", file!(), line!());
     interrupts::init_idt();
+    println!("{}:{}", file!(), line!());
     x86_64::instructions::interrupts::enable();
 }
 
@@ -64,7 +84,7 @@ pub fn hlt_loop() -> ! {
 }
 
 #[cfg(test)]
-use bootinfo::{entry_point, BootInfo};
+use bootinfo::entry_point;
 
 #[cfg(test)]
 entry_point!(test_kernel_main);

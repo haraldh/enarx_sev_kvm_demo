@@ -2,10 +2,12 @@
 members = [
     "bootinfo",
     "vmrun",
-    "kernel"
+    "kernel",
+    "vmsyscall",
 ]
 
 default-members = [
     "bootinfo",
     "vmrun",
+    "vmsyscall",
 ]

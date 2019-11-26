@@ -107,6 +107,22 @@ impl std::fmt::Debug for Error {
     }
 }
 
+/*
+struct Chain<'a> {
+    current: Option<&'a (dyn Error + 'static)>,
+}
+
+impl<'a> Iterator for Chain<'a> {
+    type Item = &'a (dyn Error + 'static);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let current = self.current;
+        self.current = self.current.and_then(Error::source);
+        current
+    }
+}
+*/
+
 #[macro_export]
 macro_rules! map_context {
     () => {

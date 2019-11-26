@@ -5,7 +5,7 @@
     "target-endian": "little",
     "target-pointer-width": "64",
     "target-c-int-width": "32",
-    "os": "none",
+    "os": "enarx",
     "executables": true,
     "linker-flavor": "ld.lld",
     "linker": "rust-lld",
@@ -15,10 +15,9 @@
     "dynamic-linking-available": false,
     "code-model": "small",
     "relocation-model": "static",
-    "// pre-link-args": {
+    "pre-link-args": {
         "ld.lld": [
-            "-s",
-            "--script=layout.ld"
+            "--script=kernel/layout.ld"
         ]
     }
   }

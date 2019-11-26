@@ -9,7 +9,6 @@ edition = "2018"
 [dependencies]
 kvm-ioctls = "0.3.0"
 kvm-bindings = "0.2.0"
-sparse-bitfield = "0.10.0"
 bit_field = "0.9.0"
 nix = "0.15.0"
 xmas-elf = "0.7.0"
@@ -17,6 +16,10 @@ bitflags = "1.2.1"
 mmap = "0.1.1"
 array-init = "0.0.4"
 bootinfo = {version = "0", path="../bootinfo"}
+vmsyscall = {version = "0", path = "../vmsyscall"}
+serde_cbor = { version = "0.10.3", default-features = false, git = "https://github.com/pyfisch/cbor.git"}
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+
 [dependencies.cast]
 version = "0.2.2"
 default-features = false
@@ -24,4 +27,3 @@ default-features = false
 [dependencies.ux]
 default-features = false
 version = "0.1.3"
-

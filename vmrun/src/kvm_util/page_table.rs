@@ -64,14 +64,3 @@ bitflags! {
         const NO_EXECUTE =      1 << 63;
     }
 }
-
-impl PageTableFlags {
-    pub fn addr(self) -> u64 {
-        (self.bits & 0x000fffff_fffff000) >> 12
-    }
-    pub fn set_addr(&mut self, addr: u64) {
-        let addr = addr << 12;
-        let addr = addr & 0x000fffff_fffff000;
-        self.bits |= addr;
-    }
-}
