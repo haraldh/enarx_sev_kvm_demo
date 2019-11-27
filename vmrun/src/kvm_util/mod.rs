@@ -24,7 +24,6 @@ use x86_64::structures::paging::{frame::PhysFrameRange, PhysFrame};
 
 const DEFAULT_GUEST_MEM: u64 = 100 * 1024 * 1024;
 const DEFAULT_GUEST_PAGE_SIZE: usize = 4096;
-
 const PHYSICAL_MEMORY_OFFSET: u64 = 0xFFFF_8000_0000_0000;
 
 struct UserspaceMemRegion {
@@ -192,13 +191,15 @@ impl KvmVm {
         Ok(())
     }
 
-    pub fn addr_gpa2hva(&self, gpa: PhysAddr) -> Result<HostVirtAddr, Error> {
+    pub fn addr_gpa2hva(&self, guest_phys_addr: PhysAddr) -> Result<HostVirtAddr, Error> {
         for region in &self.userspace_mem_regions {
-            if (gpa.as_u64() >= region.region.guest_phys_addr)
-                && (gpa.as_u64() <= (region.region.guest_phys_addr + region.region.memory_size - 1))
+            if (guest_phys_addr.as_u64() >= region.region.guest_phys_addr)
+                && (guest_phys_addr.as_u64()
+                    <= (region.region.guest_phys_addr + region.region.memory_size - 1))
             {
                 return Ok(HostVirtAddr::new(
-                    region.host_mem.as_u64() + (gpa.as_u64() - region.region.guest_phys_addr),
+                    region.host_mem.as_u64()
+                        + (guest_phys_addr.as_u64() - region.region.guest_phys_addr),
                 ));
             }
         }
