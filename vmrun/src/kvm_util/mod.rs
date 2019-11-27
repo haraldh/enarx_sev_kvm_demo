@@ -448,7 +448,6 @@ impl KvmVm {
             self.frame_allocator.memory_map.clone(),
             PML4_START as _,
             PHYSICAL_MEMORY_OFFSET,
-            SYSCALL_PHYS_ADDR,
         );
 
         boot_info.memory_map.sort();

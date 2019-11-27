@@ -107,7 +107,6 @@ impl BootInfo {
         memory_map: MemoryMap,
         recursive_page_table_addr: u64,
         physical_memory_offset: u64,
-        syscall_page: u64,
     ) -> Self {
         BootInfo {
             memory_map,
