@@ -52,13 +52,6 @@ fn frame_range(range: PhysFrameRange) -> FrameRange {
     )
 }
 
-fn phys_frame_range(range: FrameRange) -> PhysFrameRange {
-    PhysFrameRange {
-        start: PhysFrame::from_start_address(PhysAddr::new(range.start_addr())).unwrap(),
-        end: PhysFrame::from_start_address(PhysAddr::new(range.end_addr())).unwrap(),
-    }
-}
-
 impl KvmVm {
     pub fn vm_create(phy_pages: u64) -> Result<Self, Error> {
         let kvm = Kvm::new().unwrap();
@@ -118,6 +111,12 @@ impl KvmVm {
                 BOOT_STACK_POINTER - BOOT_STACK_POINTER_SIZE,
             ))
             .unwrap();
+
+            vm.frame_allocator.mark_allocated_region(MemoryRegion {
+                range: frame_range(PhysFrame::range(syscall_frame + 1, stack_frame)),
+                region_type: MemoryRegionType::Reserved,
+            });
+
             let stack_frame_end: PhysFrame =
                 PhysFrame::from_start_address(PhysAddr::new(HIMEM_START as u64)).unwrap();
 
@@ -209,25 +208,6 @@ impl KvmVm {
             }
         }
         Err(context!(ErrorKind::NoMappingForVirtualAddress))
-    }
-
-    pub fn vm_phy_pages_alloc(
-        &mut self,
-        num: usize,
-        region_type: MemoryRegionType,
-    ) -> Result<PhysAddr, Error> {
-        assert!(num > 0);
-
-        let start = self
-            .frame_allocator
-            .allocate_frames(num as _, region_type)
-            .ok_or_else(|| context!(ErrorKind::NoMemFree))?;
-
-        Ok(start.start_address())
-    }
-
-    pub fn vm_phy_page_alloc(&mut self, region_type: MemoryRegionType) -> Result<PhysAddr, Error> {
-        self.vm_phy_pages_alloc(1, region_type)
     }
 
     fn setup_page_tables(&mut self) -> Result<(), Error> {

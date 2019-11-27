@@ -1,5 +1,3 @@
-use super::x86_64::structures::paging::{frame::PhysFrameRange, PhysFrame};
-use super::{frame_range, phys_frame_range};
 use bootinfo::{MemoryMap, MemoryRegion, MemoryRegionType};
 
 pub(crate) struct FrameAllocator {
@@ -7,71 +5,6 @@ pub(crate) struct FrameAllocator {
 }
 
 impl FrameAllocator {
-    pub(crate) fn allocate_frame(&mut self, region_type: MemoryRegionType) -> Option<PhysFrame> {
-        self.allocate_frames(1, region_type)
-    }
-
-    pub(crate) fn allocate_frames(
-        &mut self,
-        num: u64,
-        region_type: MemoryRegionType,
-    ) -> Option<PhysFrame> {
-        // try to find an existing region of same type that can be enlarged
-        let mut iter = self.memory_map.iter_mut().peekable();
-        while let Some(region) = iter.next() {
-            if region.region_type == region_type {
-                if let Some(next) = iter.peek() {
-                    if next.range.start_frame_number == region.range.end_frame_number
-                        && next.region_type == MemoryRegionType::Usable
-                        && !next.range.is_empty()
-                        && next.range.end_frame_number >= region.range.end_frame_number + num
-                    {
-                        let frame = phys_frame_range(region.range).end;
-                        region.range.end_frame_number += num;
-                        iter.next().unwrap().range.start_frame_number += num;
-                        return Some(frame);
-                    }
-                }
-            }
-        }
-
-        fn split_usable_region<'a, I>(iter: &mut I, num: u64) -> Option<(PhysFrame, PhysFrameRange)>
-        where
-            I: Iterator<Item = &'a mut MemoryRegion>,
-        {
-            for region in iter {
-                if region.region_type != MemoryRegionType::Usable {
-                    continue;
-                }
-                if region.range.len() < num {
-                    continue;
-                }
-
-                let frame = phys_frame_range(region.range).start;
-                region.range.start_frame_number += num;
-                return Some((frame, PhysFrame::range(frame, frame + num)));
-            }
-            None
-        }
-
-        let result = if region_type == MemoryRegionType::PageTable {
-            // prevent fragmentation when page tables are allocated in between
-            split_usable_region(&mut self.memory_map.iter_mut().rev(), num)
-        } else {
-            split_usable_region(&mut self.memory_map.iter_mut(), num)
-        };
-
-        if let Some((frame, range)) = result {
-            self.memory_map.add_region(MemoryRegion {
-                range: frame_range(range),
-                region_type,
-            });
-            Some(frame)
-        } else {
-            None
-        }
-    }
-
     /// Marks the passed region in the memory map.
     ///
     /// Panics if a non-usable region (e.g. a reserved region) overlaps with the passed region.
@@ -81,8 +14,7 @@ impl FrameAllocator {
                 && r.range.end_frame_number >= region.range.start_frame_number
                 && r.range.end_frame_number <= region.range.end_frame_number
             {
-                r.range.end_frame_number = region.range.end_frame_number;
-                return;
+                r.range.end_frame_number = region.range.start_frame_number;
             }
 
             if region.range.start_frame_number >= r.range.end_frame_number {
