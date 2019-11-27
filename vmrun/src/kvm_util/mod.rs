@@ -1,6 +1,6 @@
 use kvm_bindings::{kvm_mp_state, kvm_userspace_memory_region};
 use kvm_ioctls::{Kvm, VcpuFd, VmFd, MAX_KVM_CPUID_ENTRIES};
-use nix;
+
 pub use x86_64::{HostVirtAddr, PhysAddr, VirtAddr};
 mod frame_allocator;
 mod gdt;
@@ -18,8 +18,6 @@ use bootinfo::{
 };
 
 use crate::kvm_util::gdt::{gdt_entry, kvm_segment_from_gdt};
-use core::ptr::null_mut;
-use nix::sys::mman::{mmap, MapFlags, ProtFlags};
 use vmsyscall::{KvmSyscall, KvmSyscallRet};
 use x86::*;
 use x86_64::structures::paging::{frame::PhysFrameRange, PhysFrame};
@@ -160,20 +158,21 @@ impl KvmVm {
             mmap_start: HostVirtAddr::new(0),
             mmap_size: (npages * self.page_size as u64) as _,
         };
-
-        let mmap_start = unsafe {
-            mmap(
-                null_mut(),
-                region.mmap_size,
-                ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
-                MapFlags::MAP_PRIVATE | MapFlags::MAP_ANONYMOUS,
-                -1,
-                0,
-            )
-        }
+        let mm = mmap::MemoryMap::new(
+            region.mmap_size,
+            &[mmap::MapOption::MapReadable, mmap::MapOption::MapWritable],
+        )
         .map_err(|_| context!(ErrorKind::MmapFailed))?;
+        let mmap_start = mm.data();
+        // FIXME: No drop for mm
+        std::mem::forget(mm);
 
+        eprintln!("mmap_start = {:#?}", mmap_start);
         region.mmap_start = HostVirtAddr::new(mmap_start as u64);
+        eprintln!(
+            "region.mmap_start = {:#?}",
+            region.mmap_start.as_ptr::<u8>()
+        );
 
         region.host_mem = region.mmap_start;
 

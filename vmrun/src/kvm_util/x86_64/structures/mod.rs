@@ -1,6 +1,5 @@
 //! Representations of various x86 specific structures and descriptor tables.
 
-pub mod gdt;
 pub mod paging;
 pub mod port;
 pub mod tss;
