@@ -14,7 +14,6 @@ use core::ptr::null_mut;
 use core::slice;
 use kernel::libc::madvise;
 use kernel::{exit_qemu, println, QemuExitCode, BOOTINFO, MAPPER};
-use x86_64::structures::paging::MapperAllSizes;
 use x86_64::{PhysAddr, VirtAddr};
 use xmas_elf::program::ProgramHeader;
 

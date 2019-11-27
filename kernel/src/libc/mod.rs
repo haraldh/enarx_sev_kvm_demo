@@ -1,4 +1,4 @@
-use crate::BOOTINFO;
+use bootinfo::SYSCALL_PHYS_ADDR;
 use serde::ser::Serialize;
 use serde_cbor;
 use serde_cbor::ser::SliceWrite;
@@ -9,9 +9,7 @@ use x86_64::instructions::port::Port;
 use x86_64::VirtAddr;
 
 pub fn vm_syscall(syscall: KvmSyscall) -> Result<KvmSyscallRet, Error> {
-    let syscall_page = unsafe {
-        VirtAddr::new(BOOTINFO.unwrap().syscall_page) /*+ BOOTINFO.unwrap().physical_memory_offset*/
-    };
+    let syscall_page = VirtAddr::new(SYSCALL_PHYS_ADDR);
 
     let mut syscall_slice =
         unsafe { core::slice::from_raw_parts_mut(syscall_page.as_u64() as *mut u8, 4096 as usize) };

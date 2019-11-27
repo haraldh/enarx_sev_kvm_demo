@@ -96,7 +96,6 @@ pub struct BootInfo {
     /// cause undefined behavior. Only frames reported as `USABLE` by the memory map in the `BootInfo`
     /// can be safely accessed.
     pub physical_memory_offset: u64,
-    pub syscall_page: u64,
     pub recursive_page_table_addr: u64,
 }
 
@@ -114,7 +113,6 @@ impl BootInfo {
             memory_map,
             recursive_page_table_addr,
             physical_memory_offset,
-            syscall_page,
         }
     }
 }
@@ -127,7 +125,6 @@ impl fmt::Debug for BootInfo {
                 "physical_memory_offset",
                 &format_args!("{:#X}", self.physical_memory_offset),
             )
-            .field("syscall_page", &format_args!("{:#X}", self.syscall_page))
             .field(
                 "recursive_page_table_addr",
                 &format_args!("{:#X}", self.recursive_page_table_addr),
