@@ -166,12 +166,7 @@ impl KvmVm {
         // FIXME: No drop for mm
         std::mem::forget(mm);
 
-        eprintln!("mmap_start = {:#?}", mmap_start);
         region.mmap_start = HostVirtAddr::new(mmap_start as u64);
-        eprintln!(
-            "region.mmap_start = {:#?}",
-            region.mmap_start.as_ptr::<u8>()
-        );
 
         region.host_mem = region.mmap_start;
 
