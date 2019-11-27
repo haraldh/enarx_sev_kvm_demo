@@ -1,11 +1,8 @@
 use kvm_bindings::{kvm_mp_state, kvm_userspace_memory_region};
 use kvm_ioctls::{Kvm, VcpuFd, VmFd, MAX_KVM_CPUID_ENTRIES};
 
-pub use x86_64::{HostVirtAddr, PhysAddr, VirtAddr};
+pub use x86_64::{gdt, HostVirtAddr, PhysAddr, VirtAddr};
 mod frame_allocator;
-mod gdt;
-mod page_table;
-mod x86;
 pub mod x86_64;
 
 use crate::error::*;
@@ -19,7 +16,7 @@ use bootinfo::{
 
 use crate::kvm_util::gdt::{gdt_entry, kvm_segment_from_gdt};
 use vmsyscall::{KvmSyscall, KvmSyscallRet};
-use x86::*;
+use x86_64::consts::*;
 use x86_64::structures::paging::{frame::PhysFrameRange, PhysFrame};
 
 const DEFAULT_GUEST_MEM: u64 = 100 * 1024 * 1024;

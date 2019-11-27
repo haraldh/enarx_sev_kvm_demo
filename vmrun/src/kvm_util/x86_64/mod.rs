@@ -1,6 +1,7 @@
-pub mod structures;
-
 mod addr;
+pub mod consts;
+pub mod gdt;
+pub mod structures;
 pub use addr::{align_down, align_up, HostVirtAddr, PhysAddr, VirtAddr};
 
 /// Represents a protection ring level.
