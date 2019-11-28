@@ -6,26 +6,29 @@
 #![feature(allocator_api)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
+#![feature(asm)]
 
 extern crate alloc;
 
 use core::panic::PanicInfo;
 use linked_list_allocator::LockedHeap;
 
-pub mod alloc_fmt;
 pub mod allocator;
-pub mod bsalloc;
 pub mod gdt;
 pub mod interrupts;
 pub mod libc;
 pub mod memory;
-pub mod mmap_alloc;
-pub mod object_alloc;
 pub mod serial;
 pub mod sysconf;
 
-use crate::bsalloc::BsAlloc;
-pub use alloc_fmt::*;
+/* test bsalloc
+    pub mod bsalloc;
+    pub mod alloc_fmt;
+    pub mod mmap_alloc;
+    pub mod object_alloc;
+    use crate::bsalloc::BsAlloc;
+    pub use alloc_fmt::*;
+*/
 
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
@@ -36,6 +39,12 @@ use x86_64::structures::paging::OffsetPageTable;
 
 pub static mut BOOTINFO: Option<&'static BootInfo> = None;
 pub static mut MAPPER: Option<OffsetPageTable> = None;
+
+pub unsafe fn context_switch(entry_point: fn() -> !, stack_pointer: usize) -> ! {
+    asm!("call $1; ${:private}.spin.${:uid}: jmp ${:private}.spin.${:uid}" ::
+         "{rsp}"(stack_pointer), "r"(entry_point) :: "intel");
+    ::core::hint::unreachable_unchecked()
+}
 
 pub fn init() {
     println!("{}:{}", file!(), line!());

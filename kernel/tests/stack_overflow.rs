@@ -2,18 +2,39 @@
 #![no_main]
 #![feature(abi_x86_interrupt)]
 
+use bootinfo::{entry_point, BootInfo};
 use core::panic::PanicInfo;
-use kernel::{exit_qemu, serial_print, serial_println, QemuExitCode};
+use kernel::{context_switch, exit_qemu, serial_print, serial_println, QemuExitCode};
 use lazy_static::lazy_static;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 
-#[no_mangle]
-pub extern "C" fn _start() -> ! {
+entry_point!(main);
+
+fn main(boot_info: &'static BootInfo) -> ! {
+    use kernel::allocator;
+    use kernel::memory::{self, BootInfoFrameAllocator};
+    use x86_64::VirtAddr;
+
     serial_print!("stack_overflow... ");
 
-    kernel::gdt::init();
-    init_test_idt();
+    kernel::init();
+    let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
+    let mut mapper = unsafe { memory::init(phys_mem_offset) };
+    let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_map) };
+    allocator::init_heap(&mut mapper, &mut frame_allocator).expect("heap initialization failed");
 
+    init_test_idt();
+    allocator::init_stack(&mut mapper, &mut frame_allocator).expect("heap initialization failed");
+
+    unsafe {
+        context_switch(
+            kernel_main_2,
+            allocator::STACK_START + allocator::STACK_SIZE,
+        )
+    }
+}
+
+fn kernel_main_2() -> ! {
     // trigger a stack overflow
     stack_overflow();
 

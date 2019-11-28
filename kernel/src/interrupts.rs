@@ -37,6 +37,8 @@ lazy_static! {
     static ref IDT: InterruptDescriptorTable = {
         let mut idt = InterruptDescriptorTable::new();
         idt.breakpoint.set_handler_fn(breakpoint_handler);
+        idt.invalid_tss.set_handler_fn(invalid_tss_handler);
+        idt.segment_not_present.set_handler_fn(segment_not_present_handler);
         idt.page_fault.set_handler_fn(page_fault_handler);
         unsafe {
             idt.double_fault
@@ -53,8 +55,23 @@ pub fn init_idt() {
     IDT.load();
 }
 
+extern "x86-interrupt" fn segment_not_present_handler(stack_frame: &mut InterruptStackFrame, error_code: u64) {
+    println!("segment_not_present_handler {}", error_code);
+    println!("{:#X}", stack_frame as *const _ as usize);
+    println!("{:#?}", stack_frame);
+}
+
+extern "x86-interrupt" fn invalid_tss_handler(stack_frame: &mut InterruptStackFrame, error_code: u64) {
+    println!("invalid_tss_handler {}", error_code);
+    println!("{:#X}", stack_frame as *const _ as usize);
+    println!("{:#?}", stack_frame);
+}
+
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: &mut InterruptStackFrame) {
-    println!("EXCEPTION: BREAKPOINT\n{:#?}", stack_frame);
+    println!("EXCEPTION: BREAKPOINT");
+
+    println!("{:#X}", stack_frame as *const _ as usize);
+    println!("{:#?}", stack_frame);
 }
 
 extern "x86-interrupt" fn page_fault_handler(
@@ -72,7 +89,7 @@ extern "x86-interrupt" fn page_fault_handler(
 
 extern "x86-interrupt" fn double_fault_handler(
     stack_frame: &mut InterruptStackFrame,
-    _error_code: u64,
+    _error_code: u64, // Always 0
 ) {
     println!("EXCEPTION: DOUBLE FAULT\n{:#?}", stack_frame);
     hlt_loop();

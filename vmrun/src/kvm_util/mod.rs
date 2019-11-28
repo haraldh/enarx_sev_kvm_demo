@@ -1,4 +1,4 @@
-use kvm_bindings::{kvm_mp_state, kvm_userspace_memory_region};
+use kvm_bindings::{kvm_mp_state, kvm_segment, kvm_userspace_memory_region};
 use kvm_ioctls::{Kvm, VcpuFd, VmFd, MAX_KVM_CPUID_ENTRIES};
 
 pub use x86_64::{gdt, HostVirtAddr, PhysAddr, VirtAddr};
@@ -76,12 +76,12 @@ impl KvmVm {
                 PhysFrame::from_start_address(PhysAddr::new(PML4_START as _)).unwrap();
 
             vm.frame_allocator.mark_allocated_region(MemoryRegion {
-                range: frame_range(PhysFrame::range(zero_frame, zero_frame+1)),
+                range: frame_range(PhysFrame::range(zero_frame, zero_frame + 1)),
                 region_type: MemoryRegionType::FrameZero,
             });
 
             vm.frame_allocator.mark_allocated_region(MemoryRegion {
-                range: frame_range(PhysFrame::range(zero_frame+1, page_table_frame)),
+                range: frame_range(PhysFrame::range(zero_frame + 1, page_table_frame)),
                 region_type: MemoryRegionType::Reserved,
             });
 
@@ -408,12 +408,29 @@ impl KvmVm {
         sregs.idt.base = BOOT_IDT_OFFSET as u64;
         sregs.idt.limit = core::mem::size_of::<u64>() as u16 - 1;
 
+        // kvm_seg_set_unusable(&mut sregs.ldt);
+        sregs.ldt = kvm_segment {
+            base: 0,
+            limit: 0,
+            selector: 0,
+            type_: 0,
+            present: 0,
+            dpl: 0,
+            db: 0,
+            s: 0,
+            l: 0,
+            g: 0,
+            avl: 0,
+            padding: 0,
+            unusable: 1,
+        };
+
         sregs.cs = code_seg;
         sregs.ds = data_seg;
         sregs.es = data_seg;
-        sregs.fs = data_seg;
-        sregs.gs = data_seg;
-        sregs.ss = data_seg;
+        //sregs.fs = data_seg;
+        //sregs.gs = data_seg;
+        //sregs.ss = data_seg; // FIXME: double fault in exception handler
         sregs.tr = tss_seg;
 
         sregs.cr0 = (X86_CR0_PE | X86_CR0_NE | X86_CR0_PG) as u64;

@@ -8,8 +8,8 @@ use core::fmt;
 
 mod memory_map;
 
-pub const BOOT_GDT_OFFSET: usize = 0x1500;
-pub const BOOT_IDT_OFFSET: usize = 0x1520;
+pub const BOOT_GDT_OFFSET: usize = 0x500;
+pub const BOOT_IDT_OFFSET: usize = 0x520;
 
 // Initial pagetables.
 pub const PML4_START: usize = 0x9000;
