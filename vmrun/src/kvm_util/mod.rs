@@ -113,10 +113,12 @@ impl KvmVm {
             ))
             .unwrap();
 
-            vm.frame_allocator.mark_allocated_region(MemoryRegion {
-                range: frame_range(PhysFrame::range(syscall_frame + 1, stack_frame)),
-                region_type: MemoryRegionType::Reserved,
-            });
+            if syscall_frame + 1 < stack_frame {
+                vm.frame_allocator.mark_allocated_region(MemoryRegion {
+                    range: frame_range(PhysFrame::range(syscall_frame + 1, stack_frame)),
+                    region_type: MemoryRegionType::Reserved,
+                });
+            }
 
             let stack_frame_end: PhysFrame =
                 PhysFrame::from_start_address(PhysAddr::new(HIMEM_START as u64)).unwrap();
