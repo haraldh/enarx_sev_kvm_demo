@@ -384,9 +384,6 @@ impl KvmVm {
     }
 
     pub fn vcpu_setup(&mut self, vcpuid: u8) -> Result<(), Error> {
-        const BOOT_GDT_OFFSET: usize = 0x500;
-        const BOOT_IDT_OFFSET: usize = 0x520;
-
         let mut sregs = self.cpu_fd[vcpuid as usize]
             .get_sregs()
             .map_err(map_context!())?;
