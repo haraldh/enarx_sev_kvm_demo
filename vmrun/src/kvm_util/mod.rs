@@ -76,8 +76,13 @@ impl KvmVm {
                 PhysFrame::from_start_address(PhysAddr::new(PML4_START as _)).unwrap();
 
             vm.frame_allocator.mark_allocated_region(MemoryRegion {
-                range: frame_range(PhysFrame::range(zero_frame, page_table_frame)),
+                range: frame_range(PhysFrame::range(zero_frame, zero_frame+1)),
                 region_type: MemoryRegionType::FrameZero,
+            });
+
+            vm.frame_allocator.mark_allocated_region(MemoryRegion {
+                range: frame_range(PhysFrame::range(zero_frame+1, page_table_frame)),
+                region_type: MemoryRegionType::Reserved,
             });
 
             vm.frame_allocator.mark_allocated_region(MemoryRegion {
