@@ -55,13 +55,19 @@ pub fn init_idt() {
     IDT.load();
 }
 
-extern "x86-interrupt" fn segment_not_present_handler(stack_frame: &mut InterruptStackFrame, error_code: u64) {
+extern "x86-interrupt" fn segment_not_present_handler(
+    stack_frame: &mut InterruptStackFrame,
+    error_code: u64,
+) {
     println!("segment_not_present_handler {}", error_code);
     println!("{:#X}", stack_frame as *const _ as usize);
     println!("{:#?}", stack_frame);
 }
 
-extern "x86-interrupt" fn invalid_tss_handler(stack_frame: &mut InterruptStackFrame, error_code: u64) {
+extern "x86-interrupt" fn invalid_tss_handler(
+    stack_frame: &mut InterruptStackFrame,
+    error_code: u64,
+) {
     println!("invalid_tss_handler {}", error_code);
     println!("{:#X}", stack_frame as *const _ as usize);
     println!("{:#?}", stack_frame);
