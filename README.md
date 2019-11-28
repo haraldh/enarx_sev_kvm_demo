@@ -26,7 +26,6 @@
 $ rustup toolchain add nightly
 $ rustup toolchain add nightly-2019-11-17
 $ rustup component add rust-src
-$ cargo install cargo-xbuild
 ```
 
 *Note*: [`nightly-2019-11-17` has `clippy`](https://rust-lang.github.io/rustup-components-history/index.html)
@@ -35,13 +34,13 @@ $ cargo install cargo-xbuild
 
 ```bash
 $ cargo build --package vmrun
-$ cargo +nightly xrun --package kernel --target kernel/x86_64-kernel.json
+$ cargo +nightly run -Z build-std=core,alloc --package kernel --target kernel/x86_64-kernel.json
 ```
 
 or
 
 ```bash
-$ cargo +nightly xbuild --package kernel --target kernel/x86_64-kernel.json
+$ cargo +nightly build -Z build-std=core,alloc --package kernel --target kernel/x86_64-kernel.json
 $ cargo run --package vmrun --bin vmrun -- target/x86_64-kernel/debug/kernel
 ```
 
@@ -49,7 +48,7 @@ $ cargo run --package vmrun --bin vmrun -- target/x86_64-kernel/debug/kernel
 
 ```bash
 $ cargo build --package vmrun
-$ cargo +nightly xtest --package kernel --target kernel/x86_64-kernel.json
+$ cargo +nightly test -Z build-std=core,alloc --package kernel --target kernel/x86_64-kernel.json
 ```
 
 ## Clippy
@@ -57,5 +56,5 @@ $ cargo +nightly xtest --package kernel --target kernel/x86_64-kernel.json
 ```bash
 $ cargo clean
 $ cargo clippy
-$ cargo +nightly-2019-11-17 xclippy --package kernel --target kernel/x86_64-kernel.json
+$ cargo +nightly-2019-11-17 clippy -Z build-std=core,alloc --package kernel --target kernel/x86_64-kernel.json
 ```
