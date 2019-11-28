@@ -28,6 +28,7 @@ fn main() {
     }
 
     let kernel_blob = args[1].to_string();
+    eprintln!("Starting {}", kernel_blob);
 
     let kvm = kvm_util::KvmVm::vm_create_default(&kernel_blob, 0, None /*"_start"*/).unwrap();
 

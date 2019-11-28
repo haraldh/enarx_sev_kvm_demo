@@ -23,7 +23,7 @@ matrix:
   fast_finish: true
 install:
   - rustup component add rustfmt
-  - rustup target add wasm32-unknown-unknown
+  - rustup toolchain add nightly
   - rustup component add rust-src
   - cargo install cargo-xbuild
 script:
