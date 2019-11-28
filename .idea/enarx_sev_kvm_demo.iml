@@ -6,7 +6,7 @@
       <sourceFolder url="file://$MODULE_DIR$/kernel/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/kernel/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/kernel/benches" isTestSource="true" />
-      <sourceFolder url="file://$MODULE_DIR$/bootinfo/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/boot/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/bootinfo/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/bootinfo/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/bootinfo/benches" isTestSource="true" />
@@ -18,6 +18,10 @@
       <sourceFolder url="file://$MODULE_DIR$/vmsyscall/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/vmsyscall/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/vmsyscall/benches" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/boot/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/boot/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/boot/benches" isTestSource="true" />
+      <excludeFolder url="file://$MODULE_DIR$/boot/target" />
       <excludeFolder url="file://$MODULE_DIR$/bootinfo/target" />
       <excludeFolder url="file://$MODULE_DIR$/kernel/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />

@@ -8,7 +8,7 @@
 extern crate alloc;
 
 use alloc::{boxed::Box, rc::Rc, vec, vec::Vec};
-use bootinfo::{entry_point, BootInfo};
+use boot::{entry_point, BootInfo};
 use core::panic::PanicInfo;
 use core::ptr::null_mut;
 use kernel::libc::madvise;

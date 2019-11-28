@@ -1,4 +1,3 @@
-use super::println;
 use alloc::alloc::{GlobalAlloc, Layout};
 use core::ptr::null_mut;
 use x86_64::{
@@ -18,8 +17,6 @@ pub fn init_heap(
     mapper: &mut impl Mapper<Size4KiB>,
     frame_allocator: &mut impl FrameAllocator<Size4KiB>,
 ) -> Result<(), MapToError> {
-    println!("{}:{}", file!(), line!());
-
     let page_range = {
         let heap_start = VirtAddr::new(HEAP_START as u64);
         let heap_end = heap_start + HEAP_SIZE - 1u64;
@@ -28,8 +25,6 @@ pub fn init_heap(
         Page::range_inclusive(heap_start_page, heap_end_page)
     };
 
-    println!("{}:{}", file!(), line!());
-
     for page in page_range {
         let frame = frame_allocator
             .allocate_frame()
@@ -37,12 +32,10 @@ pub fn init_heap(
         let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
         unsafe { mapper.map_to(page, frame, flags, frame_allocator)?.flush() };
     }
-    println!("{}:{}", file!(), line!());
 
     unsafe {
         super::ALLOCATOR.lock().init(HEAP_START, HEAP_SIZE);
     }
-    println!("{}:{}", file!(), line!());
 
     Ok(())
 }
@@ -51,16 +44,12 @@ pub fn init_stack(
     mapper: &mut impl Mapper<Size4KiB>,
     frame_allocator: &mut impl FrameAllocator<Size4KiB>,
 ) -> Result<(), MapToError> {
-    println!("{}:{}", file!(), line!());
-
     let stack_start = VirtAddr::new(STACK_START as u64);
     let stack_end = stack_start + STACK_SIZE - 1u64;
     let stack_start_page = Page::containing_address(stack_start);
     let stack_end_page = Page::containing_address(stack_end);
 
     let page_range = { Page::range_inclusive(stack_start_page + 1, stack_end_page) };
-
-    println!("{}:{}", file!(), line!());
 
     for page in page_range {
         let frame = frame_allocator
@@ -69,7 +58,6 @@ pub fn init_stack(
         let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
         unsafe { mapper.map_to(page, frame, flags, frame_allocator)?.flush() };
     }
-    println!("{}:{}", file!(), line!());
 
     // Guard Page
     let frame = frame_allocator

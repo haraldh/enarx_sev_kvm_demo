@@ -34,7 +34,7 @@ pub mod sysconf;
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 //static ALLOCATOR: BsAlloc = BsAlloc;
 
-use bootinfo::BootInfo;
+use boot::BootInfo;
 use x86_64::structures::paging::OffsetPageTable;
 
 pub static mut BOOTINFO: Option<&'static BootInfo> = None;
@@ -47,11 +47,8 @@ pub unsafe fn context_switch(entry_point: fn() -> !, stack_pointer: usize) -> ! 
 }
 
 pub fn init() {
-    println!("{}:{}", file!(), line!());
     gdt::init();
-    println!("{}:{}", file!(), line!());
     interrupts::init_idt();
-    println!("{}:{}", file!(), line!());
     x86_64::instructions::interrupts::enable();
 }
 
@@ -93,7 +90,7 @@ pub fn hlt_loop() -> ! {
 }
 
 #[cfg(test)]
-use bootinfo::entry_point;
+use boot::entry_point;
 
 #[cfg(test)]
 entry_point!(test_kernel_main);

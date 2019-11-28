@@ -1,4 +1,4 @@
-use bootinfo::{MemoryMap, MemoryRegion, MemoryRegionType};
+use boot::{MemoryMap, MemoryRegion, MemoryRegionType};
 
 pub(crate) struct FrameAllocator {
     pub memory_map: MemoryMap,

@@ -1,23 +1,19 @@
 use kvm_bindings::{kvm_mp_state, kvm_segment, kvm_userspace_memory_region};
 use kvm_ioctls::{Kvm, VcpuFd, VmFd, MAX_KVM_CPUID_ENTRIES};
 
-pub use x86_64::{gdt, HostVirtAddr, PhysAddr, VirtAddr};
-mod frame_allocator;
-pub mod x86_64;
-
-use crate::error::*;
-use crate::{context, map_context};
-use bootinfo::{
-    BootInfo, FrameRange, MemoryMap, MemoryRegion, MemoryRegionType, PageTables,
-    BOOTINFO_PHYS_ADDR, BOOT_GDT_OFFSET, BOOT_IDT_OFFSET, BOOT_STACK_POINTER,
-    BOOT_STACK_POINTER_SIZE, HIMEM_START, PAGETABLE_LEN, PDE_START, PDPTE_OFFSET_START,
-    PDPTE_START, PML4_START, SYSCALL_PHYS_ADDR,
-};
-
-use crate::kvm_util::gdt::{gdt_entry, kvm_segment_from_gdt};
+use boot::layout::*;
+use boot::{BootInfo, FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
 use vmsyscall::{KvmSyscall, KvmSyscallRet};
 use x86_64::consts::*;
 use x86_64::structures::paging::{frame::PhysFrameRange, PhysFrame};
+pub use x86_64::{gdt, HostVirtAddr, PhysAddr, VirtAddr};
+
+use crate::error::*;
+use crate::kvm_util::gdt::{gdt_entry, kvm_segment_from_gdt};
+use crate::{context, map_context};
+
+mod frame_allocator;
+pub mod x86_64;
 
 const DEFAULT_GUEST_MEM: u64 = 100 * 1024 * 1024;
 const DEFAULT_GUEST_PAGE_SIZE: usize = 4096;

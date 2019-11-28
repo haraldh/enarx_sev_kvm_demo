@@ -1,4 +1,4 @@
-use bootinfo::{MemoryMap, MemoryRegionType};
+use boot::{MemoryMap, MemoryRegionType};
 use x86_64::{
     structures::paging::{
         FrameAllocator, Mapper, OffsetPageTable, Page, PageTable, PhysFrame, Size4KiB,

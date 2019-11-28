@@ -13,7 +13,7 @@ name = "stack_overflow"
 harness = false
 
 [dependencies]
-bootinfo = {version = "0", path = "../bootinfo"}
+boot = {version = "0", path = "../boot"}
 xmas-elf = "0.7.0"
 spin = "0.5.2"
 x86_64 = "0.7.5"

@@ -2,7 +2,7 @@
 #![no_main]
 #![feature(abi_x86_interrupt)]
 
-use bootinfo::{entry_point, BootInfo};
+use boot::{entry_point, BootInfo};
 use core::panic::PanicInfo;
 use kernel::{context_switch, exit_qemu, serial_print, serial_println, QemuExitCode};
 use lazy_static::lazy_static;

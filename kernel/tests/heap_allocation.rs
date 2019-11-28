@@ -7,7 +7,7 @@
 extern crate alloc;
 
 use alloc::{boxed::Box, vec::Vec};
-use bootinfo::{entry_point, BootInfo};
+use boot::{entry_point, BootInfo};
 use core::panic::PanicInfo;
 use kernel::{serial_print, serial_println};
 

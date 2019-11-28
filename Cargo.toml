@@ -1,13 +1,13 @@
 [workspace]
 members = [
-    "bootinfo",
+    "boot",
     "vmrun",
     "kernel",
     "vmsyscall",
 ]
 
 default-members = [
-    "bootinfo",
+    "boot",
     "vmrun",
     "vmsyscall",
 ]
