@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "boot",
+    "app",
     "vmrun",
     "kernel",
     "vmsyscall",

@@ -21,6 +21,11 @@
       <sourceFolder url="file://$MODULE_DIR$/boot/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/boot/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/boot/benches" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/app/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/app/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/app/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/app/benches" isTestSource="true" />
+      <excludeFolder url="file://$MODULE_DIR$/app/target" />
       <excludeFolder url="file://$MODULE_DIR$/boot/target" />
       <excludeFolder url="file://$MODULE_DIR$/bootinfo/target" />
       <excludeFolder url="file://$MODULE_DIR$/kernel/target" />

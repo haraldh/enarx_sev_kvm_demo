@@ -29,3 +29,4 @@ features = ["spin_no_std"]
 
 [build-dependencies]
 cc = "1.0.37"
+llvm-tools = "0.1.1"

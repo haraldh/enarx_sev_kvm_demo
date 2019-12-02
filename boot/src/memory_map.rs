@@ -24,6 +24,14 @@ impl MemoryMap {
         }
     }
 
+    pub fn set_region_type_usable(&mut self, region_type: MemoryRegionType) {
+        self.iter_mut().for_each(|r| {
+            if r.region_type == region_type {
+                r.region_type = MemoryRegionType::Usable
+            }
+        });
+    }
+
     pub fn add_region(&mut self, region: MemoryRegion) {
         if let Err(true) = self.entries.iter_mut().try_for_each(|last_region| {
             if last_region.region_type == region.region_type

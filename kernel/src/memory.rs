@@ -65,7 +65,7 @@ unsafe impl FrameAllocator<Size4KiB> for EmptyFrameAllocator {
 
 /// A FrameAllocator that returns usable frames from the bootloader's memory map.
 pub struct BootInfoFrameAllocator {
-    memory_map: &'static MemoryMap,
+    memory_map: &'static mut MemoryMap,
     next: usize,
 }
 
@@ -78,15 +78,23 @@ impl BootInfoFrameAllocator {
     ///
     /// # Safety
     /// FIXME
-    pub unsafe fn init(memory_map: &'static MemoryMap) -> Self {
+    pub unsafe fn init(memory_map: &'static mut MemoryMap) -> Self {
         BootInfoFrameAllocator {
             memory_map,
             next: 0,
         }
     }
 
+    pub fn set_region_type_usable(&mut self, region_type: MemoryRegionType) {
+        self.memory_map.iter_mut().for_each(|r| {
+            if r.region_type == region_type {
+                r.region_type = MemoryRegionType::Usable
+            }
+        });
+    }
+
     /// Returns an iterator over the usable frames specified in the memory map.
-    fn usable_frames(&self) -> impl Iterator<Item = PhysFrame> {
+    fn usable_frames(&self) -> impl Iterator<Item = PhysFrame> + '_ {
         // get usable regions from memory map
         let regions = self.memory_map.iter();
         let usable_regions = regions.filter(|r| {

@@ -30,5 +30,5 @@ script:
   - cargo fmt -- --check
   - cargo build --package vmrun
   - cargo test --package vmrun
+  - cargo +nightly xbuild --package app --target app/x86_64-kernel.json
   - cargo +nightly xbuild --package kernel --target kernel/x86_64-kernel.json
-  - cargo +nightly xtest --package kernel --target kernel/x86_64-kernel.json

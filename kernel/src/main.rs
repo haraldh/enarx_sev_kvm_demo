@@ -8,28 +8,35 @@
 extern crate alloc;
 
 use alloc::{boxed::Box, rc::Rc, vec, vec::Vec};
-use boot::{entry_point, BootInfo};
+use boot::{entry_point, BootInfo, MemoryRegionType};
 use core::panic::PanicInfo;
 use core::ptr::null_mut;
+use kernel::allocator;
 use kernel::libc::madvise;
-use kernel::{context_switch, exit_qemu, println, QemuExitCode, BOOTINFO, MAPPER};
+use kernel::memory::{self, BootInfoFrameAllocator};
+use kernel::{context_switch, exit_qemu, println, QemuExitCode, MAPPER};
 use x86_64::VirtAddr;
 
 entry_point!(kernel_main);
 
-fn kernel_main(boot_info: &'static BootInfo) -> ! {
-    use kernel::allocator;
-    use kernel::memory::{self, BootInfoFrameAllocator};
-    println!("Hello World!");
+static mut FRAME_ALLOCATOR: Option<BootInfoFrameAllocator> = None;
+
+extern "C" {
+    static _app_start_addr: usize;
+    static _app_size: usize;
+}
+
+fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
+    println!("Hello World!!");
 
     kernel::init();
 
     println!("{:#?}", boot_info);
 
     let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
-    unsafe { MAPPER.replace(memory::init(phys_mem_offset)) };
 
-    let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_map) };
+    unsafe { MAPPER.replace(memory::init(phys_mem_offset)) };
+    let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&mut boot_info.memory_map) };
 
     allocator::init_heap(unsafe { MAPPER.as_mut().unwrap() }, &mut frame_allocator)
         .expect("heap initialization failed");
@@ -38,7 +45,7 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
         .expect("heap initialization failed");
 
     unsafe {
-        BOOTINFO.replace(boot_info);
+        FRAME_ALLOCATOR.replace(frame_allocator);
     }
 
     unsafe {
@@ -50,8 +57,18 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 }
 
 fn kernel_main_with_stack_protection() -> ! {
+    let mut frame_allocator = unsafe { FRAME_ALLOCATOR.take().unwrap() };
+    frame_allocator.set_region_type_usable(MemoryRegionType::KernelStack);
+    unsafe {
+        FRAME_ALLOCATOR.replace(frame_allocator);
+    }
+
     let ret = madvise(null_mut(), 0, 0);
     println!("madvise() = {:#?}", ret);
+
+    // allocate a number on the stack
+    let stack_value = 41;
+    println!("stack_value at {:p}", (&stack_value) as *const i32);
 
     // allocate a number on the heap
     let heap_value = Box::new(41);
@@ -80,63 +97,38 @@ fn kernel_main_with_stack_protection() -> ! {
     #[cfg(test)]
     test_main();
 
-    #[cfg(commented_out)]
+    use xmas_elf::program::ProgramHeader;
+
+    // Extract required information from the ELF file.
+    let mut segments = Vec::new();
+    let entry_point;
+    unsafe {
+        println!("app start {:#X}", &_app_start_addr as *const _ as u64);
+        println!("app size {:#X}", &_app_size as *const _ as u64);
+    }
     {
-        use xmas_elf::program::ProgramHeader;
-
-        #[derive(Debug)]
-        struct PhysOffset {
-            offset: VirtAddr,
-        }
-
-        impl PhysOffset {
-            fn phys_to_virt(&self, phys: PhysAddr) -> VirtAddr {
-                let virt = self.offset.as_u64() + phys.as_u64();
-                VirtAddr::new(virt)
-            }
-        }
-
-        let phys_off = PhysOffset {
-            offset: VirtAddr::new(boot_info.physical_memory_offset),
+        let kernel = unsafe {
+            core::slice::from_raw_parts(
+                &_app_start_addr as *const _ as *const u8,
+                &_app_size as *const _ as usize,
+            )
         };
+        let elf_file = xmas_elf::ElfFile::new(kernel).unwrap();
+        xmas_elf::header::sanity_check(&elf_file).unwrap();
 
-        let mut app_region: Option<&MemoryRegion> = None;
+        entry_point = elf_file.header.pt2.entry_point();
 
-        for region in boot_info.memory_map.iter() {
-            if region.region_type == MemoryRegionType::App {
-                app_region = Some(region);
-                break;
-            }
-        }
-
-        if let Some(app_region) = app_region {
-            let app_start_ptr = phys_off.phys_to_virt(PhysAddr::new(app_region.range.start_addr()));
-            let app_size = app_region.range.end_addr() - app_region.range.start_addr();
-
-            // Extract required information from the ELF file.
-            let mut segments = Vec::new();
-            let entry_point;
-            {
-                let kernel =
-                    unsafe { slice::from_raw_parts(app_start_ptr.as_ptr(), app_size as usize) };
-                let elf_file = xmas_elf::ElfFile::new(kernel).unwrap();
-                xmas_elf::header::sanity_check(&elf_file).unwrap();
-
-                entry_point = elf_file.header.pt2.entry_point();
-
-                for program_header in elf_file.program_iter() {
-                    match program_header {
-                        ProgramHeader::Ph64(header) => {
-                            let val = *header;
-                            segments.push(val)
-                        }
-                        ProgramHeader::Ph32(_) => panic!("does not support 32 bit elf files"),
-                    }
+        for program_header in elf_file.program_iter() {
+            match program_header {
+                ProgramHeader::Ph64(header) => {
+                    let val = *header;
+                    segments.push(val)
                 }
-                println!("{:#?}", segments);
-                println!("entry_point={:#?}", entry_point);
+                ProgramHeader::Ph32(_) => panic!("does not support 32 bit elf files"),
             }
         }
+        println!("{:#?}", segments);
+        println!("app_entry_point={:#X}", entry_point);
     }
 
     println!("It did not crash!");
