@@ -7,6 +7,7 @@
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 #![feature(asm)]
+#![feature(lang_items)]
 
 extern crate alloc;
 
@@ -19,6 +20,7 @@ pub mod interrupts;
 pub mod libc;
 pub mod memory;
 pub mod serial;
+pub mod start;
 pub mod sysconf;
 
 /* test bsalloc

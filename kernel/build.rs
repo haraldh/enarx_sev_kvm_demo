@@ -32,6 +32,7 @@ fn main() {
         .compile("asm");
 
     let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR not set"));
+
     // get access to llvm tools shipped in the llvm-tools-preview rustup component
     let llvm_tools = match llvm_tools::LlvmTools::new() {
         Ok(tools) => tools,
@@ -65,6 +66,17 @@ fn main() {
     let env_name = "APP";
     let section_name = "app";
 
+    let mut elf_path = PathBuf::from(
+        out_dir
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap(),
+    );
+    elf_path.push("app");
+    /*
     let elf_path = PathBuf::from(match env::var(env_name) {
         Ok(elf_path) => elf_path,
         Err(_) => {
@@ -75,6 +87,7 @@ fn main() {
             process::exit(1);
         }
     });
+    */
     let elf_file_name = elf_path
         .file_name()
         .expect(format!("{} has no valid file name", env_name).as_str())

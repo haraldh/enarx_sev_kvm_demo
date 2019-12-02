@@ -4,6 +4,11 @@ version = "0.1.0"
 authors = ["Philipp Oppermann <dev@phil-opp.com>", "Harald Hoyer <harald@redhat.com>"]
 edition = "2018"
 
+[lib]
+name = "kernel"
+path = "src/lib.rs"
+crate-type = ["staticlib"]
+
 [[test]]
 name = "should_panic"
 harness = false

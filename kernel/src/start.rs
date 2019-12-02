@@ -1,5 +1,4 @@
 #![no_std]
-#![no_main]
 #![warn(dead_code)]
 #![feature(custom_test_frameworks)]
 #![test_runner(kernel::test_runner)]
@@ -7,14 +6,14 @@
 
 extern crate alloc;
 
+use crate::allocator;
+use crate::libc::madvise;
+use crate::memory::{self, BootInfoFrameAllocator};
+use crate::{context_switch, exit_qemu, println, QemuExitCode, MAPPER};
 use alloc::{boxed::Box, rc::Rc, vec, vec::Vec};
 use boot::{entry_point, BootInfo, MemoryRegionType};
 use core::panic::PanicInfo;
 use core::ptr::null_mut;
-use kernel::allocator;
-use kernel::libc::madvise;
-use kernel::memory::{self, BootInfoFrameAllocator};
-use kernel::{context_switch, exit_qemu, println, QemuExitCode, MAPPER};
 use x86_64::VirtAddr;
 
 entry_point!(kernel_main);
@@ -29,7 +28,7 @@ extern "C" {
 fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     println!("Hello World!!");
 
-    kernel::init();
+    crate::init();
 
     println!("{:#?}", boot_info);
 
@@ -133,7 +132,7 @@ fn kernel_main_with_stack_protection() -> ! {
 
     println!("It did not crash!");
     exit_qemu(QemuExitCode::Success);
-    kernel::hlt_loop()
+    crate::hlt_loop()
 }
 
 /// This function is called on panic.
@@ -142,7 +141,7 @@ fn kernel_main_with_stack_protection() -> ! {
 fn panic(info: &PanicInfo) -> ! {
     println!("{}", info);
     exit_qemu(QemuExitCode::Failed);
-    kernel::hlt_loop()
+    crate::hlt_loop()
 }
 
 #[cfg(test)]
@@ -150,3 +149,7 @@ fn panic(info: &PanicInfo) -> ! {
 fn panic(info: &PanicInfo) -> ! {
     kernel::test_panic_handler(info)
 }
+
+#[lang = "eh_personality"]
+#[no_mangle]
+pub extern "C" fn rust_eh_personality() {}
