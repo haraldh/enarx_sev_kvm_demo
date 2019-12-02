@@ -21,9 +21,9 @@ mod memory_map;
 macro_rules! entry_point {
     ($path:path) => {
         #[export_name = "_start"]
-        pub extern "C" fn __impl_start(boot_info: &'static $crate::BootInfo) -> ! {
+        pub extern "C" fn __impl_start(boot_info: &'static mut $crate::BootInfo) -> ! {
             // validate the signature of the program entry point
-            let f: fn(&'static $crate::BootInfo) -> ! = $path;
+            let f: fn(&'static mut $crate::BootInfo) -> ! = $path;
 
             f(boot_info)
         }

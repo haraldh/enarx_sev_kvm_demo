@@ -34,10 +34,8 @@ pub mod sysconf;
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 //static ALLOCATOR: BsAlloc = BsAlloc;
 
-use boot::BootInfo;
 use x86_64::structures::paging::OffsetPageTable;
 
-pub static mut BOOTINFO: Option<&'static BootInfo> = None;
 pub static mut MAPPER: Option<OffsetPageTable> = None;
 
 pub unsafe fn context_switch(entry_point: fn() -> !, stack_pointer: usize) -> ! {
@@ -97,7 +95,7 @@ entry_point!(test_kernel_main);
 
 /// Entry point for `cargo xtest`
 #[cfg(test)]
-fn test_kernel_main(_boot_info: &'static BootInfo) -> ! {
+fn test_kernel_main(_boot_info: &'static mut boot::BootInfo) -> ! {
     init();
     test_main();
     hlt_loop();

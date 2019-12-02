@@ -13,6 +13,8 @@ pub const SYSCALL_PHYS_ADDR: u64 = BOOTINFO_PHYS_ADDR + 0x1000;
 pub const HIMEM_START: usize = 0x0010_0000; //1 MB.
 pub const BOOT_STACK_POINTER: u64 = HIMEM_START as u64 - 0x1000;
 pub const BOOT_STACK_POINTER_SIZE: u64 = BOOT_STACK_POINTER - SYSCALL_PHYS_ADDR - 0x1000;
+// https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/Documentation/x86/x86_64/mm.rst
+pub const PHYSICAL_MEMORY_OFFSET: u64 = 0xFFFF_8800_0000_0000;
 
 #[repr(C)]
 pub struct PageTables {

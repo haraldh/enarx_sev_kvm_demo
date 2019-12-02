@@ -10,7 +10,7 @@ use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 
 entry_point!(main);
 
-fn main(boot_info: &'static BootInfo) -> ! {
+fn main(boot_info: &'static mut BootInfo) -> ! {
     use kernel::allocator;
     use kernel::memory::{self, BootInfoFrameAllocator};
     use x86_64::VirtAddr;
@@ -20,7 +20,7 @@ fn main(boot_info: &'static BootInfo) -> ! {
     kernel::init();
     let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
     let mut mapper = unsafe { memory::init(phys_mem_offset) };
-    let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_map) };
+    let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&mut boot_info.memory_map) };
     allocator::init_heap(&mut mapper, &mut frame_allocator).expect("heap initialization failed");
 
     init_test_idt();

@@ -17,7 +17,6 @@ pub mod x86_64;
 
 const DEFAULT_GUEST_MEM: u64 = 100 * 1024 * 1024;
 const DEFAULT_GUEST_PAGE_SIZE: usize = 4096;
-const PHYSICAL_MEMORY_OFFSET: u64 = 0xFFFF_8000_0000_0000;
 
 struct UserspaceMemRegion {
     region: kvm_userspace_memory_region,
@@ -103,7 +102,6 @@ impl KvmVm {
                 region_type: MemoryRegionType::SysCall,
             });
 
-            // FIXME: add stack guard page
             let stack_frame: PhysFrame = PhysFrame::from_start_address(PhysAddr::new(
                 BOOT_STACK_POINTER - BOOT_STACK_POINTER_SIZE,
             ))
@@ -495,7 +493,7 @@ impl KvmVm {
         Ok(())
     }
 
-    pub fn handle_syscall(&self, syscall: KvmSyscall) -> KvmSyscallRet {
+    pub fn handle_syscall(&mut self, syscall: KvmSyscall) -> KvmSyscallRet {
         match syscall {
             KvmSyscall::Mmap {
                 addr: _,

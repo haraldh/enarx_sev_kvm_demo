@@ -29,7 +29,7 @@ SECTIONS
 
 	.rodata ALIGN(4K) : { *(.rodata .rodata.*) *(.eh_frame .eh_frame.*) } :rodata
 	.text   ALIGN(4K) : { *(.text .text.*)                              } :text
-	.data   ALIGN(4K) : { *(.data .data.*) *(.bss .bss.*)                         } :data
+	.data   ALIGN(4K) : { *(.data .data.*) *(.bss .bss.*) KEEP(*(.app)) } :data
 
 	/* firmware_ram_size = . - ram_min; */
 

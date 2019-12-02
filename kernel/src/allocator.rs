@@ -7,10 +7,9 @@ use x86_64::{
     VirtAddr,
 };
 
-pub const HEAP_START: usize = 0x1F00_0000_0000;
+pub const HEAP_START: usize = 0x4E43_0000_0000;
 pub const HEAP_SIZE: usize = 100 * 1024; // 100 KiB
-
-pub const STACK_START: usize = 0x2F00_0000_0000;
+pub const STACK_START: usize = 0x4848_0000_0000;
 pub const STACK_SIZE: usize = 1024 * 1024; // 1MiB
 
 pub fn init_heap(
