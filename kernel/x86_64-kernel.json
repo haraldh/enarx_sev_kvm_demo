@@ -1,10 +1,10 @@
 {
     "llvm-target": "x86_64-unknown-none",
-    "data-layout": "e-m:e-i64:64-f80:128-n8:16:32:64-S128",
-    "arch": "x86_64",
     "target-endian": "little",
     "target-pointer-width": "64",
     "target-c-int-width": "32",
+    "data-layout": "e-m:e-i64:64-f80:128-n8:16:32:64-S128",
+    "arch": "x86_64",
     "os": "enarx",
     "executables": true,
     "linker-flavor": "ld.lld",
@@ -16,6 +16,8 @@
     "code-model": "kernel",
     "dynamic-linking-available": false,
     "position-independent-executables": true,
+    "no-compiler-rt": true,
+    "no-default-libraries": true,
     "pre-link-args": {
         "ld.lld": [
             "--script=kernel/layout.ld"

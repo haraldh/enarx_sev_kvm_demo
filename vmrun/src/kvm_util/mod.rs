@@ -321,14 +321,16 @@ impl KvmVm {
                         _ => continue,
                     }
 
-                    let start_phys = PhysAddr::new(segment.virtual_addr - PHYSICAL_MEMORY_OFFSET);
+                    let start_phys =
+                        PhysAddr::new(segment.virtual_addr /* - PHYSICAL_MEMORY_OFFSET*/);
                     let start_frame: PhysFrame =
                         PhysFrame::from_start_address(start_phys.align_down(self.page_size as u64))
                             .unwrap();
 
                     let end_frame: PhysFrame = PhysFrame::from_start_address(
                         PhysAddr::new(
-                            (segment.virtual_addr - PHYSICAL_MEMORY_OFFSET) + segment.mem_size - 1,
+                            (segment.virtual_addr/*- PHYSICAL_MEMORY_OFFSET*/) + segment.mem_size
+                                - 1,
                         )
                         .align_up(self.page_size as u64),
                     )
