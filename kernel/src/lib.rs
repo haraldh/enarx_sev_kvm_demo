@@ -1,113 +1,256 @@
-#![no_std]
-#![cfg_attr(test, no_main)]
-#![feature(custom_test_frameworks)]
-#![feature(abi_x86_interrupt)]
-#![feature(alloc_error_handler)]
-#![feature(allocator_api)]
-#![test_runner(crate::test_runner)]
-#![reexport_test_harness_main = "test_main"]
-#![feature(asm)]
+//! # The Redox OS Kernel, version 2
+//!
+//! The Redox OS Kernel is a microkernel that supports `x86_64` systems and
+//! provides Unix-like syscalls for primarily Rust applications
 
+// Useful for adding comments about different branches
+#![allow(clippy::if_same_then_else)]
+// Useful in the syscall function
+#![allow(clippy::many_single_char_names)]
+// Used for context::context
+#![allow(clippy::module_inception)]
+// Not implementing default is sometimes useful in the case something has significant cost
+// to allocate. If you implement default, it can be allocated without evidence using the
+// ..Default::default() syntax. Not fun in kernel space
+#![allow(clippy::new_without_default)]
+// Used to make it nicer to return errors, for example, .ok_or(Error::new(ESRCH))
+#![allow(clippy::or_fun_call)]
+// This is needed in some cases, like for syscall
+#![allow(clippy::too_many_arguments)]
+// There is no harm in this being done
+#![allow(clippy::useless_format)]
+// TODO: address ocurrances and then deny
+#![warn(clippy::not_unsafe_ptr_arg_deref)]
+// TODO: address ocurrances and then deny
+#![warn(clippy::cast_ptr_alignment)]
+// Indexing a slice can cause panics and that is something we always want to avoid
+// in kernel code. Use .get and return an error instead
+// TODO: address ocurrances and then deny
+#![warn(clippy::indexing_slicing)]
+// Overflows are very, very bad in kernel code as it may provide an attack vector for
+// userspace applications, and it is only checked in debug builds
+// TODO: address ocurrances and then deny
+#![warn(clippy::integer_arithmetic)]
+// Avoid panicking in the kernel without information about the panic. Use expect
+// TODO: address ocurrances and then deny
+#![warn(clippy::result_unwrap_used)]
+// This is usually a serious issue - a missing import of a define where it is interpreted
+// as a catch-all variable in a match, for example
+#![deny(unreachable_patterns)]
+#![feature(allocator_api)]
+#![feature(asm)]
+#![feature(concat_idents)]
+#![feature(const_fn)]
+#![feature(core_intrinsics)]
+#![feature(integer_atomics)]
+#![feature(lang_items)]
+#![feature(naked_functions)]
+#![feature(never_type)]
+#![feature(ptr_internals)]
+#![feature(thread_local)]
+#![no_std]
+
+pub extern crate x86;
+
+#[macro_use]
 extern crate alloc;
 
-use core::panic::PanicInfo;
-use linked_list_allocator::LockedHeap;
+#[macro_use]
+extern crate bitflags;
+extern crate goblin;
+extern crate linked_list_allocator;
+extern crate rustc_demangle;
+#[cfg(feature = "slab")]
+extern crate slab_allocator;
+extern crate spin;
 
+use alloc::vec::Vec;
+use core::sync::atomic::{AtomicUsize, Ordering};
+
+use crate::scheme::{FileHandle, SchemeNamespace};
+
+pub use crate::consts::*;
+
+#[macro_use]
+/// Shared data structures
+pub mod common;
+
+/// Architecture-dependent stuff
+#[macro_use]
+pub mod arch;
+pub use crate::arch::*;
+
+/// Constants like memory locations
+pub mod consts;
+
+/// Heap allocators
 pub mod allocator;
-pub mod gdt;
-pub mod interrupts;
-pub mod libc;
-pub mod memory;
-pub mod serial;
+
 pub mod sysconf;
 
-/* test bsalloc
-    pub mod bsalloc;
-    pub mod alloc_fmt;
-    pub mod mmap_alloc;
-    pub mod object_alloc;
-    use crate::bsalloc::BsAlloc;
-    pub use alloc_fmt::*;
-*/
+/// ACPI table parsing
+#[cfg(feature = "acpi")]
+mod acpi;
+
+/// Context management
+pub mod context;
+
+/// Architecture-independent devices
+pub mod devices;
+
+/// ELF file parsing
+#[cfg(not(feature = "doc"))]
+pub mod elf;
+
+/// Event handling
+pub mod event;
+
+/// External functions
+pub mod externs;
+
+/// Logging
+pub mod log;
+
+/// Memory management
+pub mod memory;
+
+/// Panic
+#[cfg(not(any(feature = "doc", test)))]
+pub mod panic;
+
+/// Process tracing
+pub mod ptrace;
+
+/// Schemes, filesystem handlers
+pub mod scheme;
+
+/// Synchronization primitives
+pub mod sync;
+
+/// Syscall handlers
+pub mod syscall;
+
+/// Time
+pub mod time;
+
+/// Tests
+#[cfg(test)]
+pub mod tests;
 
 #[global_allocator]
-static ALLOCATOR: LockedHeap = LockedHeap::empty();
-//static ALLOCATOR: BsAlloc = BsAlloc;
+static ALLOCATOR: allocator::Allocator = allocator::Allocator;
 
-use x86_64::structures::paging::OffsetPageTable;
+/// A unique number that identifies the current CPU - used for scheduling
+#[thread_local]
+static CPU_ID: AtomicUsize = AtomicUsize::new(0);
 
-pub static mut MAPPER: Option<OffsetPageTable> = None;
-
-pub unsafe fn context_switch(entry_point: fn() -> !, stack_pointer: usize) -> ! {
-    asm!("call $1; ${:private}.spin.${:uid}: jmp ${:private}.spin.${:uid}" ::
-         "{rsp}"(stack_pointer), "r"(entry_point) :: "intel");
-    ::core::hint::unreachable_unchecked()
+/// Get the current CPU's scheduling ID
+#[inline(always)]
+pub fn cpu_id() -> usize {
+    CPU_ID.load(Ordering::Relaxed)
 }
 
-pub fn init() {
-    gdt::init();
-    interrupts::init_idt();
-    x86_64::instructions::interrupts::enable();
+/// The count of all CPUs that can have work scheduled
+static CPU_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+/// Get the number of CPUs currently active
+#[inline(always)]
+pub fn cpu_count() -> usize {
+    CPU_COUNT.load(Ordering::Relaxed)
 }
 
-pub fn test_runner(tests: &[&dyn Fn()]) {
-    serial_println!("Running {} tests", tests.len());
-    for test in tests {
-        test();
-    }
-    exit_qemu(QemuExitCode::Success);
-}
+static mut INIT_ENV: &[u8] = &[];
 
-pub fn test_panic_handler(info: &PanicInfo) -> ! {
-    serial_println!("[failed]\n");
-    serial_println!("Error: {}\n", info);
-    exit_qemu(QemuExitCode::Failed);
-    hlt_loop();
-}
+/// This is the kernel entry point for the primary CPU. The arch crate is responsible for calling this
+pub fn kmain(cpus: usize, env: &'static [u8]) -> ! {
+    CPU_ID.store(0, Ordering::SeqCst);
+    CPU_COUNT.store(cpus, Ordering::SeqCst);
+    unsafe { INIT_ENV = env };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u32)]
-pub enum QemuExitCode {
-    Success = 0x10,
-    Failed = 0x11,
-}
+    //Initialize the first context, stored in kernel/src/context/mod.rs
+    context::init();
 
-pub fn exit_qemu(exit_code: QemuExitCode) {
-    use x86_64::instructions::port::PortWriteOnly;
+    let pid = syscall::getpid();
+    println!("BSP: {:?} {}", pid, cpus);
+    println!("Env: {:?}", ::core::str::from_utf8(env));
 
-    unsafe {
-        let mut port = PortWriteOnly::new(0xf4);
-        port.write(exit_code as u32);
-    }
-}
-
-pub fn hlt_loop() -> ! {
+    /*
+        match context::contexts_mut().spawn(userspace_init) {
+            Ok(context_lock) => {
+                let mut context = context_lock.write();
+                context.rns = SchemeNamespace::from(1);
+                context.ens = SchemeNamespace::from(1);
+                context.status = context::Status::Runnable;
+            }
+            Err(err) => {
+                panic!("failed to spawn userspace_init: {:?}", err);
+            }
+        }
+    */
     loop {
-        x86_64::instructions::hlt();
+        unsafe {
+            interrupt::disable();
+            if context::switch() {
+                interrupt::enable_and_nop();
+            } else {
+                // Enable interrupts, then halt CPU (to save power) until the next interrupt is actually fired.
+                interrupt::enable_and_halt();
+            }
+        }
     }
 }
 
-#[cfg(test)]
-use boot::entry_point;
+/// This is the main kernel entry point for secondary CPUs
+#[allow(unreachable_code, unused_variables)]
+pub fn kmain_ap(id: usize) -> ! {
+    CPU_ID.store(id, Ordering::SeqCst);
 
-#[cfg(test)]
-entry_point!(test_kernel_main);
+    if cfg!(feature = "multi_core") {
+        context::init();
 
-/// Entry point for `cargo xtest`
-#[cfg(test)]
-fn test_kernel_main(_boot_info: &'static mut boot::BootInfo) -> ! {
-    init();
-    test_main();
-    hlt_loop();
+        let pid = syscall::getpid();
+        println!("AP {}: {:?}", id, pid);
+
+        loop {
+            unsafe {
+                interrupt::disable();
+                if context::switch() {
+                    interrupt::enable_and_nop();
+                } else {
+                    // Enable interrupts, then halt CPU (to save power) until the next interrupt is actually fired.
+                    interrupt::enable_and_halt();
+                }
+            }
+        }
+    } else {
+        println!("AP {}: Disabled", id);
+
+        loop {
+            unsafe {
+                interrupt::disable();
+                interrupt::halt();
+            }
+        }
+    }
 }
 
-#[cfg(test)]
-#[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
-    test_panic_handler(info)
-}
-
-#[alloc_error_handler]
-fn alloc_error_handler(layout: alloc::alloc::Layout) -> ! {
-    panic!("allocation error: {:?}", layout)
+/// Allow exception handlers to send signal to arch-independant kernel
+#[no_mangle]
+pub extern "C" fn ksignal(signal: usize) {
+    println!(
+        "SIGNAL {}, CPU {}, PID {:?}",
+        signal,
+        cpu_id(),
+        context::context_id()
+    );
+    {
+        let contexts = context::contexts();
+        if let Some(context_lock) = contexts.current() {
+            let context = context_lock.read();
+            println!("NAME {}", unsafe {
+                ::core::str::from_utf8_unchecked(&context.name.lock())
+            });
+        }
+    }
+    syscall::exit(signal & 0x7F);
 }

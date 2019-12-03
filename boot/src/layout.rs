@@ -1,5 +1,5 @@
-pub const BOOT_GDT_OFFSET: usize = 0x500;
-pub const BOOT_IDT_OFFSET: usize = 0x520;
+pub const BOOT_GDT_OFFSET: usize = 0x5500;
+pub const BOOT_IDT_OFFSET: usize = 0x5520;
 
 // Initial pagetables.
 pub const PML4_START: usize = 0x9000;

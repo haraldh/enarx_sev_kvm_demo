@@ -23,6 +23,7 @@ fn main() {
     if env::var_os("CC").is_none() {
         env::set_var("CC", "clang");
     }
+    println!("cargo:rustc-env=TARGET={}", env::var("TARGET").unwrap());
 
     cc::Build::new()
         .no_default_flags(true)

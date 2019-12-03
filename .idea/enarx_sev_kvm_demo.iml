@@ -25,9 +25,19 @@
       <sourceFolder url="file://$MODULE_DIR$/app/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/app/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/app/benches" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/kernel/syscall/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/kernel/syscall/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/kernel/syscall/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/kernel/syscall/benches" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/kernel/slab_allocator/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/kernel/slab_allocator/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/kernel/slab_allocator/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/kernel/slab_allocator/benches" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/app/target" />
       <excludeFolder url="file://$MODULE_DIR$/boot/target" />
       <excludeFolder url="file://$MODULE_DIR$/bootinfo/target" />
+      <excludeFolder url="file://$MODULE_DIR$/kernel/slab_allocator/target" />
+      <excludeFolder url="file://$MODULE_DIR$/kernel/syscall/target" />
       <excludeFolder url="file://$MODULE_DIR$/kernel/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/vmrun/target" />

@@ -471,6 +471,7 @@ impl KvmVm {
         );
 
         boot_info.memory_map.sort();
+        dbg!(&boot_info.memory_map);
         // Write boot info to boot info page.
         let boot_info_addr = self.addr_gpa2hva(boot_info_vaddr)?;
         //serial_println!("stage4: boot_info_addr={:#?}", boot_info);

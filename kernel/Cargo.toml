@@ -22,11 +22,38 @@ linked_list_allocator = "0.6.4"
 vmsyscall = {version = "0", path = "../vmsyscall"}
 serde_cbor = { version = "0.10.3", default-features = false, git = "https://github.com/pyfisch/cbor.git"}
 serde = { version = "1.0", default-features = false, features = ["derive"] }
+raw-cpuid = "4.0.0"
+bitflags = "1.0.3"
+redox_syscall = { path = "syscall" }
+slab_allocator = { path = "slab_allocator", optional = true }
+
+[dependencies.x86]
+version = "0.9.0"
+default-features = false
 
 [dependencies.lazy_static]
 version = "1.0"
 features = ["spin_no_std"]
 
+[dependencies.rustc-demangle]
+version = "0.1.13"
+default-features = false
+
+[dependencies.goblin]
+version = "0.0.21"
+default-features = false
+features = ["elf32", "elf64"]
+
 [build-dependencies]
 cc = "1.0.37"
 llvm-tools = "0.1.1"
+
+[features]
+default = ["serial_debug"]
+acpi = []
+doc = []
+live = []
+multi_core = ["acpi"]
+pti = []
+serial_debug = []
+slab = ["slab_allocator"]
