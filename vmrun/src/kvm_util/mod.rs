@@ -180,7 +180,10 @@ impl KvmVm {
         };
 
         self.frame_allocator.memory_map.add_region(MemoryRegion {
-            range: FrameRange::new(region.region.guest_phys_addr, region.region.memory_size),
+            range: FrameRange::new(
+                region.region.guest_phys_addr,
+                region.region.guest_phys_addr + region.region.memory_size,
+            ),
             region_type: MemoryRegionType::Usable,
         });
 
@@ -318,14 +321,16 @@ impl KvmVm {
                         _ => continue,
                     }
 
-                    let start_phys = PhysAddr::new(segment.virtual_addr);
+                    let start_phys = PhysAddr::new(segment.virtual_addr - PHYSICAL_MEMORY_OFFSET);
                     let start_frame: PhysFrame =
                         PhysFrame::from_start_address(start_phys.align_down(self.page_size as u64))
                             .unwrap();
 
                     let end_frame: PhysFrame = PhysFrame::from_start_address(
-                        PhysAddr::new(segment.virtual_addr + segment.mem_size - 1)
-                            .align_up(self.page_size as u64),
+                        PhysAddr::new(
+                            (segment.virtual_addr - PHYSICAL_MEMORY_OFFSET) + segment.mem_size - 1,
+                        )
+                        .align_up(self.page_size as u64),
                     )
                     .unwrap();
 
@@ -333,7 +338,8 @@ impl KvmVm {
                         range: frame_range(PhysFrame::range(start_frame, end_frame)),
                         region_type: MemoryRegionType::Kernel,
                     };
-
+                    dbg!(region);
+                    dbg!(&self.frame_allocator.memory_map);
                     self.frame_allocator.mark_allocated_region(region);
 
                     // FIXME: SEV LOAD
@@ -477,7 +483,7 @@ impl KvmVm {
             .map_err(map_context!())?;
         regs.rflags |= 0x2;
         regs.rsp = BOOT_STACK_POINTER;
-        regs.rip = guest_code.as_u64();
+        regs.rip = dbg!(guest_code).as_u64();
         regs.rdi = boot_info_vaddr.as_u64();
 
         self.cpu_fd[vcpuid as usize]
