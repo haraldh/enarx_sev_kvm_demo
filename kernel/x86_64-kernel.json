@@ -15,9 +15,6 @@
     "relocation-model": "pic",
     "code-model": "kernel",
     "dynamic-linking-available": false,
-    "position-independent-executables": true,
-    "no-compiler-rt": true,
-    "no-default-libraries": true,
     "pre-link-args": {
         "ld.lld": [
             "--script=kernel/layout.ld"

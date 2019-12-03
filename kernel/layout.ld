@@ -2,12 +2,11 @@ ENTRY(_start)
 OUTPUT_FORMAT(elf64-x86-64)
 
 KERNEL_OFFSET = 0xFFFF880000100000;
-KERNEL_OFFSET = 1M;
 
 SECTIONS {
     . = KERNEL_OFFSET;
 
-    . += SIZEOF_HEADERS;
+/*    . += SIZEOF_HEADERS; */
     . = ALIGN(4096);
 
     .text : AT(ADDR(.text) - KERNEL_OFFSET) {
@@ -17,12 +16,16 @@ SECTIONS {
         __text_end = .;
     }
 
+    . = ALIGN(4096);
+
 	.rodata : AT(ADDR(.rodata) - KERNEL_OFFSET) {
         __rodata_start = .;
         *(.rodata*)
 		. = ALIGN(4096);
         __rodata_end = .;
     }
+
+    . = ALIGN(4096);
 
     .data : AT(ADDR(.data) - KERNEL_OFFSET) {
         __data_start = .;
@@ -34,6 +37,8 @@ SECTIONS {
         . = ALIGN(4096);
         __bss_end = .;
     }
+
+    . = ALIGN(4096);
 
     .tdata : AT(ADDR(.tdata) - KERNEL_OFFSET) {
         __tdata_start = .;
