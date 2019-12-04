@@ -1,3 +1,4 @@
+use crate::gdt;
 use alloc::alloc::{GlobalAlloc, Layout};
 use core::ptr::null_mut;
 use x86_64::{
@@ -68,6 +69,8 @@ pub fn init_stack(
             .map_to(stack_start_page, frame, flags, frame_allocator)?
             .flush()
     };
+
+    //gdt::TSS.privilege_stack_table[0] = stack_end;
 
     Ok(())
 }

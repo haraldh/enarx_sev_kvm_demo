@@ -177,6 +177,10 @@ fn main() {
     );
     println!("cargo:rustc-link-search=native={}", out_dir.display());
 
+    println!(
+        "cargo:rerun-if-changed={}",
+        elf_path.as_os_str().to_string_lossy()
+    );
     println!("cargo:rerun-if-changed=src/asm.s");
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=layout.ld");

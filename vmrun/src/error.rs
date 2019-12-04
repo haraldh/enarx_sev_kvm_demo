@@ -12,6 +12,7 @@ pub enum ErrorKind {
     NoMappingForVirtualAddress,
     NoVirtualAddressAvailable,
     GuestCodeNotFound,
+    Errno(i32),
     Io(::std::io::ErrorKind),
     Str(&'static str),
     Generic,
@@ -21,6 +22,7 @@ impl ::std::fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match self {
             ErrorKind::Io(_) => write!(f, "IO error"),
+            ErrorKind::Errno(e) => write!(f, "errno {}", e),
             ErrorKind::OverlappingUserspaceMemRegionExists => {
                 write!(f, "overlapping userspace_mem_region already exists")
             }
@@ -49,6 +51,12 @@ impl ::std::fmt::Display for ErrorKind {
 impl From<&io::Error> for ErrorKind {
     fn from(e: &io::Error) -> Self {
         ErrorKind::Io(e.kind())
+    }
+}
+
+impl From<&vmm_sys_util::errno::Error> for ErrorKind {
+    fn from(e: &vmm_sys_util::errno::Error) -> Self {
+        ErrorKind::Errno(e.errno())
     }
 }
 

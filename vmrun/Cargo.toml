@@ -7,8 +7,9 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-kvm-ioctls = "0.3.0"
+kvm-ioctls = "0.4.0"
 kvm-bindings = "0.2.0"
+vmm-sys-util = "0.2.1"
 bit_field = "0.9.0"
 xmas-elf = "0.7.0"
 bitflags = "1.2.1"
@@ -16,8 +17,11 @@ mmap = "0.1.1"
 array-init = "0.0.4"
 boot = {version = "0", path="../boot"}
 vmsyscall = {version = "0", path = "../vmsyscall"}
-serde_cbor = { version = "0.10.3", default-features = false, git = "https://github.com/pyfisch/cbor.git"}
+serde_cbor = { version = "0.10.3", git = "https://github.com/pyfisch/cbor", tag="v0.10.3"}
 serde = { version = "1.0", default-features = false, features = ["derive"] }
+fc_devices = { version="0.1", git = "https://github.com/firecracker-microvm/firecracker", package="devices", rev="f55da99544f16280c31919b2596522c18d83e5e1"}
+fc_utils = { version="0.1", git = "https://github.com/firecracker-microvm/firecracker", package="utils", rev="f55da99544f16280c31919b2596522c18d83e5e1" }
+
 
 [dependencies.cast]
 version = "0.2.2"

@@ -7,6 +7,7 @@
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 #![feature(asm)]
+#![feature(naked_functions)]
 
 extern crate alloc;
 
@@ -18,7 +19,10 @@ pub mod gdt;
 pub mod interrupts;
 pub mod libc;
 pub mod memory;
+#[macro_use]
 pub mod serial;
+pub mod pti;
+pub mod syscall;
 pub mod sysconf;
 
 /* test bsalloc
@@ -46,6 +50,7 @@ pub unsafe fn context_switch(entry_point: fn() -> !, stack_pointer: usize) -> ! 
 
 pub fn init() {
     gdt::init();
+    unsafe { syscall::init() };
     interrupts::init_idt();
     x86_64::instructions::interrupts::enable();
 }

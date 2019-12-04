@@ -10,5 +10,11 @@
     "linker-flavor": "ld.lld",
     "panic-strategy": "abort",
     "code-model": "small",
-    "relocation-model": "static"
-  }
+    "relocation-model": "pic",
+    "pre-link-args": {
+        "ld.lld": [
+            "-s",
+            "--script=app/layout.ld"
+        ]
+    }
+}
