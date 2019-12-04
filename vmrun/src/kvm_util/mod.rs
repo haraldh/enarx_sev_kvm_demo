@@ -222,16 +222,12 @@ impl KvmVm {
         page_tables.pml4t[(PHYSICAL_MEMORY_OFFSET >> 39) as usize & 0x1FFusize] =
             boot_pdpte_offset_addr as u64 | 0x3;
 
-        // Entries covering VA [0..4GB)
-        for i_g in 0..4 {
-            // Entry covering VA [i..i+1GB)
-            page_tables.pml3t_ident[i_g] = boot_pde_addr as u64 | 0x3;
-            // 512 2MB entries together covering VA [i*1GB..(i+1)*1GB). Note we are assuming
-            // CPU supports 2MB pages (/proc/cpuinfo has 'pse'). All modern CPUs do.
-            for i in i_g * 512..(i_g + 1) * 512 {
-                page_tables.pml2t_ident[i] = ((i as u64) << 21) | 0x83u64;
-            }
-            boot_pde_addr += 0x1000;
+        // Entry covering VA [0..1GB)
+        page_tables.pml3t_ident[0] = boot_pde_addr as u64 | 0x3;
+        // 512 2MB entries together covering VA [0..1GB). Note we are assuming
+        // CPU supports 2MB pages (/proc/cpuinfo has 'pse'). All modern CPUs do.
+        for i in 0..1 {
+            page_tables.pml2t_ident[i] = ((i as u64) << 21) | 0x83u64;
         }
 
         // Entry covering VA [0..512GB) with physical offset PHYSICAL_MEMORY_OFFSET
