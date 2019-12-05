@@ -1,9 +1,10 @@
-use crate::println;
+use crate::{exit_qemu, println, serial_print, QemuExitCode};
 use core::ops::{Deref, DerefMut};
 use core::{mem, slice};
 
 use crate::gdt;
 use crate::pti;
+use x86_64::instructions::segmentation::{ds, fs};
 use x86_64::registers::control::EferFlags;
 use x86_64::registers::model_specific::{Efer, KernelGsBase, Msr};
 use x86_64::VirtAddr;
@@ -29,10 +30,10 @@ impl FMask {
 }
 
 pub unsafe fn init() {
-    Star::MSR.write(((gdt::GDT.1.code_selector.index() as u64) << 3) << 32);
+    Star::MSR.write(((gdt::GDT.as_ref().unwrap().1.code_selector.index() as u64) << 3) << 32);
     LStar::MSR.write(syscall_instruction as u64);
     FMask::MSR.write(0x300); // Clear trap flag and interrupt enable
-    KernelGsBase::write(VirtAddr::new(&gdt::TSS as *const _ as u64));
+    KernelGsBase::write(VirtAddr::new(gdt::TSS.as_ref().unwrap() as *const _ as u64));
     Efer::write(Efer::read() | EferFlags::SYSTEM_CALL_EXTENSIONS);
 }
 
@@ -330,6 +331,9 @@ impl InterruptStack {
     }
 }
 
+const SYS_EXIT: usize = 60;
+const SYS_WRITE: usize = 1;
+
 pub fn syscall(
     a: usize,
     b: usize,
@@ -348,7 +352,41 @@ pub fn syscall(
     println!("syscall f={}", f);
     println!("syscall bp={}", bp);
     println!("syscall stack={:#X}", stack as *const _ as u64);
-    38 // ENOSYS
+
+    match a {
+        SYS_EXIT => {
+            exit_qemu(if b == 0 {
+                QemuExitCode::Success
+            } else {
+                QemuExitCode::Failed
+            });
+            loop {}
+        }
+        SYS_WRITE => {
+            if b == 1 {
+                let mut cptr = c as *const i8;
+                let mut len = 0;
+                unsafe {
+                    loop {
+                        if cptr.read() == 0 {
+                            break;
+                        }
+                        len += 1;
+                        cptr = (c + len) as *const i8;
+                    }
+                    let cstr = unsafe { core::slice::from_raw_parts(c as *const u8, len) };
+                    let s = core::str::from_utf8_unchecked(cstr);
+                    serial_print!("{}", s);
+                }
+                0usize
+            } else {
+                -77i64 as usize // EBADFD
+            }
+        }
+        _ => {
+            -38i64 as usize // ENOSYS
+        }
+    }
 }
 
 #[naked]
@@ -384,10 +422,12 @@ pub unsafe extern "C" fn syscall_instruction() {
     // Push scratch registers
     scratch_push!();
     preserved_push!();
-    asm!("push fs
-         mov r11, 0x18
-         mov fs, r11"
-         : : : : "intel", "volatile");
+
+    asm!("
+        push fs 
+        mov r11, 0x33 /* tls_selector */ 
+        mov fs, r11"
+        : : : : "intel", "volatile");
 
     // Get reference to stack variables
     let rsp: usize;
@@ -402,7 +442,11 @@ pub unsafe extern "C" fn syscall_instruction() {
     pti::unmap();
 
     // Interrupt return
-    asm!("pop fs" : : : : "intel", "volatile");
+    asm!("pop r11
+        mov r11, 0x18 /* tls_selector */ 
+        mov fs, r11"
+    : : : : "intel", "volatile");
+
     preserved_pop!();
     scratch_pop!();
     asm!("iretq" : : : : "intel", "volatile");
@@ -410,21 +454,30 @@ pub unsafe extern "C" fn syscall_instruction() {
 
 #[naked]
 pub unsafe fn usermode(ip: usize, sp: usize, arg: usize) -> ! {
+    //let gdt1 = &gdt::GDT.as_ref().unwrap().1;
+    const code: usize = (/*gdt1.user_code_selector.0*/4 << 3 | 3) as _;
+    const data: usize = (/*gdt1.user_data_selector.0*/5 << 3 | 3) as _;
+    const tls: usize = (/* gdt1.user_tls_selector.0 */6 << 3 | 3) as _;
+    println!("code={:#X}", code);
+    println!("data={:#X}", data);
+    println!("tls={:#X}", tls);
+    println!("ds={:#X}", ds().0);
+
     asm!("push r10
-              push r11
-              push r12
-              push r13
-              push r14
-              push r15"
-              : // No output
-              :   "{r10}"(gdt::GDT.1.user_data_selector.index() << 3 | 3), // Data segment
-                  "{r11}"(sp), // Stack pointer
-                  "{r12}"(1 << 9), // Flags - Set interrupt enable flag
-                  "{r13}"(gdt::GDT.1.user_code_selector.index() << 3 | 3), // Code segment
-                  "{r14}"(ip), // IP
-                  "{r15}"(arg) // Argument
-              : // No clobbers
-              : "intel", "volatile");
+          push r11
+          push r12
+          push r13
+          push r14
+          push r15"
+          : // No output
+          :   "{r10}"(data), // Data segment
+              "{r11}"(sp), // Stack pointer
+              "{r12}"(1 << 9), // Flags - Set interrupt enable flag
+              "{r13}"(code), // Code segment
+              "{r14}"(ip), // IP
+              "{r15}"(arg) // Argument
+          : // No clobbers
+          : "intel", "volatile");
 
     // Unmap kernel
     pti::unmap();
@@ -453,8 +506,8 @@ pub unsafe fn usermode(ip: usize, sp: usize, arg: usize) -> ! {
          pop rdi
          iretq"
          : // No output because it never returns
-         :   "{r14}"(gdt::GDT.1.user_data_selector.index() << 3 | 3), // Data segment
-             "{r15}"(gdt::GDT.1.user_tls_selector.index() << 3 | 3) // TLS segment
+         :   "{r14}"(data), // Data segment
+             "{r15}"(tls) // TLS segment
          : // No clobbers because it never returns
          : "intel", "volatile");
     unreachable!();

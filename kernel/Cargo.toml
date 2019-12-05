@@ -16,7 +16,7 @@ harness = false
 boot = {version = "0", path = "../boot"}
 xmas-elf = "0.7.0"
 spin = "0.5.2"
-x86_64 = "0.7.5"
+x86_64 = { version = "0.7.7", path="../x86_64" }
 pic8259_simple = "0.1.1"
 linked_list_allocator = "0.6.4"
 vmsyscall = {version = "0", path = "../vmsyscall"}

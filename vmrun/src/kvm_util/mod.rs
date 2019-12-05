@@ -216,23 +216,23 @@ impl KvmVm {
         let boot_pdpte_offset_addr = PDPTE_OFFSET_START;
 
         // Entry covering VA [0..512GB)
-        page_tables.pml4t[0] = boot_pdpte_addr as u64 | 0x3;
+        page_tables.pml4t[0] = boot_pdpte_addr as u64 | 0x7;
 
         // Entry covering VA [0..512GB) with physical offset PHYSICAL_MEMORY_OFFSET
         page_tables.pml4t[(PHYSICAL_MEMORY_OFFSET >> 39) as usize & 0x1FFusize] =
-            boot_pdpte_offset_addr as u64 | 0x3;
+            boot_pdpte_offset_addr as u64 | 0x7;
 
         // Entry covering VA [0..1GB)
-        page_tables.pml3t_ident[0] = boot_pde_addr as u64 | 0x3;
+        page_tables.pml3t_ident[0] = boot_pde_addr as u64 | 0x7;
         // 512 2MB entries together covering VA [0..1GB). Note we are assuming
         // CPU supports 2MB pages (/proc/cpuinfo has 'pse'). All modern CPUs do.
-        for i in 0..512 {
-            page_tables.pml2t_ident[i] = ((i as u64) << 21) | 0x83u64;
+        for i in 0..1 {
+            page_tables.pml2t_ident[i] = ((i as u64) << 21) | 0x183u64;
         }
 
         // Entry covering VA [0..512GB) with physical offset PHYSICAL_MEMORY_OFFSET
         for i in 0..512 {
-            page_tables.pml3t_offset[i] = ((i as u64) << 30) | 0x83u64;
+            page_tables.pml3t_offset[i] = ((i as u64) << 30) | 0x183u64;
         }
 
         let guest_pg_addr: *mut PageTables = self
@@ -428,9 +428,15 @@ impl KvmVm {
         sregs.cs = code_seg;
         sregs.ds = data_seg;
         sregs.es = data_seg;
-        //sregs.fs = data_seg;
-        //sregs.gs = data_seg;
-        //sregs.ss = data_seg; // FIXME: double fault in exception handler
+        sregs.fs = data_seg;
+        sregs.gs = data_seg;
+
+        // FIXME
+        #[cfg(FIXME)]
+        {
+            sregs.ss = data_seg;
+        }
+
         sregs.tr = tss_seg;
 
         sregs.cr0 = (X86_CR0_PE | X86_CR0_NE | X86_CR0_PG) as u64;

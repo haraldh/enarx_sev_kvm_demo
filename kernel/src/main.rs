@@ -12,6 +12,7 @@ use boot::{entry_point, BootInfo, MemoryRegionType};
 use core::panic::PanicInfo;
 use core::ptr::null_mut;
 use kernel::allocator;
+use kernel::gdt;
 use kernel::libc::madvise;
 use kernel::memory::{self, BootInfoFrameAllocator};
 use kernel::syscall;
@@ -170,6 +171,71 @@ fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFrameAll
             .flush();
     }
 
+    let tcb_addr = USER_TCB_OFFSET;
+    let tcb_page = Page::containing_address(VirtAddr::new(tcb_addr as u64));
+    let frame = frame_allocator.allocate_frame().unwrap();
+    println!("USER_TCB_OFFSET={:#X}", USER_TCB_OFFSET);
+
+    unsafe {
+        mapper
+            .map_to(
+                tcb_page,
+                frame,
+                PageTableFlags::PRESENT
+                    | PageTableFlags::WRITABLE
+                    | PageTableFlags::NO_EXECUTE
+                    | PageTableFlags::USER_ACCESSIBLE,
+                frame_allocator,
+            )
+            .unwrap()
+            .flush();
+    }
+
+    unsafe {
+        let index = gdt::GDT.as_ref().unwrap().1.user_tls_selector.index();
+
+        gdt::GDT
+            .as_mut()
+            .unwrap()
+            .0
+            .set_offset(index, tcb_addr as u32);
+    }
+
+    pub const KERNEL_PERCPU_OFFSET: usize = 0xC000_0000;
+    let tcb_addr = KERNEL_PERCPU_OFFSET;
+    let tcb_page = Page::containing_address(VirtAddr::new(tcb_addr as u64));
+    let frame = frame_allocator.allocate_frame().unwrap();
+
+    unsafe {
+        mapper
+            .map_to(
+                tcb_page,
+                frame,
+                PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::NO_EXECUTE,
+                frame_allocator,
+            )
+            .unwrap()
+            .flush();
+    }
+
+    unsafe {
+        let index = gdt::GDT.as_ref().unwrap().1.tls_selector.index();
+
+        gdt::GDT
+            .as_mut()
+            .unwrap()
+            .0
+            .set_offset(index, tcb_addr as u32);
+    }
+    unsafe {
+        use crate::gdt;
+        use x86_64::instructions::segmentation;
+        use x86_64::instructions::tables::load_tss;
+
+        gdt::GDT.as_ref().unwrap().0.load();
+        segmentation::load_fs(gdt::GDT.as_ref().unwrap().1.tls_selector);
+    }
+
     // Extract required information from the ELF file.
     let entry_point;
     let app_start_ptr = unsafe { &_app_start_addr as *const _ as u64 };
@@ -199,16 +265,18 @@ fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFrameAll
                     frame_allocator,
                 )
                 .unwrap();
-                println!("{:#?}", segment);
+                //println!("{:#?}", segment);
             }
             ProgramHeader::Ph32(_) => panic!("does not support 32 bit elf files"),
         }
     }
+    let entry_point_ptr = entry_point as *const u8;
     println!("app_entry_point={:#X}", entry_point);
-    println!("USER_STACK_OFFSET={:#X}", USER_STACK_OFFSET);
     println!("stackpointer={:#X}", sp);
+
     unsafe {
         syscall::usermode(entry_point as usize, sp, 0);
+        //context_switch(core::mem::transmute::<u64, fn() -> !>(entry_point), sp);
     }
 }
 
@@ -230,8 +298,9 @@ pub(crate) fn map_user_segment(
             let virt_start_addr = VirtAddr::new(segment.virtual_addr);
 
             let start_page: Page = Page::containing_address(virt_start_addr);
-            let start_frame = PhysFrame::containing_address(phys_start_addr);
-            let end_frame = PhysFrame::containing_address(phys_start_addr + file_size - 1u64);
+            let end_page: Page = Page::containing_address(virt_start_addr + file_size - 1u64);
+            let page_range = Page::range_inclusive(start_page, end_page);
+            //println!("{:#?}", page_range);
 
             let flags = segment.flags;
             let mut page_table_flags = PageTableFlags::PRESENT | PageTableFlags::USER_ACCESSIBLE;
@@ -242,14 +311,52 @@ pub(crate) fn map_user_segment(
                 page_table_flags |= PageTableFlags::WRITABLE
             };
 
-            for frame in PhysFrame::range_inclusive(start_frame, end_frame) {
-                let offset = frame - start_frame;
-                let page = start_page + offset;
-                unsafe { page_table.map_to(page, frame, page_table_flags, frame_allocator)? }
+            for page in page_range {
+                let frame = frame_allocator
+                    .allocate_frame()
+                    .ok_or(MapToError::FrameAllocationFailed)?;
+                println!(
+                    "map {:#X} to {:#X}",
+                    frame.start_address().as_u64(),
+                    page.start_address().as_u64(),
+                );
+                unsafe {
+                    page_table
+                        .map_to(
+                            page,
+                            frame,
+                            page_table_flags | PageTableFlags::WRITABLE,
+                            frame_allocator,
+                        )?
+                        .flush()
+                };
+            }
+            unsafe {
+                let src = core::slice::from_raw_parts(
+                    phys_start_addr.as_u64() as *const u8,
+                    file_size as _,
+                );
+                let dst = core::slice::from_raw_parts_mut(
+                    virt_start_addr.as_mut_ptr::<u8>(),
+                    file_size as _,
+                );
+                dst.copy_from_slice(src);
+            }
+            for page in page_range {
+                page_table
+                    .update_flags(page, page_table_flags)
+                    .unwrap()
                     .flush();
+                println!(
+                    "updating flags for {:#X}  {:#?}",
+                    page.start_address().as_u64(),
+                    page_table_flags
+                );
             }
 
             if mem_size > file_size {
+                panic!("mem_size > file_size");
+                // FIXME: allocate
                 // .bss section (or similar), which needs to be zeroed
                 let zero_start = virt_start_addr + file_size;
                 let zero_end = virt_start_addr + mem_size;

@@ -1,4 +1,3 @@
-use crate::gdt;
 use alloc::alloc::{GlobalAlloc, Layout};
 use core::ptr::null_mut;
 use x86_64::{
@@ -70,7 +69,14 @@ pub fn init_stack(
             .flush()
     };
 
-    //gdt::TSS.privilege_stack_table[0] = stack_end;
+    unsafe {
+        use crate::gdt;
+        use x86_64::instructions::tables::load_tss;
+        gdt::GDT.as_ref().unwrap().0.load();
+        gdt::TSS.as_mut().unwrap().privilege_stack_table[0] = stack_end;
+        load_tss(gdt::GDT.as_ref().unwrap().1.tss_selector);
+        gdt::GDT.as_ref().unwrap().0.load();
+    }
 
     Ok(())
 }
