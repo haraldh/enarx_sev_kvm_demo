@@ -16,6 +16,9 @@ pub const BOOT_STACK_POINTER_SIZE: u64 = BOOT_STACK_POINTER - SYSCALL_PHYS_ADDR 
 // https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/Documentation/x86/x86_64/mm.rst
 pub const PHYSICAL_MEMORY_OFFSET: u64 = 0x800_0000_0000;
 
+pub const USER_STACK_SIZE: usize = 4 * 1024; // 1 MB
+pub const USER_STACK_OFFSET: usize = 0x0000_0080_0000_0000 * 4;
+
 #[repr(C)]
 pub struct PageTables {
     pub pml4t: [u64; 512],           // 0x9000

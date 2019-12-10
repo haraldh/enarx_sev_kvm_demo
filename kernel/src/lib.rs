@@ -15,32 +15,14 @@ use core::panic::PanicInfo;
 use linked_list_allocator::LockedHeap;
 
 pub mod allocator;
-pub mod gdt;
-pub mod interrupts;
+pub mod arch;
 pub mod libc;
 pub mod memory;
-#[macro_use]
-pub mod serial;
-pub mod pti;
-pub mod syscall;
-pub mod sysconf;
 
-/* test bsalloc
-    pub mod bsalloc;
-    pub mod alloc_fmt;
-    pub mod mmap_alloc;
-    pub mod object_alloc;
-    use crate::bsalloc::BsAlloc;
-    pub use alloc_fmt::*;
-*/
+pub use crate::arch::prelude::*;
 
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
-//static ALLOCATOR: BsAlloc = BsAlloc;
-
-use x86_64::structures::paging::OffsetPageTable;
-
-pub static mut MAPPER: Option<OffsetPageTable> = None;
 
 pub unsafe fn context_switch(entry_point: fn() -> !, stack_pointer: usize) -> ! {
     asm!("call $1; ${:private}.spin.${:uid}: jmp ${:private}.spin.${:uid}" ::
@@ -48,36 +30,29 @@ pub unsafe fn context_switch(entry_point: fn() -> !, stack_pointer: usize) -> ! 
     ::core::hint::unreachable_unchecked()
 }
 
-pub fn init() {
-    gdt::init();
-    unsafe { syscall::init() };
-    interrupts::init_idt();
-    x86_64::instructions::interrupts::enable();
-}
-
 pub fn test_runner(tests: &[&dyn Fn()]) {
     serial_println!("Running {} tests", tests.len());
     for test in tests {
         test();
     }
-    exit_qemu(QemuExitCode::Success);
+    exit_hypervisor(HyperVisorExitCode::Success);
 }
 
 pub fn test_panic_handler(info: &PanicInfo) -> ! {
     serial_println!("[failed]\n");
     serial_println!("Error: {}\n", info);
-    exit_qemu(QemuExitCode::Failed);
+    exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
-pub enum QemuExitCode {
+pub enum HyperVisorExitCode {
     Success = 0x10,
     Failed = 0x11,
 }
 
-pub fn exit_qemu(exit_code: QemuExitCode) {
+pub fn exit_hypervisor(exit_code: HyperVisorExitCode) {
     use x86_64::instructions::port::PortWriteOnly;
 
     unsafe {
@@ -96,14 +71,22 @@ pub fn hlt_loop() -> ! {
 use boot::entry_point;
 
 #[cfg(test)]
-entry_point!(test_kernel_main);
+entry_point!(test_lib_main);
 
 /// Entry point for `cargo xtest`
 #[cfg(test)]
-fn test_kernel_main(_boot_info: &'static mut boot::BootInfo) -> ! {
-    init();
-    test_main();
-    hlt_loop();
+fn test_lib_main(boot_info: &'static mut boot::BootInfo) -> ! {
+    use crate::memory::BootInfoFrameAllocator;
+    use x86_64::structures::paging::OffsetPageTable;
+
+    fn inner(_mapper: &mut OffsetPageTable, _frame_allocator: &mut BootInfoFrameAllocator) -> ! // trigger a stack overflow
+    {
+        test_main();
+        hlt_loop();
+    }
+    println!("{}:{} test_lib_main", file!(), line!());
+
+    init(boot_info, inner);
 }
 
 #[cfg(test)]

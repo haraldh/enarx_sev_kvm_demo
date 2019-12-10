@@ -4,7 +4,8 @@
 // problem we skip compilation of this module on Windows.
 #![cfg(not(windows))]
 
-use crate::{exit_qemu, gdt, hlt_loop, println, QemuExitCode};
+use super::gdt;
+use crate::{exit_hypervisor, hlt_loop, println, HyperVisorExitCode};
 use lazy_static::lazy_static;
 use pic8259_simple::ChainedPics;
 use spin;
@@ -63,7 +64,7 @@ extern "x86-interrupt" fn stack_segment_fault(
 ) {
     println!("stack_segment_fault {}", error_code);
     println!("{:#?}", stack_frame);
-    exit_qemu(QemuExitCode::Failed);
+    exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
 
@@ -73,7 +74,7 @@ extern "x86-interrupt" fn general_protection_fault(
 ) {
     println!("general_protection_fault {}", error_code);
     println!("{:#?}", stack_frame);
-    exit_qemu(QemuExitCode::Failed);
+    exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
 
@@ -82,9 +83,8 @@ extern "x86-interrupt" fn segment_not_present_handler(
     error_code: u64,
 ) {
     println!("segment_not_present_handler {}", error_code);
-    println!("{:#X}", stack_frame as *const _ as usize);
     println!("{:#?}", stack_frame);
-    exit_qemu(QemuExitCode::Failed);
+    exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
 
@@ -93,16 +93,13 @@ extern "x86-interrupt" fn invalid_tss_handler(
     error_code: u64,
 ) {
     println!("invalid_tss_handler {}", error_code);
-    println!("{:#X}", stack_frame as *const _ as usize);
     println!("{:#?}", stack_frame);
-    exit_qemu(QemuExitCode::Failed);
+    exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
 
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: &mut InterruptStackFrame) {
     println!("EXCEPTION: BREAKPOINT");
-
-    println!("{:#X}", stack_frame as *const _ as usize);
     println!("{:#?}", stack_frame);
 }
 
@@ -116,7 +113,7 @@ extern "x86-interrupt" fn page_fault_handler(
     println!("Accessed Address: {:?}", Cr2::read());
     println!("Error Code: {:?}", error_code);
     println!("{:#?}", stack_frame);
-    exit_qemu(QemuExitCode::Failed);
+    exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
 

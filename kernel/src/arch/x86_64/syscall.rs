@@ -1,10 +1,9 @@
-use crate::{exit_qemu, println, serial_print, QemuExitCode};
+use crate::{exit_hypervisor, println, serial_print, HyperVisorExitCode};
 use core::ops::{Deref, DerefMut};
 use core::{mem, slice};
 
-use crate::gdt;
-use crate::pti;
-use x86_64::instructions::segmentation::{ds, fs};
+use super::gdt;
+use super::pti;
 use x86_64::registers::control::EferFlags;
 use x86_64::registers::model_specific::{Efer, KernelGsBase, Msr};
 use x86_64::VirtAddr;
@@ -166,7 +165,6 @@ macro_rules! with_interrupt_stack {
     (unsafe fn $wrapped:ident($stack:ident) -> usize $code:block) => {
         #[inline(never)]
         unsafe fn $wrapped(stack: *mut InterruptStack) {
-            // If syscall not ignored
             let $stack = &mut *stack;
             $stack.scratch.rax = $code;
         }
@@ -334,14 +332,14 @@ impl InterruptStack {
 const SYS_EXIT: usize = 60;
 const SYS_WRITE: usize = 1;
 
-pub fn syscall(
+pub fn handle_syscall(
     a: usize,
     b: usize,
     c: usize,
     d: usize,
     e: usize,
     f: usize,
-    bp: usize,
+    stack_base_bp: usize,
     stack: &mut InterruptStack,
 ) -> usize {
     println!("syscall a={}", a);
@@ -350,15 +348,16 @@ pub fn syscall(
     println!("syscall d={}", d);
     println!("syscall e={}", e);
     println!("syscall f={}", f);
-    println!("syscall bp={}", bp);
-    println!("syscall stack={:#X}", stack as *const _ as u64);
+    println!("syscall bp={}", stack_base_bp);
+    unsafe { println!("syscall rsp={:#X}", stack.iret.rsp) };
+    unsafe { println!("syscall fs={:#X}", stack.fs) };
 
     match a {
         SYS_EXIT => {
-            exit_qemu(if b == 0 {
-                QemuExitCode::Success
+            exit_hypervisor(if b == 0 {
+                HyperVisorExitCode::Success
             } else {
-                QemuExitCode::Failed
+                HyperVisorExitCode::Failed
             });
             loop {}
         }
@@ -374,7 +373,7 @@ pub fn syscall(
                         len += 1;
                         cptr = (c + len) as *const i8;
                     }
-                    let cstr = unsafe { core::slice::from_raw_parts(c as *const u8, len) };
+                    let cstr = core::slice::from_raw_parts(c as *const u8, len);
                     let s = core::str::from_utf8_unchecked(cstr);
                     serial_print!("{}", s);
                 }
@@ -390,14 +389,22 @@ pub fn syscall(
 }
 
 #[naked]
-pub unsafe extern "C" fn syscall_instruction() {
+pub unsafe extern "C" fn syscall_instruction() -> ! {
     with_interrupt_stack! {
         unsafe fn inner(stack) -> usize {
             let rbp;
             asm!("" : "={rbp}"(rbp) : : : "intel", "volatile");
 
             let scratch = &stack.scratch;
-            syscall(scratch.rax, scratch.rdi, scratch.rsi, scratch.rdx, scratch.r10, scratch.r8, rbp, stack)
+            handle_syscall(
+                scratch.rax,
+                scratch.rdi,
+                scratch.rsi,
+                scratch.rdx,
+                scratch.r10,
+                scratch.r8,
+                rbp,
+                stack)
         }
     }
 
@@ -423,45 +430,40 @@ pub unsafe extern "C" fn syscall_instruction() {
     scratch_push!();
     preserved_push!();
 
-    asm!("
-        push fs 
-        mov r11, 0x33 /* tls_selector */ 
+    asm!("push fs 
+        mov r11, 0x18 /* tls_selector */ 
         mov fs, r11"
         : : : : "intel", "volatile");
 
     // Get reference to stack variables
-    let rsp: usize;
-    asm!("" : "={rsp}"(rsp) : : : "intel", "volatile");
+
+    let rsp: *mut InterruptStack;
+    asm!("mov rdi, rsp" : "={rdi}"(rsp) : : : "intel", "volatile");
 
     // Map kernel
     pti::map();
 
-    inner(rsp as *mut InterruptStack);
+    inner(rsp);
 
     // Unmap kernel
     pti::unmap();
 
     // Interrupt return
-    asm!("pop r11
-        mov r11, 0x18 /* tls_selector */ 
-        mov fs, r11"
+    asm!("pop fs"
     : : : : "intel", "volatile");
 
     preserved_pop!();
     scratch_pop!();
     asm!("iretq" : : : : "intel", "volatile");
+    unreachable!();
 }
 
 #[naked]
 pub unsafe fn usermode(ip: usize, sp: usize, arg: usize) -> ! {
     //let gdt1 = &gdt::GDT.as_ref().unwrap().1;
-    const code: usize = (/*gdt1.user_code_selector.0*/4 << 3 | 3) as _;
-    const data: usize = (/*gdt1.user_data_selector.0*/5 << 3 | 3) as _;
-    const tls: usize = (/* gdt1.user_tls_selector.0 */6 << 3 | 3) as _;
-    println!("code={:#X}", code);
-    println!("data={:#X}", data);
-    println!("tls={:#X}", tls);
-    println!("ds={:#X}", ds().0);
+    const CODE: usize = (/*gdt1.user_code_selector.0*/4 << 3 | 3) as _;
+    const DATA: usize = (/*gdt1.user_data_selector.0*/5 << 3 | 3) as _;
+    const TLS: usize = (/* gdt1.user_tls_selector.0 */6 << 3 | 3) as _;
 
     asm!("push r10
           push r11
@@ -470,10 +472,10 @@ pub unsafe fn usermode(ip: usize, sp: usize, arg: usize) -> ! {
           push r14
           push r15"
           : // No output
-          :   "{r10}"(data), // Data segment
+          :   "{r10}"(DATA), // Data segment
               "{r11}"(sp), // Stack pointer
               "{r12}"(1 << 9), // Flags - Set interrupt enable flag
-              "{r13}"(code), // Code segment
+              "{r13}"(CODE), // Code segment
               "{r14}"(ip), // IP
               "{r15}"(arg) // Argument
           : // No clobbers
@@ -506,8 +508,8 @@ pub unsafe fn usermode(ip: usize, sp: usize, arg: usize) -> ! {
          pop rdi
          iretq"
          : // No output because it never returns
-         :   "{r14}"(data), // Data segment
-             "{r15}"(tls) // TLS segment
+         :   "{r14}"(DATA), // Data segment
+             "{r15}"(TLS) // TLS segment
          : // No clobbers because it never returns
          : "intel", "volatile");
     unreachable!();

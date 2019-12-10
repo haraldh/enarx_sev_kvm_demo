@@ -26,7 +26,7 @@ fn main() {
 
     cc::Build::new()
         .no_default_flags(true)
-        .file("src/asm.s")
+        .file("src/arch/x86_64/asm.s")
         .static_flag(false)
         .shared_flag(true)
         .compile("asm");

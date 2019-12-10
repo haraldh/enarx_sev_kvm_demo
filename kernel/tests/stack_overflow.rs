@@ -4,41 +4,24 @@
 
 use boot::{entry_point, BootInfo};
 use core::panic::PanicInfo;
-use kernel::{context_switch, exit_qemu, serial_print, serial_println, QemuExitCode};
+use kernel::memory::BootInfoFrameAllocator;
+use kernel::{exit_hypervisor, serial_println, HyperVisorExitCode};
 use lazy_static::lazy_static;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
+use x86_64::structures::paging::OffsetPageTable;
 
 entry_point!(main);
 
 fn main(boot_info: &'static mut BootInfo) -> ! {
-    use kernel::allocator;
-    use kernel::memory::{self, BootInfoFrameAllocator};
-    use x86_64::VirtAddr;
+    fn inner(_mapper: &mut OffsetPageTable, _frame_allocator: &mut BootInfoFrameAllocator) -> ! // trigger a stack overflow
+    {
+        init_test_idt();
+        stack_overflow();
 
-    serial_print!("stack_overflow... ");
-
-    kernel::init();
-    let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
-    let mut mapper = unsafe { memory::init(phys_mem_offset) };
-    let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&mut boot_info.memory_map) };
-    allocator::init_heap(&mut mapper, &mut frame_allocator).expect("heap initialization failed");
-
-    init_test_idt();
-    allocator::init_stack(&mut mapper, &mut frame_allocator).expect("heap initialization failed");
-
-    unsafe {
-        context_switch(
-            kernel_main_2,
-            allocator::STACK_START + allocator::STACK_SIZE,
-        )
+        panic!("Execution continued after stack overflow");
     }
-}
 
-fn kernel_main_2() -> ! {
-    // trigger a stack overflow
-    stack_overflow();
-
-    panic!("Execution continued after stack overflow");
+    kernel::init(boot_info, inner)
 }
 
 #[allow(unconditional_recursion)]
@@ -52,7 +35,7 @@ lazy_static! {
         unsafe {
             idt.double_fault
                 .set_handler_fn(test_double_fault_handler)
-                .set_stack_index(kernel::gdt::DOUBLE_FAULT_IST_INDEX);
+                .set_stack_index(kernel::arch::x86_64::gdt::DOUBLE_FAULT_IST_INDEX);
         }
 
         idt
@@ -68,7 +51,7 @@ extern "x86-interrupt" fn test_double_fault_handler(
     _error_code: u64,
 ) {
     serial_println!("[ok]");
-    exit_qemu(QemuExitCode::Success);
+    exit_hypervisor(HyperVisorExitCode::Success);
     loop {}
 }
 
