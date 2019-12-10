@@ -14,12 +14,10 @@ extern crate alloc;
 use core::panic::PanicInfo;
 use linked_list_allocator::LockedHeap;
 
-pub mod allocator;
 pub mod arch;
 pub mod libc;
 pub mod memory;
-
-pub use crate::arch::prelude::*;
+pub mod syscall;
 
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
@@ -76,8 +74,8 @@ entry_point!(test_lib_main);
 /// Entry point for `cargo xtest`
 #[cfg(test)]
 fn test_lib_main(boot_info: &'static mut boot::BootInfo) -> ! {
+    use crate::arch::OffsetPageTable;
     use crate::memory::BootInfoFrameAllocator;
-    use x86_64::structures::paging::OffsetPageTable;
 
     fn inner(_mapper: &mut OffsetPageTable, _frame_allocator: &mut BootInfoFrameAllocator) -> ! // trigger a stack overflow
     {
@@ -86,7 +84,7 @@ fn test_lib_main(boot_info: &'static mut boot::BootInfo) -> ! {
     }
     println!("{}:{} test_lib_main", file!(), line!());
 
-    init(boot_info, inner);
+    crate::arch::init(boot_info, inner);
 }
 
 #[cfg(test)]

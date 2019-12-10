@@ -1,4 +1,4 @@
-use crate::{exit_hypervisor, println, serial_print, HyperVisorExitCode};
+use crate::println;
 use core::ops::{Deref, DerefMut};
 use core::{mem, slice};
 
@@ -329,65 +329,6 @@ impl InterruptStack {
     }
 }
 
-const SYS_EXIT: usize = 60;
-const SYS_WRITE: usize = 1;
-
-pub fn handle_syscall(
-    a: usize,
-    b: usize,
-    c: usize,
-    d: usize,
-    e: usize,
-    f: usize,
-    stack_base_bp: usize,
-    stack: &mut InterruptStack,
-) -> usize {
-    println!("syscall a={}", a);
-    println!("syscall b={}", b);
-    println!("syscall c={}", c);
-    println!("syscall d={}", d);
-    println!("syscall e={}", e);
-    println!("syscall f={}", f);
-    println!("syscall bp={}", stack_base_bp);
-    unsafe { println!("syscall rsp={:#X}", stack.iret.rsp) };
-    unsafe { println!("syscall fs={:#X}", stack.fs) };
-
-    match a {
-        SYS_EXIT => {
-            exit_hypervisor(if b == 0 {
-                HyperVisorExitCode::Success
-            } else {
-                HyperVisorExitCode::Failed
-            });
-            loop {}
-        }
-        SYS_WRITE => {
-            if b == 1 {
-                let mut cptr = c as *const i8;
-                let mut len = 0;
-                unsafe {
-                    loop {
-                        if cptr.read() == 0 {
-                            break;
-                        }
-                        len += 1;
-                        cptr = (c + len) as *const i8;
-                    }
-                    let cstr = core::slice::from_raw_parts(c as *const u8, len);
-                    let s = core::str::from_utf8_unchecked(cstr);
-                    serial_print!("{}", s);
-                }
-                0usize
-            } else {
-                -77i64 as usize // EBADFD
-            }
-        }
-        _ => {
-            -38i64 as usize // ENOSYS
-        }
-    }
-}
-
 #[naked]
 pub unsafe extern "C" fn syscall_instruction() -> ! {
     with_interrupt_stack! {
@@ -396,7 +337,7 @@ pub unsafe extern "C" fn syscall_instruction() -> ! {
             asm!("" : "={rbp}"(rbp) : : : "intel", "volatile");
 
             let scratch = &stack.scratch;
-            handle_syscall(
+            crate::syscall::handle_syscall(
                 scratch.rax,
                 scratch.rdi,
                 scratch.rsi,
@@ -413,11 +354,13 @@ pub unsafe extern "C" fn syscall_instruction() -> ! {
           swapgs                    // Set gs segment to TSS
           mov gs:[28], rsp          // Save userspace rsp
           mov rsp, gs:[4]           // Load kernel rsp
-          push 5 * 8 + 3            // Push userspace data segment
+                                    // FIXME: SEGMENT
+          push 4 * 8 + 3            // Push userspace data segment
           push qword ptr gs:[28]    // Push userspace rsp
           mov qword ptr gs:[28], 0  // Clear userspace rsp
           push r11                  // Push rflags
-          push 4 * 8 + 3            // Push userspace code segment
+                                    // FIXME: SEGMENT
+          push 3 * 8 + 3            // Push userspace code segment
           push rcx                  // Push userspace return pointer
           swapgs                    // Restore gs
           "
@@ -431,7 +374,7 @@ pub unsafe extern "C" fn syscall_instruction() -> ! {
     preserved_push!();
 
     asm!("push fs 
-        mov r11, 0x18 /* tls_selector */ 
+        mov r11, 0x10 /* FIXME: SEGMENT 0x18 tls_selector */
         mov fs, r11"
         : : : : "intel", "volatile");
 
@@ -461,9 +404,10 @@ pub unsafe extern "C" fn syscall_instruction() -> ! {
 #[naked]
 pub unsafe fn usermode(ip: usize, sp: usize, arg: usize) -> ! {
     //let gdt1 = &gdt::GDT.as_ref().unwrap().1;
-    const CODE: usize = (/*gdt1.user_code_selector.0*/4 << 3 | 3) as _;
-    const DATA: usize = (/*gdt1.user_data_selector.0*/5 << 3 | 3) as _;
-    const TLS: usize = (/* gdt1.user_tls_selector.0 */6 << 3 | 3) as _;
+    // FIXME: SEGMENT
+    const CODE: usize = (/*gdt1.user_code_selector.0 4 */3 << 3 | 3) as _;
+    const DATA: usize = (/*gdt1.user_data_selector.0 5 */4 << 3 | 3) as _;
+    const TLS: usize = (/* gdt1.user_tls_selector.0 6 */4 << 3 | 3) as _;
 
     asm!("push r10
           push r11

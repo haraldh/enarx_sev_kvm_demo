@@ -9,9 +9,9 @@ extern crate alloc;
 use alloc::{boxed::Box, vec::Vec};
 use boot::{entry_point, BootInfo};
 use core::panic::PanicInfo;
+use kernel::arch::OffsetPageTable;
 use kernel::memory::BootInfoFrameAllocator;
 use kernel::{serial_print, serial_println};
-use x86_64::structures::paging::OffsetPageTable;
 
 entry_point!(main);
 
@@ -22,7 +22,7 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
         loop {}
     }
 
-    kernel::init(boot_info, inner)
+    kernel::arch::init(boot_info, inner)
 }
 
 #[test_case]

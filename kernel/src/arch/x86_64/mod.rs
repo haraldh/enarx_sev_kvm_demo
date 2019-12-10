@@ -3,6 +3,7 @@ pub mod serial;
 pub mod gdt;
 pub mod interrupts;
 pub mod pti;
+pub mod structures;
 pub mod syscall;
 
 use crate::memory::BootInfoFrameAllocator;
@@ -10,13 +11,13 @@ use alloc::alloc::{GlobalAlloc, Layout};
 use boot::layout::{USER_STACK_OFFSET, USER_STACK_SIZE};
 use boot::{BootInfo, MemoryRegionType};
 use core::ptr::null_mut;
-use x86_64::structures::paging::OffsetPageTable;
-use x86_64::{
-    structures::paging::{
-        mapper::MapToError, FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB,
-    },
-    PhysAddr, VirtAddr,
+
+use crate::arch::x86_64::structures::paging::{
+    mapper::MapToError, FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags, Size4KiB,
 };
+
+pub use x86_64::{PhysAddr, VirtAddr};
+
 use xmas_elf::program::{self, ProgramHeader64};
 
 const PAGESIZE: usize = 4096;
@@ -259,11 +260,6 @@ pub(crate) fn map_user_segment(
                 let frame = frame_allocator
                     .allocate_frame()
                     .ok_or(MapToError::FrameAllocationFailed)?;
-                println!(
-                    "map {:#X} to {:#X}",
-                    frame.start_address().as_u64(),
-                    page.start_address().as_u64(),
-                );
                 unsafe {
                     page_table
                         .map_to(
@@ -291,11 +287,6 @@ pub(crate) fn map_user_segment(
                     .update_flags(page, page_table_flags)
                     .unwrap()
                     .flush();
-                println!(
-                    "updating flags for {:#X}  {:#?}",
-                    page.start_address().as_u64(),
-                    page_table_flags
-                );
             }
 
             if mem_size > file_size {

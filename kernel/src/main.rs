@@ -7,9 +7,9 @@
 
 use boot::{entry_point, BootInfo};
 use core::panic::PanicInfo;
+use kernel::arch::OffsetPageTable;
 use kernel::memory::BootInfoFrameAllocator;
 use kernel::{exit_hypervisor, println, HyperVisorExitCode};
-use x86_64::structures::paging::OffsetPageTable;
 
 entry_point!(kernel_main);
 
@@ -19,10 +19,10 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
         mapper: &mut OffsetPageTable,
         frame_allocator: &mut BootInfoFrameAllocator,
     ) -> ! {
-        kernel::exec_app(mapper, frame_allocator);
+        kernel::arch::exec_app(mapper, frame_allocator);
     }
 
-    kernel::init(boot_info, with_stack_protection)
+    kernel::arch::init(boot_info, with_stack_protection)
 }
 
 #[cfg(test)]
@@ -35,7 +35,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
         kernel::hlt_loop()
     }
 
-    kernel::init(boot_info, inner)
+    kernel::arch::init(boot_info, inner)
 }
 
 /// This function is called on panic.

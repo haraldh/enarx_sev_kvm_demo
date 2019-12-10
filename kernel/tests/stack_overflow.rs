@@ -4,11 +4,11 @@
 
 use boot::{entry_point, BootInfo};
 use core::panic::PanicInfo;
+use kernel::arch::OffsetPageTable;
 use kernel::memory::BootInfoFrameAllocator;
 use kernel::{exit_hypervisor, serial_println, HyperVisorExitCode};
 use lazy_static::lazy_static;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
-use x86_64::structures::paging::OffsetPageTable;
 
 entry_point!(main);
 
@@ -21,7 +21,7 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
         panic!("Execution continued after stack overflow");
     }
 
-    kernel::init(boot_info, inner)
+    kernel::arch::init(boot_info, inner)
 }
 
 #[allow(unconditional_recursion)]

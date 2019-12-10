@@ -14,10 +14,11 @@ pub static mut GDT: Option<(GlobalDescriptorTable, Selectors)> = None;
 pub struct Selectors {
     pub code_selector: SegmentSelector,
     pub data_selector: SegmentSelector,
-    pub tls_selector: SegmentSelector,
+    // FIXME: SEGMENT
+    //pub tls_selector: SegmentSelector,
     pub user_code_selector: SegmentSelector,
     pub user_data_selector: SegmentSelector,
-    pub user_tls_selector: SegmentSelector,
+    //pub user_tls_selector: SegmentSelector,
     pub tss_selector: SegmentSelector,
 }
 
@@ -64,6 +65,7 @@ pub fn init() {
                     | DescriptorFlags::LONG_MODE)
                     .bits(),
             ));
+            /*
             let tls_selector = gdt.add_entry(Descriptor::UserSegment(
                 (DescriptorFlags::USER_SEGMENT
                     | DescriptorFlags::PRESENT
@@ -71,19 +73,20 @@ pub fn init() {
                     | DescriptorFlags::LONG_MODE)
                     .bits(),
             ));
+            */
             let user_code_selector = gdt.add_entry(Descriptor::user_code_segment());
             let user_data_selector = gdt.add_entry(Descriptor::user_data_segment());
-            let user_tls_selector = gdt.add_entry(Descriptor::user_data_segment());
+            //let user_tls_selector = gdt.add_entry(Descriptor::user_data_segment());
             let tss_selector = gdt.add_entry(Descriptor::tss_segment(TSS.as_ref().unwrap()));
             (
                 gdt,
                 Selectors {
                     code_selector,
                     data_selector,
-                    tls_selector,
+                    //tls_selector,
                     user_code_selector,
                     user_data_selector,
-                    user_tls_selector,
+                    //user_tls_selector,
                     tss_selector,
                 },
             )
