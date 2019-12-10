@@ -26,7 +26,7 @@ fn main() {
 
     cc::Build::new()
         .no_default_flags(true)
-        .file("src/asm.s")
+        .file("src/arch/x86_64/asm.s")
         .static_flag(false)
         .shared_flag(true)
         .compile("asm");
@@ -177,6 +177,10 @@ fn main() {
     );
     println!("cargo:rustc-link-search=native={}", out_dir.display());
 
+    println!(
+        "cargo:rerun-if-changed={}",
+        elf_path.as_os_str().to_string_lossy()
+    );
     println!("cargo:rerun-if-changed=src/asm.s");
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=layout.ld");

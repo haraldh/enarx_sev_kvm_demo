@@ -3,14 +3,11 @@ use serde::ser::Serialize;
 use serde_cbor;
 use serde_cbor::ser::SliceWrite;
 use serde_cbor::Serializer;
-use std::io;
-use std::io::Write;
 use std::time::Instant;
 use vmrun::kvm_util;
 use vmsyscall::KvmSyscall;
 use vmsyscall::PORT as PORT_SYSCALL;
 
-const PORT_SERIAL_OUT: u16 = 0x03F8;
 const PORT_QEMU_EXIT: u16 = 0xF4;
 
 fn main() {
@@ -32,11 +29,13 @@ fn main() {
 
     let mut kvm = kvm_util::KvmVm::vm_create_default(&kernel_blob, 0, None /*"_start"*/).unwrap();
 
-    let stdout = io::stdout();
-    let mut handle = stdout.lock();
-
     let mut syscall_request: Option<KvmSyscall> = None;
     let mut syscall_reply_size: Option<usize> = None;
+
+    let mut portio = vmrun::device_manager::legacy::PortIODeviceManager::new().unwrap();
+    let _ = portio.register_devices().unwrap();
+    let _ = kvm.kvm_fd.register_irqfd(&portio.com_evt_1_3, 4).unwrap();
+    let _ = kvm.kvm_fd.register_irqfd(&portio.com_evt_2_4, 3).unwrap();
 
     loop {
         let ret = kvm
@@ -53,7 +52,9 @@ fn main() {
                     data[1] = ((size >> 8) & 0xFF) as _;
                     continue;
                 }
-                _ => panic!("Hypervisor: Unexpected IO port {:#X}!", port),
+                _ => {
+                    portio.io_bus.read(port as _, data);
+                } //_ => panic!("Hypervisor: Unexpected IO port {:#X}!", port),
             },
             VcpuExit::IoOut(port, data) => match port {
                 // Qemu exit simulation
@@ -64,10 +65,6 @@ fn main() {
                 }
                 PORT_QEMU_EXIT if data.eq(&[0x11, 0, 0, 0]) => {
                     std::process::exit(1);
-                }
-                // Serial line out
-                PORT_SERIAL_OUT => {
-                    handle.write_all(data).unwrap();
                 }
                 PORT_SYSCALL => {
                     let syscall_page = kvm.syscall_hostvaddr.unwrap();
@@ -85,7 +82,9 @@ fn main() {
 
                     eprintln!("syscall in: {:#?}", syscall_request);
                 }
-                _ => panic!("Hypervisor: Unexpected IO port {:#X} {:#?}!", port, data),
+                _ => {
+                    portio.io_bus.write(port as _, data);
+                } //_ => panic!("Hypervisor: Unexpected IO port {:#X} {:#?}!", port, data),
             },
             VcpuExit::Hlt => {
                 let elapsed = start.elapsed();

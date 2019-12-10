@@ -11,4 +11,4 @@
     "panic-strategy": "abort",
     "code-model": "small",
     "relocation-model": "static"
-  }
+}

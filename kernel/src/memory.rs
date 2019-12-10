@@ -1,10 +1,10 @@
-use boot::{MemoryMap, MemoryRegionType};
-use x86_64::{
+use crate::arch::x86_64::{
     structures::paging::{
         FrameAllocator, Mapper, OffsetPageTable, Page, PageTable, PhysFrame, Size4KiB,
     },
     PhysAddr, VirtAddr,
 };
+use boot::{MemoryMap, MemoryRegionType};
 
 /// Initialize a new OffsetPageTable.
 ///

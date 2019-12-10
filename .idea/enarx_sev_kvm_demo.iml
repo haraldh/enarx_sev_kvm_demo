@@ -32,6 +32,7 @@
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/vmrun/target" />
       <excludeFolder url="file://$MODULE_DIR$/vmsyscall/target" />
+      <excludeFolder url="file://$MODULE_DIR$/x86_64/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

@@ -1,5 +1,5 @@
-use kvm_bindings::{kvm_mp_state, kvm_segment, kvm_userspace_memory_region};
-use kvm_ioctls::{Kvm, VcpuFd, VmFd, MAX_KVM_CPUID_ENTRIES};
+use kvm_bindings::{kvm_mp_state, kvm_segment, kvm_userspace_memory_region, KVM_MAX_CPUID_ENTRIES};
+use kvm_ioctls::{Kvm, VcpuFd, VmFd};
 
 use boot::layout::*;
 use boot::{BootInfo, FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
@@ -26,9 +26,9 @@ struct UserspaceMemRegion {
 }
 
 pub struct KvmVm {
-    kvm: Kvm,
+    pub kvm: Kvm,
     pub cpu_fd: Vec<VcpuFd>,
-    kvm_fd: VmFd,
+    pub kvm_fd: VmFd,
     page_size: usize,
     frame_allocator: frame_allocator::FrameAllocator,
     userspace_mem_regions: Vec<UserspaceMemRegion>,
@@ -47,7 +47,7 @@ impl KvmVm {
     pub fn vm_create(phy_pages: u64) -> Result<Self, Error> {
         let kvm = Kvm::new().unwrap();
 
-        let kvm_fd: VmFd = kvm.create_vm().map_err(map_context!())?;
+        let kvm_fd: VmFd = kvm.create_vm().map_err(|e| ErrorKind::from(&e))?;
 
         let mut vm = KvmVm {
             kvm,
@@ -176,7 +176,7 @@ impl KvmVm {
         unsafe {
             self.kvm_fd
                 .set_user_memory_region(region.region)
-                .map_err(map_context!())?
+                .map_err(|e| ErrorKind::from(&e))?
         };
 
         self.frame_allocator.memory_map.add_region(MemoryRegion {
@@ -212,31 +212,27 @@ impl KvmVm {
 
         // Puts PML4 right after zero page but aligned to 4k.
         let boot_pdpte_addr = PDPTE_START;
-        let mut boot_pde_addr = PDE_START;
+        let boot_pde_addr = PDE_START;
         let boot_pdpte_offset_addr = PDPTE_OFFSET_START;
 
         // Entry covering VA [0..512GB)
-        page_tables.pml4t[0] = boot_pdpte_addr as u64 | 0x3;
+        page_tables.pml4t[0] = boot_pdpte_addr as u64 | 0x7;
 
         // Entry covering VA [0..512GB) with physical offset PHYSICAL_MEMORY_OFFSET
         page_tables.pml4t[(PHYSICAL_MEMORY_OFFSET >> 39) as usize & 0x1FFusize] =
-            boot_pdpte_offset_addr as u64 | 0x3;
+            boot_pdpte_offset_addr as u64 | 0x7;
 
-        // Entries covering VA [0..4GB)
-        for i_g in 0..4 {
-            // Entry covering VA [i..i+1GB)
-            page_tables.pml3t_ident[i_g] = boot_pde_addr as u64 | 0x3;
-            // 512 2MB entries together covering VA [i*1GB..(i+1)*1GB). Note we are assuming
-            // CPU supports 2MB pages (/proc/cpuinfo has 'pse'). All modern CPUs do.
-            for i in i_g * 512..(i_g + 1) * 512 {
-                page_tables.pml2t_ident[i] = ((i as u64) << 21) | 0x83u64;
-            }
-            boot_pde_addr += 0x1000;
+        // Entry covering VA [0..1GB)
+        page_tables.pml3t_ident[0] = boot_pde_addr as u64 | 0x7;
+        // 512 2MB entries together covering VA [0..1GB). Note we are assuming
+        // CPU supports 2MB pages (/proc/cpuinfo has 'pse'). All modern CPUs do.
+        for i in 0..1 {
+            page_tables.pml2t_ident[i] = ((i as u64) << 21) | 0x183u64;
         }
 
         // Entry covering VA [0..512GB) with physical offset PHYSICAL_MEMORY_OFFSET
         for i in 0..512 {
-            page_tables.pml3t_offset[i] = ((i as u64) << 30) | 0x83u64;
+            page_tables.pml3t_offset[i] = ((i as u64) << 30) | 0x183u64;
         }
 
         let guest_pg_addr: *mut PageTables = self
@@ -390,7 +386,7 @@ impl KvmVm {
     pub fn vcpu_setup(&mut self, vcpuid: u8) -> Result<(), Error> {
         let mut sregs = self.cpu_fd[vcpuid as usize]
             .get_sregs()
-            .map_err(map_context!())?;
+            .map_err(|e| ErrorKind::from(&e))?;
 
         let gdt_table: [u64; 4] = [
             gdt_entry(0, 0, 0),            // NULL
@@ -432,9 +428,15 @@ impl KvmVm {
         sregs.cs = code_seg;
         sregs.ds = data_seg;
         sregs.es = data_seg;
-        //sregs.fs = data_seg;
-        //sregs.gs = data_seg;
-        //sregs.ss = data_seg; // FIXME: double fault in exception handler
+        sregs.fs = data_seg;
+        sregs.gs = data_seg;
+
+        // FIXME
+        #[cfg(FIXME)]
+        {
+            sregs.ss = data_seg;
+        }
+
         sregs.tr = tss_seg;
 
         sregs.cr0 = (X86_CR0_PE | X86_CR0_NE | X86_CR0_PG) as u64;
@@ -445,13 +447,16 @@ impl KvmVm {
 
         self.cpu_fd[vcpuid as usize]
             .set_sregs(&sregs)
-            .map_err(map_context!())?;
+            .map_err(|e| ErrorKind::from(&e))?;
 
         Ok(())
     }
 
     fn vcpu_add(&mut self, vcpuid: u8) -> Result<(), Error> {
-        let vcpu_fd = self.kvm_fd.create_vcpu(vcpuid).map_err(map_context!())?;
+        let vcpu_fd = self
+            .kvm_fd
+            .create_vcpu(vcpuid)
+            .map_err(|e| ErrorKind::from(&e))?;
         self.cpu_fd.insert(vcpuid as usize, vcpu_fd);
         self.vcpu_setup(vcpuid)?;
 
@@ -482,7 +487,7 @@ impl KvmVm {
         /* Setup guest general purpose registers */
         let mut regs = self.cpu_fd[vcpuid as usize]
             .get_regs()
-            .map_err(map_context!())?;
+            .map_err(|e| ErrorKind::from(&e))?;
         regs.rflags |= 0x2;
         regs.rsp = BOOT_STACK_POINTER + PHYSICAL_MEMORY_OFFSET;
         regs.rip = dbg!(guest_code).as_u64();
@@ -490,13 +495,13 @@ impl KvmVm {
 
         self.cpu_fd[vcpuid as usize]
             .set_regs(&regs)
-            .map_err(map_context!())?;
+            .map_err(|e| ErrorKind::from(&e))?;
 
         /* Setup the MP state */
         let mp_state: kvm_mp_state = kvm_mp_state { mp_state: 0 };
         self.cpu_fd[vcpuid as usize]
             .set_mp_state(mp_state)
-            .map_err(map_context!())?;
+            .map_err(|e| ErrorKind::from(&e))?;
 
         Ok(())
     }
@@ -578,7 +583,9 @@ impl KvmVm {
     }
 
     fn create_irqchip(&mut self) -> Result<(), Error> {
-        self.kvm_fd.create_irq_chip().map_err(map_context!())?;
+        self.kvm_fd
+            .create_irq_chip()
+            .map_err(|e| ErrorKind::from(&e))?;
         self.has_irqchip = true;
         Ok(())
     }
@@ -603,12 +610,12 @@ impl KvmVm {
         /* Set CPUID */
         let cpuid = vm
             .kvm
-            .get_supported_cpuid(MAX_KVM_CPUID_ENTRIES)
-            .map_err(map_context!())?;
+            .get_supported_cpuid(KVM_MAX_CPUID_ENTRIES)
+            .map_err(|e| ErrorKind::from(&e))?;
 
         vm.cpu_fd[vcpuid as usize]
             .set_cpuid2(&cpuid)
-            .map_err(map_context!())?;
+            .map_err(|e| ErrorKind::from(&e))?;
 
         Ok(vm)
     }

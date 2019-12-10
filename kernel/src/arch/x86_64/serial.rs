@@ -13,10 +13,6 @@ impl SerialPort {
     ///
     /// This function is unsafe because the caller must ensure that the given base address
     /// really points to a serial port device.
-    ///
-    /// # Safety
-    /// FIXME
-    ///
     pub const unsafe fn new(base: u16) -> SerialPort {
         SerialPort {
             data: PortWriteOnly::<u8>::new(base),
@@ -65,7 +61,7 @@ pub fn _print(args: ::core::fmt::Arguments) {
 #[macro_export]
 macro_rules! serial_print {
     ($($arg:tt)*) => {
-        $crate::serial::_print(format_args!($($arg)*));
+        $crate::arch::serial::_print(format_args!($($arg)*));
     };
 }
 
@@ -79,13 +75,6 @@ macro_rules! serial_println {
 
 #[macro_export]
 macro_rules! println {
-    () => ($crate::serial_print!("\n"));
-    ($fmt:expr) => ($crate::serial_print!(concat!($fmt, "\n")));
-    ($fmt:expr, $($arg:tt)*) => ($crate::serial_print!(concat!($fmt, "\n"), $($arg)*));
-}
-
-#[macro_export]
-macro_rules! eprintln {
     () => ($crate::serial_print!("\n"));
     ($fmt:expr) => ($crate::serial_print!(concat!($fmt, "\n")));
     ($fmt:expr, $($arg:tt)*) => ($crate::serial_print!(concat!($fmt, "\n"), $($arg)*));

@@ -9,23 +9,20 @@ extern crate alloc;
 use alloc::{boxed::Box, vec::Vec};
 use boot::{entry_point, BootInfo};
 use core::panic::PanicInfo;
+use kernel::arch::OffsetPageTable;
+use kernel::memory::BootInfoFrameAllocator;
 use kernel::{serial_print, serial_println};
 
 entry_point!(main);
 
 fn main(boot_info: &'static mut BootInfo) -> ! {
-    use kernel::allocator;
-    use kernel::memory::{self, BootInfoFrameAllocator};
-    use x86_64::VirtAddr;
+    fn inner(_mapper: &mut OffsetPageTable, _frame_allocator: &mut BootInfoFrameAllocator) -> ! // trigger a stack overflow
+    {
+        test_main();
+        loop {}
+    }
 
-    kernel::init();
-    let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
-    let mut mapper = unsafe { memory::init(phys_mem_offset) };
-    let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&mut boot_info.memory_map) };
-    allocator::init_heap(&mut mapper, &mut frame_allocator).expect("heap initialization failed");
-
-    test_main();
-    loop {}
+    kernel::arch::init(boot_info, inner)
 }
 
 #[test_case]
