@@ -80,7 +80,7 @@ fn main() {
 
                     syscall_request.replace(s);
 
-                    eprintln!("syscall in: {:#?}", syscall_request);
+                    //eprintln!("syscall in: {:#?}", syscall_request);
                 }
                 _ => {
                     portio.io_bus.write(port as _, data);

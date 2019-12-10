@@ -533,7 +533,7 @@ impl KvmVm {
                                     Ok(v) => v,
                                 };
                 */
-                return KvmSyscallRet::Mmap(Err(vmsyscall::Error::OTHERERROR));
+                return KvmSyscallRet::Mmap(Err(vmsyscall::Error::NotImplemented));
                 /*
                 let mut region = UserspaceMemRegion {
                     region: Default::default(),
@@ -564,21 +564,21 @@ impl KvmVm {
                 addr: _,
                 len: _,
                 advice: _,
-            } => KvmSyscallRet::Madvise(Err(vmsyscall::Error::OTHERERROR)),
+            } => KvmSyscallRet::Madvise(Err(vmsyscall::Error::NotImplemented)),
             KvmSyscall::Mremap {
                 addr: _,
                 len: _,
                 new_len: _,
                 flags: _,
-            } => KvmSyscallRet::Mremap(Err(vmsyscall::Error::OTHERERROR)),
+            } => KvmSyscallRet::Mremap(Err(vmsyscall::Error::NotImplemented)),
             KvmSyscall::Munmap { addr: _, len: _ } => {
-                KvmSyscallRet::Munmap(Err(vmsyscall::Error::OTHERERROR))
+                KvmSyscallRet::Munmap(Err(vmsyscall::Error::NotImplemented))
             }
             KvmSyscall::Mprotect {
                 addr: _,
                 len: _,
                 prot: _,
-            } => KvmSyscallRet::Mprotect(Err(vmsyscall::Error::OTHERERROR)),
+            } => KvmSyscallRet::Mprotect(Err(vmsyscall::Error::NotImplemented)),
         }
     }
 

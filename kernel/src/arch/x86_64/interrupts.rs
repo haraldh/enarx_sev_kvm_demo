@@ -134,10 +134,9 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: &mut InterruptSt
 }
 
 #[cfg(test)]
-use crate::{serial_print, serial_println};
-
 #[test_case]
 fn test_breakpoint_exception() {
+    use crate::{serial_print, serial_println};
     serial_print!("test_breakpoint_exception...");
     // invoke a breakpoint exception
     x86_64::instructions::interrupts::int3();

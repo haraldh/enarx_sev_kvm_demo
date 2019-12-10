@@ -43,10 +43,10 @@ pub enum KvmSyscallRet {
     Mprotect(Result<i32, Error>),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub enum Error {
     ENOMEM,
-    OTHERERROR,
+    NotImplemented,
     SerializeError,
     DeSerializeError,
 }
