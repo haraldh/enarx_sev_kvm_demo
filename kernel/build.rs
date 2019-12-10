@@ -73,8 +73,13 @@ fn main() {
             .parent()
             .unwrap()
             .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .parent()
             .unwrap(),
     );
+    elf_path.push("debug");
     elf_path.push("app");
     /*
     let elf_path = PathBuf::from(match env::var(env_name) {

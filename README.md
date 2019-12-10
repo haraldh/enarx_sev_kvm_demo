@@ -35,14 +35,14 @@ $ cargo install cargo-xbuild
 
 ```bash
 $ cargo build --package vmrun
-$ cargo +nightly xbuild --package app --target app/x86_64-kernel.json
+$ cargo +nightly rustc --package app -- -C panic=abort -C relocation-model=static -C link-arg=-nostartfiles
 $ cargo +nightly xrun --package kernel --target kernel/x86_64-kernel.json
 ```
 
 or
 
 ```bash
-$ cargo +nightly xbuild --package app --target app/x86_64-kernel.json
+$ cargo +nightly rustc --package app -- -C panic=abort -C relocation-model=static -C link-arg=-nostartfiles
 $ cargo +nightly xbuild --package kernel --target kernel/x86_64-kernel.json
 $ cargo run --package vmrun --bin vmrun -- target/x86_64-kernel/debug/kernel
 ```
@@ -51,7 +51,7 @@ $ cargo run --package vmrun --bin vmrun -- target/x86_64-kernel/debug/kernel
 
 ```bash
 $ cargo build --package vmrun
-$ cargo +nightly xbuild --package app --target app/x86_64-kernel.json
+$ cargo +nightly rustc --package app -- -C panic=abort -C relocation-model=static -C link-arg=-nostartfiles
 $ cargo +nightly xtest --package kernel --target kernel/x86_64-kernel.json
 ```
 
