@@ -3,7 +3,6 @@ use core::ops::{Deref, DerefMut};
 use core::{mem, slice};
 
 use super::gdt;
-use super::pti;
 use x86_64::registers::control::EferFlags;
 use x86_64::registers::model_specific::{Efer, KernelGsBase, Msr};
 use x86_64::VirtAddr;
@@ -383,13 +382,7 @@ pub unsafe extern "C" fn syscall_instruction() -> ! {
     let rsp: *mut InterruptStack;
     asm!("mov rdi, rsp" : "={rdi}"(rsp) : : : "intel", "volatile");
 
-    // Map kernel
-    pti::map();
-
     inner(rsp);
-
-    // Unmap kernel
-    pti::unmap();
 
     // Interrupt return
     asm!("pop fs"
@@ -424,9 +417,6 @@ pub unsafe fn usermode(ip: usize, sp: usize, arg: usize) -> ! {
               "{r15}"(arg) // Argument
           : // No clobbers
           : "intel", "volatile");
-
-    // Unmap kernel
-    pti::unmap();
 
     // Go to usermode
     asm!("mov ds, r14d
