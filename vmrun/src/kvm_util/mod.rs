@@ -514,27 +514,25 @@ impl KvmVm {
                 prot: _,
                 flags: _,
             } => {
-                /*
-                                let ret = unsafe {
-                                    mmap(
-                                        null_mut(),
-                                        len,
-                                        ProtFlags::from_bits_truncate(prot),
-                                        MapFlags::from_bits_truncate(flags),
-                                        -1,
-                                        0,
-                                    )
-                                };
-                                let mmap_start = match ret {
-                                    Err(nix::Error::Sys(e)) if e == nix::errno::Errno::ENOMEM => {
-                                        return KvmSyscallRet::Mmap(Err(vmsyscall::Error::ENOMEM))
-                                    }
-                                    Err(_) => return KvmSyscallRet::Mmap(Err(vmsyscall::Error::OTHERERROR)),
-                                    Ok(v) => v,
-                                };
-                */
                 return KvmSyscallRet::Mmap(Err(vmsyscall::Error::NotImplemented));
                 /*
+                let ret = unsafe {
+                    mmap(
+                        null_mut(),
+                        len,
+                        ProtFlags::from_bits_truncate(prot),
+                        MapFlags::from_bits_truncate(flags),
+                        -1,
+                        0,
+                    )
+                };
+                let mmap_start = match ret {
+                    Err(nix::Error::Sys(e)) if e == nix::errno::Errno::ENOMEM => {
+                        return KvmSyscallRet::Mmap(Err(vmsyscall::Error::ENOMEM))
+                    }
+                    Err(_) => return KvmSyscallRet::Mmap(Err(vmsyscall::Error::OTHERERROR)),
+                    Ok(v) => v,
+                };
                 let mut region = UserspaceMemRegion {
                     region: Default::default(),
                     used_phy_pages: Default::default(),
