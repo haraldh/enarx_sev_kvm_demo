@@ -23,12 +23,6 @@ vmsyscall = {version = "0", path = "../vmsyscall"}
 serde_cbor = { version = "0.10.3", default-features = false, git = "https://github.com/pyfisch/cbor.git"}
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 
-[dependencies.bit_field]
-version = "0.9.0"
-
-[dependencies.bitflags]
-version = "1.0.4"
-
 [dependencies.lazy_static]
 version = "1.0"
 features = ["spin_no_std"]

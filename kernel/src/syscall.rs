@@ -1,8 +1,24 @@
 use crate::arch::InterruptStack;
 use crate::{exit_hypervisor, println, serial_print, HyperVisorExitCode};
+use core::convert::TryFrom;
 
-const SYS_EXIT: usize = 60;
-const SYS_WRITE: usize = 1;
+#[derive(Clone, Copy)]
+enum Syscall {
+    Write = 1,
+    Exit = 60,
+}
+
+impl TryFrom<usize> for Syscall {
+    type Error = ();
+
+    fn try_from(v: usize) -> Result<Self, Self::Error> {
+        match v {
+            x if x == Syscall::Write as usize => Ok(Syscall::Write),
+            x if x == Syscall::Exit as usize => Ok(Syscall::Exit),
+            _ => Err(()),
+        }
+    }
+}
 
 pub fn handle_syscall(
     a: usize,
@@ -18,8 +34,8 @@ pub fn handle_syscall(
     //println!("syscall bp={}", stack_base_bp);
     //unsafe { println!("syscall rsp={:#X}", stack.iret.rsp) };
 
-    match a {
-        SYS_EXIT => {
+    match Syscall::try_from(a) {
+        Ok(Syscall::Exit) => {
             exit_hypervisor(if b == 0 {
                 HyperVisorExitCode::Success
             } else {
@@ -27,7 +43,7 @@ pub fn handle_syscall(
             });
             loop {}
         }
-        SYS_WRITE => {
+        Ok(Syscall::Write) => {
             let fd = b;
             let data = c as *const u8;
             let len = d;
