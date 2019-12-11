@@ -1,8 +1,7 @@
+use super::gdt;
 use crate::println;
 use core::ops::{Deref, DerefMut};
 use core::{mem, slice};
-
-use super::gdt;
 use x86_64::registers::control::EferFlags;
 use x86_64::registers::model_specific::{Efer, KernelGsBase, Msr};
 use x86_64::VirtAddr;
@@ -28,7 +27,12 @@ impl FMask {
 }
 
 pub unsafe fn init() {
-    Star::MSR.write(((gdt::GDT.as_ref().unwrap().1.code_selector.index() as u64) << 3) << 32);
+    Star::MSR.write(
+        (((gdt::GDT.as_ref().unwrap().1.code_selector.index() as u64) << 3) << 32)
+            // FIXME: might want to use sysret someday for performance
+            | ((((gdt::GDT.as_ref().unwrap().1.user_data_selector.index() as u64 - 1) << 3) | 3)
+                << 48),
+    );
     LStar::MSR.write(syscall_instruction as u64);
     FMask::MSR.write(0x300); // Clear trap flag and interrupt enable
     KernelGsBase::write(VirtAddr::new(gdt::TSS.as_ref().unwrap() as *const _ as u64));
@@ -353,18 +357,17 @@ pub unsafe extern "C" fn syscall_instruction() -> ! {
           swapgs                    // Set gs segment to TSS
           mov gs:[28], rsp          // Save userspace rsp
           mov rsp, gs:[4]           // Load kernel rsp
-                                    // FIXME: SEGMENT
-          push 4 * 8 + 3            // Push userspace data segment
+          push $0                   // Push userspace data segment
           push qword ptr gs:[28]    // Push userspace rsp
           mov qword ptr gs:[28], 0  // Clear userspace rsp
           push r11                  // Push rflags
-                                    // FIXME: SEGMENT
-          push 3 * 8 + 3            // Push userspace code segment
+          push $1                   // Push userspace code segment
           push rcx                  // Push userspace return pointer
           swapgs                    // Restore gs
           "
           :
-          :
+          : "i"((gdt::USER_DATA_SEG << 3) | 3),
+            "i"((gdt::USER_CODE_SEG << 3) | 3)
           :
           : "intel", "volatile");
 
@@ -373,9 +376,9 @@ pub unsafe extern "C" fn syscall_instruction() -> ! {
     preserved_push!();
 
     asm!("push fs 
-        mov r11, 0x10 /* FIXME: SEGMENT 0x18 tls_selector */
+        mov r11, $0
         mov fs, r11"
-        : : : : "intel", "volatile");
+        : : "i"(gdt::KERNEL_TLS_SEG << 3) : : "intel", "volatile");
 
     // Get reference to stack variables
 
@@ -390,18 +393,19 @@ pub unsafe extern "C" fn syscall_instruction() -> ! {
 
     preserved_pop!();
     scratch_pop!();
-    asm!("iretq" : : : : "intel", "volatile");
+
+    // FIXME: want to protect the kernel against userspace?
+    // https://www.kernel.org/doc/Documentation/x86/entry_64.txt
+
+    // This works, too
+    //asm!("iretq" : : : : "intel", "volatile");
+
+    asm!("sysretq" : : : : "intel", "volatile");
     unreachable!();
 }
 
 #[naked]
 pub unsafe fn usermode(ip: usize, sp: usize, arg: usize) -> ! {
-    //let gdt1 = &gdt::GDT.as_ref().unwrap().1;
-    // FIXME: SEGMENT
-    const CODE: usize = (/*gdt1.user_code_selector.0 4 */3 << 3 | 3) as _;
-    const DATA: usize = (/*gdt1.user_data_selector.0 5 */4 << 3 | 3) as _;
-    const TLS: usize = (/* gdt1.user_tls_selector.0 6 */4 << 3 | 3) as _;
-
     asm!("push r10
           push r11
           push r12
@@ -409,10 +413,10 @@ pub unsafe fn usermode(ip: usize, sp: usize, arg: usize) -> ! {
           push r14
           push r15"
           : // No output
-          :   "{r10}"(DATA), // Data segment
+          :   "{r10}"((gdt::USER_DATA_SEG << 3) | 3), // Data segment
               "{r11}"(sp), // Stack pointer
               "{r12}"(1 << 9), // Flags - Set interrupt enable flag
-              "{r13}"(CODE), // Code segment
+              "{r13}"((gdt::USER_CODE_SEG << 3) | 3), // Code segment
               "{r14}"(ip), // IP
               "{r15}"(arg) // Argument
           : // No clobbers
@@ -442,8 +446,8 @@ pub unsafe fn usermode(ip: usize, sp: usize, arg: usize) -> ! {
          pop rdi
          iretq"
          : // No output because it never returns
-         :   "{r14}"(DATA), // Data segment
-             "{r15}"(TLS) // TLS segment
+         :   "{r14}"((gdt::USER_DATA_SEG << 3) | 3), // Data segment
+             "{r15}"((gdt::USER_TLS_SEG << 3) | 3) // TLS segment
          : // No clobbers because it never returns
          : "intel", "volatile");
     unreachable!();

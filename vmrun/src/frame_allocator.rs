@@ -1,4 +1,4 @@
-use boot::{MemoryMap, MemoryRegion, MemoryRegionType};
+use enarx_boot_spec::{MemoryMap, MemoryRegion, MemoryRegionType};
 
 pub(crate) struct FrameAllocator {
     pub memory_map: MemoryMap,

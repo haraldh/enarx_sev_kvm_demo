@@ -3,8 +3,8 @@
 use core::fmt;
 use core::ops::{Index, IndexMut};
 
-use super::super::super::PhysAddr;
 use super::{PageSize, PhysFrame, Size4KiB};
+use crate::arch::x86_64::PhysAddr;
 
 use bitflags::bitflags;
 use ux::*;

@@ -15,7 +15,7 @@ xmas-elf = "0.7.0"
 bitflags = "1.2.1"
 mmap = "0.1.1"
 array-init = "0.0.4"
-boot = {version = "0", path="../boot"}
+enarx_boot_spec = {version = "0", path = "../enarx_boot_spec"}
 vmsyscall = {version = "0", path = "../vmsyscall"}
 serde_cbor = { version = "0.10.3", git = "https://github.com/pyfisch/cbor", tag="v0.10.3"}
 serde = { version = "1.0", default-features = false, features = ["derive"] }

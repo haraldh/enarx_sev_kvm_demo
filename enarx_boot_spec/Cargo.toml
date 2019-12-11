@@ -1,5 +1,5 @@
 [package]
-name = "boot"
+name = "enarx_boot_spec"
 version = "0.1.0"
 authors = ["Harald Hoyer <harald@redhat.com>"]
 edition = "2018"

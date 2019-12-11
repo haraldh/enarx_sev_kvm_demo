@@ -5,8 +5,8 @@
 #![test_runner(kernel::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
-use boot::{entry_point, BootInfo};
 use core::panic::PanicInfo;
+use enarx_boot_spec::{entry_point, BootInfo};
 use kernel::arch::OffsetPageTable;
 use kernel::memory::BootInfoFrameAllocator;
 use kernel::{exit_hypervisor, println, HyperVisorExitCode};

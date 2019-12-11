@@ -1,19 +1,18 @@
 use kvm_bindings::{kvm_mp_state, kvm_segment, kvm_userspace_memory_region, KVM_MAX_CPUID_ENTRIES};
 use kvm_ioctls::{Kvm, VcpuFd, VmFd};
 
-use boot::layout::*;
-use boot::{BootInfo, FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
-use vmsyscall::{KvmSyscall, KvmSyscallRet};
-use x86_64::consts::*;
-use x86_64::structures::paging::{frame::PhysFrameRange, PhysFrame};
-pub use x86_64::{gdt, HostVirtAddr, PhysAddr, VirtAddr};
-
+use crate::arch::x86_64::{
+    consts::*,
+    gdt,
+    structures::paging::{frame::PhysFrameRange, PhysFrame},
+    HostVirtAddr, PhysAddr, VirtAddr,
+};
 use crate::error::*;
-use crate::kvm_util::gdt::{gdt_entry, kvm_segment_from_gdt};
+use crate::frame_allocator::FrameAllocator;
+use crate::kvmvm::gdt::{gdt_entry, kvm_segment_from_gdt};
 use crate::{context, map_context};
-
-mod frame_allocator;
-pub mod x86_64;
+use enarx_boot_spec::{layout::*, BootInfo, FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
+use vmsyscall::{KvmSyscall, KvmSyscallRet};
 
 const DEFAULT_GUEST_MEM: u64 = 100 * 1024 * 1024;
 const DEFAULT_GUEST_PAGE_SIZE: usize = 4096;
@@ -30,7 +29,7 @@ pub struct KvmVm {
     pub cpu_fd: Vec<VcpuFd>,
     pub kvm_fd: VmFd,
     page_size: usize,
-    frame_allocator: frame_allocator::FrameAllocator,
+    frame_allocator: FrameAllocator,
     userspace_mem_regions: Vec<UserspaceMemRegion>,
     has_irqchip: bool,
     pub syscall_hostvaddr: Option<HostVirtAddr>,
@@ -54,7 +53,7 @@ impl KvmVm {
             cpu_fd: vec![],
             kvm_fd,
             page_size: DEFAULT_GUEST_PAGE_SIZE,
-            frame_allocator: frame_allocator::FrameAllocator {
+            frame_allocator: FrameAllocator {
                 memory_map: MemoryMap::new(),
             },
             userspace_mem_regions: vec![],

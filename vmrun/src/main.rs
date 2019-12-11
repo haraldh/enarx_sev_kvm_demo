@@ -4,7 +4,7 @@ use serde_cbor;
 use serde_cbor::ser::SliceWrite;
 use serde_cbor::Serializer;
 use std::time::Instant;
-use vmrun::kvm_util;
+use vmrun::kvmvm;
 use vmsyscall::KvmSyscall;
 use vmsyscall::PORT as PORT_SYSCALL;
 
@@ -16,18 +16,14 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
 
     if args.len() != 2 {
-        eprintln!(
-            "Usage: {} <kernelblob> - {:#?}",
-            args[0],
-            std::env::current_dir()
-        );
+        eprintln!("Usage: {} <kernelblob>", args[0],);
         std::process::exit(1);
     }
 
     let kernel_blob = args[1].to_string();
     eprintln!("Starting {}", kernel_blob);
 
-    let mut kvm = kvm_util::KvmVm::vm_create_default(&kernel_blob, 0, None /*"_start"*/).unwrap();
+    let mut kvm = kvmvm::KvmVm::vm_create_default(&kernel_blob, 0, None /*"_start"*/).unwrap();
 
     let mut syscall_request: Option<KvmSyscall> = None;
     let mut syscall_reply_size: Option<usize> = None;

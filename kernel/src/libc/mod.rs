@@ -1,4 +1,4 @@
-use boot::layout::SYSCALL_PHYS_ADDR;
+use enarx_boot_spec::layout::SYSCALL_PHYS_ADDR;
 use serde::ser::Serialize;
 use serde_cbor;
 use serde_cbor::ser::SliceWrite;

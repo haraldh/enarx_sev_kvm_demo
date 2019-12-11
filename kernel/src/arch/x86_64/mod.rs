@@ -7,9 +7,9 @@ pub mod syscall;
 
 use crate::memory::BootInfoFrameAllocator;
 use alloc::alloc::{GlobalAlloc, Layout};
-use boot::layout::{USER_STACK_OFFSET, USER_STACK_SIZE};
-use boot::{BootInfo, MemoryRegionType};
 use core::ptr::null_mut;
+use enarx_boot_spec::layout::{USER_STACK_OFFSET, USER_STACK_SIZE};
+use enarx_boot_spec::{BootInfo, MemoryRegionType};
 
 use crate::arch::x86_64::structures::paging::{
     mapper::MapToError, FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags, Size4KiB,

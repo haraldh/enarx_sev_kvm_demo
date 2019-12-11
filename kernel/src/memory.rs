@@ -4,7 +4,7 @@ use crate::arch::x86_64::{
     },
     PhysAddr, VirtAddr,
 };
-use boot::{MemoryMap, MemoryRegionType};
+use enarx_boot_spec::{MemoryMap, MemoryRegionType};
 
 /// Initialize a new OffsetPageTable.
 ///

@@ -30,23 +30,16 @@ pub fn handle_syscall(
         SYS_WRITE => {
             let fd = b;
             let data = c as *const u8;
+            let len = d;
             if fd == 1 {
-                let mut len = 0;
-                let mut cptr = data;
-                unsafe {
-                    // FIXME: poor man's very unsafe strlen(data)
-                    loop {
-                        if cptr.read() == 0 {
-                            break;
-                        }
-                        len += 1;
-                        cptr = (c + len) as *const u8;
+                let cstr = unsafe { core::slice::from_raw_parts(data, len) };
+                match core::str::from_utf8(cstr) {
+                    Ok(s) => {
+                        serial_print!("SYS_WRITE: {}", s);
+                        len
                     }
-                    let cstr = core::slice::from_raw_parts(c as *const u8, len);
-                    let s = core::str::from_utf8_unchecked(cstr);
-                    serial_print!("SYS_WRITE: {}", s);
+                    Err(_) => -22i64 as usize, // EINVAL
                 }
-                len
             } else {
                 -77i64 as usize // EBADFD
             }

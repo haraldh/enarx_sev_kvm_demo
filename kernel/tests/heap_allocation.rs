@@ -7,8 +7,8 @@
 extern crate alloc;
 
 use alloc::{boxed::Box, vec::Vec};
-use boot::{entry_point, BootInfo};
 use core::panic::PanicInfo;
+use enarx_boot_spec::{entry_point, BootInfo};
 use kernel::arch::OffsetPageTable;
 use kernel::memory::BootInfoFrameAllocator;
 use kernel::{serial_print, serial_println};
