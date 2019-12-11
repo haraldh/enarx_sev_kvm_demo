@@ -3,13 +3,12 @@ use kvm_ioctls::{Kvm, VcpuFd, VmFd};
 
 use crate::arch::x86_64::{
     consts::*,
-    gdt,
+    gdt::{gdt_entry, kvm_segment_from_gdt},
     structures::paging::{frame::PhysFrameRange, PhysFrame},
     HostVirtAddr, PhysAddr, VirtAddr,
 };
 use crate::error::*;
 use crate::frame_allocator::FrameAllocator;
-use crate::kvmvm::gdt::{gdt_entry, kvm_segment_from_gdt};
 use crate::{context, map_context};
 use enarx_boot_spec::{layout::*, BootInfo, FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
 use vmsyscall::{KvmSyscall, KvmSyscallRet};
@@ -394,6 +393,7 @@ impl KvmVm {
             gdt_entry(0x808b, 0, 0xfffff), // TSS
         ];
 
+        let null_seg = kvm_segment_from_gdt(gdt_table[0], 0);
         let code_seg = kvm_segment_from_gdt(gdt_table[1], 1);
         let data_seg = kvm_segment_from_gdt(gdt_table[2], 2);
         let tss_seg = kvm_segment_from_gdt(gdt_table[3], 3);
@@ -425,16 +425,12 @@ impl KvmVm {
         };
 
         sregs.cs = code_seg;
-        sregs.ds = data_seg;
-        sregs.es = data_seg;
-        sregs.fs = data_seg;
-        sregs.gs = data_seg;
+        sregs.ss = data_seg;
 
-        // FIXME
-        #[cfg(FIXME)]
-        {
-            sregs.ss = data_seg;
-        }
+        sregs.ds = null_seg;
+        sregs.es = null_seg;
+        sregs.fs = null_seg;
+        sregs.gs = null_seg;
 
         sregs.tr = tss_seg;
 
