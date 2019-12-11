@@ -166,6 +166,8 @@ pub fn init() {
         load_gs(SegmentSelector(0));
 
         // Is done later with the real kernel stack
+        // use x86_64::instructions::tables::load_tss;
         // load_tss(gdt.1.tss_selector);
+        // FIXME: general_protection_fault 48
     }
 }
