@@ -1,9 +1,7 @@
 //! Global Descriptor Table init
 
-// With kernel TLS we need one more entry
-use super::structures::gdt::GlobalDescriptorTable;
-
 use x86_64::instructions::segmentation::{load_ds, load_es, load_fs, load_gs, load_ss};
+use x86_64::structures::gdt::GlobalDescriptorTable;
 use x86_64::structures::gdt::{Descriptor, DescriptorFlags, SegmentSelector};
 use x86_64::structures::tss::TaskStateSegment;
 use x86_64::VirtAddr;
