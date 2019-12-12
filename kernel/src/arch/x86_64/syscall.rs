@@ -159,6 +159,8 @@ impl IretRegisters {
         println!("RFLAG: {:>016X}", { self.rflags });
         println!("CS:    {:>016X}", { self.cs });
         println!("RIP:   {:>016X}", { self.rip });
+        println!("RSP:   {:>016X}", { self.rsp });
+        println!("SS:    {:>016X}", { self.ss });
     }
 }
 
@@ -400,7 +402,16 @@ pub unsafe extern "C" fn syscall_instruction() -> ! {
     // This works, too
     //asm!("iretq" : : : : "intel", "volatile");
 
-    asm!("sysretq" : : : : "intel", "volatile");
+    asm!("
+          swapgs
+          pop rcx                  // Pop rflags
+          pop r11                  // Pop userspace code segment
+          pop r11                  // Pop userspace return pointer
+          pop qword ptr gs:[28]    // Pop userspace rsp
+          mov rsp, gs:[28]         // Restore userspace rsp
+          swapgs
+          sysretq
+          " : : : : "intel", "volatile");
     unreachable!();
 }
 

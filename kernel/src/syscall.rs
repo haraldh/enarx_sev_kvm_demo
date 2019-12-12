@@ -1,23 +1,11 @@
 use crate::arch::InterruptStack;
 use crate::{exit_hypervisor, println, serial_print, HyperVisorExitCode};
-use core::convert::TryFrom;
+use vmsyscall::error::*;
 
-#[derive(Clone, Copy)]
 enum Syscall {
     Write = 1,
     Exit = 60,
-}
-
-impl TryFrom<usize> for Syscall {
-    type Error = ();
-
-    fn try_from(v: usize) -> Result<Self, Self::Error> {
-        match v {
-            x if x == Syscall::Write as usize => Ok(Syscall::Write),
-            x if x == Syscall::Exit as usize => Ok(Syscall::Exit),
-            _ => Err(()),
-        }
-    }
+    ArchPrctl = 158,
 }
 
 pub fn handle_syscall(
@@ -28,14 +16,13 @@ pub fn handle_syscall(
     e: usize,
     f: usize,
     _stack_base_bp: usize,
-    _stack: &mut InterruptStack,
+    stack: &mut InterruptStack,
 ) -> usize {
     println!("syscall({}, {}, {}, {}, {}, {})", a, b, c, d, e, f);
-    //println!("syscall bp={}", stack_base_bp);
-    //unsafe { println!("syscall rsp={:#X}", stack.iret.rsp) };
+    stack.dump();
 
-    match Syscall::try_from(a) {
-        Ok(Syscall::Exit) => {
+    match a {
+        x if x == Syscall::Exit as usize => {
             exit_hypervisor(if b == 0 {
                 HyperVisorExitCode::Success
             } else {
@@ -43,7 +30,7 @@ pub fn handle_syscall(
             });
             loop {}
         }
-        Ok(Syscall::Write) => {
+        x if x == Syscall::Write as usize => {
             let fd = b;
             let data = c as *const u8;
             let len = d;
@@ -54,14 +41,27 @@ pub fn handle_syscall(
                         serial_print!("SYS_WRITE: {}", s);
                         len
                     }
-                    Err(_) => -22i64 as usize, // EINVAL
+                    Err(_) => -EINVAL as usize,
                 }
             } else {
-                -77i64 as usize // EBADFD
+                -EBADFD as usize
             }
         }
-        _ => {
-            -38i64 as usize // ENOSYS
+        x if x == Syscall::ArchPrctl as usize => {
+            enum ArchPrctlCode {
+                ArchSetGs = 0x1001,
+                ArchSetFs = 0x1002,
+                ArchGetFs = 0x1003,
+                ArchGetGs = 0x1004,
+            };
+            match b {
+                x if x == ArchPrctlCode::ArchSetFs as usize => unimplemented!(),
+                x if x == ArchPrctlCode::ArchGetFs as usize => unimplemented!(),
+                x if x == ArchPrctlCode::ArchSetGs as usize => unimplemented!(),
+                x if x == ArchPrctlCode::ArchGetGs as usize => unimplemented!(),
+                _ => -EINVAL as usize,
+            }
         }
+        _ => unimplemented!(), //-ENOSYS as usize,
     }
 }

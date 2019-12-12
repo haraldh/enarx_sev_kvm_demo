@@ -1,5 +1,7 @@
 #![no_std]
 
+pub mod error;
+
 pub const PORT: u16 = 0xFF;
 
 use serde::{Deserialize, Serialize};

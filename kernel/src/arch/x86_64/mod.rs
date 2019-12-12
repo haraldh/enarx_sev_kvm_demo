@@ -206,6 +206,7 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
         match program_header {
             ProgramHeader::Ph64(header) => {
                 let segment = *header;
+                println!("{:#?}", segment);
                 map_user_segment(
                     &segment,
                     PhysAddr::new(app_start_ptr),
@@ -213,7 +214,6 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
                     frame_allocator,
                 )
                 .unwrap();
-                //println!("{:#?}", segment);
             }
             ProgramHeader::Ph32(_) => panic!("does not support 32 bit elf files"),
         }
@@ -242,7 +242,7 @@ pub(crate) fn map_user_segment(
             let virt_start_addr = VirtAddr::new(segment.virtual_addr);
 
             let start_page: Page = Page::containing_address(virt_start_addr);
-            let end_page: Page = Page::containing_address(virt_start_addr + file_size - 1u64);
+            let end_page: Page = Page::containing_address(virt_start_addr + mem_size - 1u64);
             let page_range = Page::range_inclusive(start_page, end_page);
             //println!("{:#?}", page_range);
 
@@ -280,98 +280,18 @@ pub(crate) fn map_user_segment(
                     file_size as _,
                 );
                 dst.copy_from_slice(src);
+
+                let dst = core::slice::from_raw_parts_mut(
+                    (virt_start_addr + file_size).as_mut_ptr::<u8>(),
+                    mem_size as usize - file_size as usize,
+                );
+                dst.iter_mut().for_each(|i| *i = 0);
             }
             for page in page_range {
                 page_table
                     .update_flags(page, page_table_flags)
                     .unwrap()
                     .flush();
-            }
-
-            if mem_size > file_size {
-                panic!("mem_size > file_size");
-                #[cfg(CLEAR_BSS)]
-                {
-                    // FIXME: allocate
-                    // .bss section (or similar), which needs to be zeroed
-                    let zero_start = virt_start_addr + file_size;
-                    let zero_end = virt_start_addr + mem_size;
-                    if zero_start.as_u64() & 0xfff != 0 {
-                        // A part of the last mapped frame needs to be zeroed. This is
-                        // not possible since it could already contains parts of the next
-                        // segment. Thus, we need to copy it before zeroing.
-
-                        // TODO: search for a free page dynamically
-                        let temp_page: Page =
-                            Page::containing_address(VirtAddr::new(0xfeeefeee000));
-                        let new_frame = frame_allocator
-                            .allocate_frame()
-                            .ok_or(MapToError::FrameAllocationFailed)?;
-
-                        unsafe {
-                            page_table.map_to(
-                                temp_page.clone(),
-                                new_frame.clone(),
-                                page_table_flags,
-                                frame_allocator,
-                            )?
-                        }
-                        .flush();
-
-                        type PageArray = [u64; Size4KiB::SIZE as usize / 8];
-
-                        let last_page =
-                            Page::containing_address(virt_start_addr + file_size - 1u64);
-                        let last_page_ptr = last_page.start_address().as_ptr::<PageArray>();
-                        let temp_page_ptr = temp_page.start_address().as_mut_ptr::<PageArray>();
-
-                        unsafe {
-                            // copy contents
-                            temp_page_ptr.write(last_page_ptr.read());
-                        }
-
-                        // remap last page
-                        if let Err(e) = page_table.unmap(last_page.clone()) {
-                            return Err(match e {
-                                UnmapError::ParentEntryHugePage => MapToError::ParentEntryHugePage,
-                                UnmapError::PageNotMapped => unreachable!(),
-                                UnmapError::InvalidFrameAddress(_) => unreachable!(),
-                            });
-                        }
-
-                        unsafe {
-                            page_table.map_to(
-                                last_page,
-                                new_frame,
-                                page_table_flags,
-                                frame_allocator,
-                            )?
-                        }
-                        .flush();
-                    }
-
-                    // Map additional frames.
-                    let start_page: Page = Page::containing_address(VirtAddr::new(align_up(
-                        zero_start.as_u64(),
-                        Size4KiB::SIZE,
-                    )));
-                    let end_page = Page::containing_address(zero_end);
-                    for page in Page::range_inclusive(start_page, end_page) {
-                        let frame = frame_allocator
-                            .allocate_frame()
-                            .ok_or(MapToError::FrameAllocationFailed)?;
-                        unsafe {
-                            page_table.map_to(page, frame, page_table_flags, frame_allocator)?
-                        }
-                        .flush();
-                    }
-
-                    // zero
-                    for offset in file_size..mem_size {
-                        let addr = virt_start_addr + offset;
-                        unsafe { addr.as_mut_ptr::<u8>().write(0) };
-                    }
-                }
             }
         }
         _ => {}
