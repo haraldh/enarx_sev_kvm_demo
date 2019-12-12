@@ -26,6 +26,9 @@
 $ rustup toolchain add nightly
 $ rustup toolchain add nightly-2019-11-17
 $ rustup component add rust-src
+$ rustup component add rust-src --toolchain nightly-2019-11-17
+$ rustup component add llvm-tools-preview
+$ rustup component add llvm-tools-preview --toolchain nightly-2019-11-17
 $ cargo install cargo-xbuild
 ```
 
@@ -36,14 +39,14 @@ $ cargo install cargo-xbuild
 ```bash
 $ cargo build --package vmrun
 $ cargo +nightly rustc --package app -- -C panic=abort -C relocation-model=static -C link-arg=-nostartfiles
-$ cargo +nightly xrun --package kernel --target kernel/x86_64-kernel.json
+$ APP=target/debug/app cargo +nightly xrun --package kernel --target kernel/x86_64-kernel.json
 ```
 
 or
 
 ```bash
 $ cargo +nightly rustc --package app -- -C panic=abort -C relocation-model=static -C link-arg=-nostartfiles
-$ cargo +nightly xbuild --package kernel --target kernel/x86_64-kernel.json
+$ APP=target/debug/app cargo +nightly xbuild --package kernel --target kernel/x86_64-kernel.json
 $ cargo run --package vmrun --bin vmrun -- target/x86_64-kernel/debug/kernel
 ```
 
@@ -52,13 +55,13 @@ $ cargo run --package vmrun --bin vmrun -- target/x86_64-kernel/debug/kernel
 ```bash
 $ cargo build --package vmrun
 $ cargo +nightly rustc --package app -- -C panic=abort -C relocation-model=static -C link-arg=-nostartfiles
-$ cargo +nightly xtest --package kernel --target kernel/x86_64-kernel.json
+$ APP=target/debug/app cargo +nightly xtest --package kernel --target kernel/x86_64-kernel.json
 ```
 
-## Clippy
+## Clippy for the kernel
 
 ```bash
 $ cargo clean
 $ cargo clippy
-$ cargo +nightly-2019-11-17 xclippy --package kernel --target kernel/x86_64-kernel.json
+$ APP=target/debug/app cargo +nightly-2019-11-17 xclippy --package kernel --target kernel/x86_64-kernel.json
 ```

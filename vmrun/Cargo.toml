@@ -7,6 +7,8 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+vmbootspec = {version = "0", path = "../vmbootspec"}
+vmsyscall = {version = "0", path = "../vmsyscall"}
 kvm-ioctls = "0.4.0"
 kvm-bindings = "0.2.0"
 vmm-sys-util = "0.2.1"
@@ -15,8 +17,6 @@ xmas-elf = "0.7.0"
 bitflags = "1.2.1"
 mmap = "0.1.1"
 array-init = "0.0.4"
-enarx_boot_spec = {version = "0", path = "../enarx_boot_spec"}
-vmsyscall = {version = "0", path = "../vmsyscall"}
 serde_cbor = { version = "0.10.3", git = "https://github.com/pyfisch/cbor", tag="v0.10.3"}
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 fc_devices = { version="0.1", git = "https://github.com/firecracker-microvm/firecracker", package="devices", rev="f55da99544f16280c31919b2596522c18d83e5e1"}

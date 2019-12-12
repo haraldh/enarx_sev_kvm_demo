@@ -1,4 +1,10 @@
-//! Provides boot information to the kernel.
+//! Common interface between the hypervisor and kernel
+//!
+//! including hard coded memory layout and the bootinfo
+//! structure handed over to the start of the kernel
+//!
+//! copied from
+//! https://github.com/rust-osdev/bootloader/blob/90f5b8910d146d6d489b70a6341d778253663cfa/src/bootinfo/mod.rs
 
 #![no_std]
 #![deny(improper_ctypes)]

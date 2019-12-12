@@ -66,14 +66,14 @@ pub fn hlt_loop() -> ! {
 }
 
 #[cfg(test)]
-use enarx_boot_spec::entry_point;
+use vmbootspec::entry_point;
 
 #[cfg(test)]
 entry_point!(test_lib_main);
 
 /// Entry point for `cargo xtest`
 #[cfg(test)]
-fn test_lib_main(boot_info: &'static mut enarx_boot_spec::BootInfo) -> ! {
+fn test_lib_main(boot_info: &'static mut vmbootspec::BootInfo) -> ! {
     use crate::arch::OffsetPageTable;
     use crate::memory::BootInfoFrameAllocator;
 

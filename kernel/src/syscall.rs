@@ -23,6 +23,7 @@ pub fn handle_syscall(
 
     match a {
         x if x == Syscall::Exit as usize => {
+            println!("Syscall::Exit");
             exit_hypervisor(if b == 0 {
                 HyperVisorExitCode::Success
             } else {
@@ -31,6 +32,7 @@ pub fn handle_syscall(
             loop {}
         }
         x if x == Syscall::Write as usize => {
+            println!("Syscall::Write");
             let fd = b;
             let data = c as *const u8;
             let len = d;
@@ -48,6 +50,7 @@ pub fn handle_syscall(
             }
         }
         x if x == Syscall::ArchPrctl as usize => {
+            println!("Syscall::ArchPrctl");
             enum ArchPrctlCode {
                 ArchSetGs = 0x1001,
                 ArchSetFs = 0x1002,

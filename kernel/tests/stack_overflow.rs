@@ -3,11 +3,11 @@
 #![feature(abi_x86_interrupt)]
 
 use core::panic::PanicInfo;
-use enarx_boot_spec::{entry_point, BootInfo};
 use kernel::arch::OffsetPageTable;
 use kernel::memory::BootInfoFrameAllocator;
 use kernel::{exit_hypervisor, serial_println, HyperVisorExitCode};
 use lazy_static::lazy_static;
+use vmbootspec::{entry_point, BootInfo};
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 
 entry_point!(main);

@@ -1,10 +1,10 @@
-use enarx_boot_spec::layout::SYSCALL_PHYS_ADDR;
 use serde::ser::Serialize;
 use serde_cbor;
 use serde_cbor::ser::SliceWrite;
 use serde_cbor::Serializer;
+use vmbootspec::layout::SYSCALL_PHYS_ADDR;
 pub use vmsyscall::Error;
-use vmsyscall::{KvmSyscall, KvmSyscallRet, PORT};
+use vmsyscall::{VmSyscall, VmSyscallRet, TRIGGER_PORT};
 use x86_64::instructions::port::Port;
 use x86_64::VirtAddr;
 
@@ -14,7 +14,7 @@ pub use mmap::*;
 #[cfg(test)]
 mod test;
 
-pub fn vm_syscall(syscall: KvmSyscall) -> Result<KvmSyscallRet, Error> {
+pub fn vm_syscall(syscall: VmSyscall) -> Result<VmSyscallRet, Error> {
     let syscall_page = VirtAddr::new(SYSCALL_PHYS_ADDR);
 
     let mut syscall_slice =
@@ -33,7 +33,7 @@ pub fn vm_syscall(syscall: KvmSyscall) -> Result<KvmSyscallRet, Error> {
     let mut size = writer.bytes_written();
 
     unsafe {
-        let mut port = Port::<u16>::new(PORT);
+        let mut port = Port::<u16>::new(TRIGGER_PORT);
         port.write(size as u16);
         size = port.read() as usize;
     }

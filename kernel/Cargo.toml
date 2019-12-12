@@ -13,7 +13,7 @@ name = "stack_overflow"
 harness = false
 
 [dependencies]
-enarx_boot_spec = {version = "0", path = "../enarx_boot_spec"}
+vmbootspec = {version = "0", path = "../vmbootspec"}
 xmas-elf = "0.7.0"
 spin = "0.5.2"
 x86_64 = { version = "0.7.7" }

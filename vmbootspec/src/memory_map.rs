@@ -1,3 +1,8 @@
+//! MemoryMap handed over to the kernel
+//!
+//! copied from
+//! https://github.com/rust-osdev/bootloader/blob/90f5b8910d146d6d489b70a6341d778253663cfa/src/bootinfo/memory_map.rs
+
 use core::fmt;
 use core::ops::{Deref, DerefMut};
 

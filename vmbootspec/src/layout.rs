@@ -1,3 +1,5 @@
+//! Hard coded memory layout
+
 pub const BOOT_GDT_OFFSET: usize = 0x500;
 pub const BOOT_IDT_OFFSET: usize = 0x520;
 

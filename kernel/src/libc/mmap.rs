@@ -1,19 +1,19 @@
 use super::{c_void, vm_syscall};
 pub use vmsyscall::Error;
-use vmsyscall::{KvmSyscall, KvmSyscallRet};
+use vmsyscall::{VmSyscall, VmSyscallRet};
 
 #[cfg(test)]
 use crate::{serial_print, serial_println};
 
 pub fn madvise(addr: *mut c_void, len: usize, advice: i32) -> Result<i32, Error> {
-    let s = KvmSyscall::Madvise {
+    let s = VmSyscall::Madvise {
         addr: addr as usize,
         len,
         advice,
     };
     let ret = vm_syscall(s)?;
     match ret {
-        KvmSyscallRet::Madvise(res) => res,
+        VmSyscallRet::Madvise(res) => res,
         _ => panic!("Unknown KvmSyscallRet"),
     }
 }
@@ -27,7 +27,7 @@ fn test_madvise() {
 }
 
 pub fn mmap(addr: *mut c_void, len: usize, prot: i32, flags: i32) -> Result<*mut c_void, Error> {
-    let s = KvmSyscall::Mmap {
+    let s = VmSyscall::Mmap {
         addr: addr as usize,
         len,
         prot,
@@ -35,7 +35,7 @@ pub fn mmap(addr: *mut c_void, len: usize, prot: i32, flags: i32) -> Result<*mut
     };
     let ret = vm_syscall(s)?;
     match ret {
-        KvmSyscallRet::Mmap(res) => match res {
+        VmSyscallRet::Mmap(res) => match res {
             Ok(l) => Ok(l as _),
             Err(e) => Err(e),
         },
@@ -57,7 +57,7 @@ pub fn mremap(
     new_len: usize,
     flags: i32,
 ) -> Result<*mut c_void, Error> {
-    let s = KvmSyscall::Mremap {
+    let s = VmSyscall::Mremap {
         addr: addr as usize,
         len,
         new_len,
@@ -65,7 +65,7 @@ pub fn mremap(
     };
     let ret = vm_syscall(s)?;
     match ret {
-        KvmSyscallRet::Mremap(res) => match res {
+        VmSyscallRet::Mremap(res) => match res {
             Ok(l) => Ok(l as _),
             Err(e) => Err(e),
         },
@@ -82,13 +82,13 @@ fn test_mremap() {
 }
 
 pub fn munmap(addr: *mut c_void, len: usize) -> Result<i32, Error> {
-    let s = KvmSyscall::Munmap {
+    let s = VmSyscall::Munmap {
         addr: addr as usize,
         len,
     };
     let ret = vm_syscall(s)?;
     match ret {
-        KvmSyscallRet::Munmap(res) => res,
+        VmSyscallRet::Munmap(res) => res,
         _ => panic!("Unknown KvmSyscallRet"),
     }
 }
@@ -102,14 +102,14 @@ fn test_munmap() {
 }
 
 pub fn mprotect(addr: *mut c_void, len: usize, prot: i32) -> Result<i32, Error> {
-    let s = KvmSyscall::Mprotect {
+    let s = VmSyscall::Mprotect {
         addr: addr as usize,
         len,
         prot,
     };
     let ret = vm_syscall(s)?;
     match ret {
-        KvmSyscallRet::Mprotect(res) => res,
+        VmSyscallRet::Mprotect(res) => res,
         _ => panic!("Unknown KvmSyscallRet"),
     }
 }

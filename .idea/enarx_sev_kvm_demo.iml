@@ -6,7 +6,7 @@
       <sourceFolder url="file://$MODULE_DIR$/kernel/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/kernel/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/kernel/benches" isTestSource="true" />
-      <sourceFolder url="file://$MODULE_DIR$/enarx_boot_spec/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/vmbootspec/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/bootinfo/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/bootinfo/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/bootinfo/benches" isTestSource="true" />
@@ -28,12 +28,16 @@
       <sourceFolder url="file://$MODULE_DIR$/enarx_boot_spec/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/enarx_boot_spec/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/enarx_boot_spec/benches" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/vmbootspec/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/vmbootspec/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/vmbootspec/benches" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/app/target" />
       <excludeFolder url="file://$MODULE_DIR$/boot/target" />
       <excludeFolder url="file://$MODULE_DIR$/bootinfo/target" />
       <excludeFolder url="file://$MODULE_DIR$/enarx_boot_spec/target" />
       <excludeFolder url="file://$MODULE_DIR$/kernel/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
+      <excludeFolder url="file://$MODULE_DIR$/vmbootspec/target" />
       <excludeFolder url="file://$MODULE_DIR$/vmrun/target" />
       <excludeFolder url="file://$MODULE_DIR$/vmsyscall/target" />
       <excludeFolder url="file://$MODULE_DIR$/x86_64/target" />

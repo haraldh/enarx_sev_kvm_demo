@@ -6,10 +6,10 @@
 #![reexport_test_harness_main = "test_main"]
 
 use core::panic::PanicInfo;
-use enarx_boot_spec::{entry_point, BootInfo};
 use kernel::arch::OffsetPageTable;
 use kernel::memory::BootInfoFrameAllocator;
 use kernel::{exit_hypervisor, println, HyperVisorExitCode};
+use vmbootspec::{entry_point, BootInfo};
 
 entry_point!(kernel_main);
 

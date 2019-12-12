@@ -1,13 +1,18 @@
+//! syscall serialize/deserialize
+//!
+//! Currently it uses a hard coded page and an I/O trigger.
+//! We might want to switch to MMIO.
+
 #![no_std]
 
 pub mod error;
 
-pub const PORT: u16 = 0xFF;
+pub const TRIGGER_PORT: u16 = 0xFF;
 
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum KvmSyscall {
+pub enum VmSyscall {
     Madvise {
         addr: usize,
         len: usize,
@@ -37,7 +42,7 @@ pub enum KvmSyscall {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum KvmSyscallRet {
+pub enum VmSyscallRet {
     Madvise(Result<i32, Error>),
     Mmap(Result<usize, Error>),
     Mremap(Result<usize, Error>),

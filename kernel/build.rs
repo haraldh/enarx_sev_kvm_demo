@@ -66,7 +66,7 @@ fn main() {
     let env_name = "APP";
     let section_name = "app";
 
-    let elf_path = PathBuf::from(match env::var(env_name) {
+    let mut elf_path = PathBuf::from(match env::var(env_name) {
         Ok(elf_path) => elf_path,
         Err(_) => {
             eprintln!(
@@ -76,6 +76,12 @@ fn main() {
             process::exit(1);
         }
     });
+
+    if elf_path.is_relative() {
+        let mut pwd = PathBuf::from(env::var("PWD").unwrap());
+        pwd.push(elf_path);
+        elf_path = pwd;
+    }
 
     let elf_file_name = elf_path
         .file_name()

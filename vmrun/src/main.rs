@@ -5,8 +5,8 @@ use serde_cbor::ser::SliceWrite;
 use serde_cbor::Serializer;
 use std::time::Instant;
 use vmrun::kvmvm;
-use vmsyscall::KvmSyscall;
-use vmsyscall::PORT as PORT_SYSCALL;
+use vmsyscall::VmSyscall;
+use vmsyscall::TRIGGER_PORT as PORT_SYSCALL;
 
 const PORT_QEMU_EXIT: u16 = 0xF4;
 
@@ -25,7 +25,7 @@ fn main() {
 
     let mut kvm = kvmvm::KvmVm::vm_create_default(&kernel_blob, 0, None /*"_start"*/).unwrap();
 
-    let mut syscall_request: Option<KvmSyscall> = None;
+    let mut syscall_request: Option<VmSyscall> = None;
     let mut syscall_reply_size: Option<usize> = None;
 
     let mut portio = vmrun::device_manager::legacy::PortIODeviceManager::new().unwrap();
@@ -72,7 +72,7 @@ fn main() {
                         )
                     };
 
-                    let s: KvmSyscall = serde_cbor::de::from_mut_slice(&mut syscall_slice).unwrap();
+                    let s: VmSyscall = serde_cbor::de::from_mut_slice(&mut syscall_slice).unwrap();
 
                     syscall_request.replace(s);
 

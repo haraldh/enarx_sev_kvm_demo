@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "enarx_boot_spec",
+    "vmbootspec",
     "app",
     "vmrun",
     "kernel",
@@ -8,7 +8,7 @@ members = [
 ]
 
 default-members = [
-    "enarx_boot_spec",
+    "vmbootspec",
     "vmrun",
     "vmsyscall",
 ]

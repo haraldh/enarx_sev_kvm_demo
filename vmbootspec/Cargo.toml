@@ -1,7 +1,8 @@
 [package]
-name = "enarx_boot_spec"
+name = "vmbootspec"
 version = "0.1.0"
-authors = ["Harald Hoyer <harald@redhat.com>"]
+authors = ["Harald Hoyer <harald@redhat.com>", "Philipp Oppermann <dev@phil-opp.com>"]
+license = "MIT/Apache-2.0"
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

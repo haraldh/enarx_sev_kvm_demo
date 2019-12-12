@@ -10,8 +10,8 @@ use crate::arch::x86_64::{
 use crate::error::*;
 use crate::frame_allocator::FrameAllocator;
 use crate::{context, map_context};
-use enarx_boot_spec::{layout::*, BootInfo, FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
-use vmsyscall::{KvmSyscall, KvmSyscallRet};
+use vmbootspec::{layout::*, BootInfo, FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
+use vmsyscall::{VmSyscall, VmSyscallRet};
 
 const DEFAULT_GUEST_MEM: u64 = 100 * 1024 * 1024;
 const DEFAULT_GUEST_PAGE_SIZE: usize = 4096;
@@ -485,7 +485,7 @@ impl KvmVm {
             .map_err(|e| ErrorKind::from(&e))?;
         regs.rflags |= 0x2;
         regs.rsp = BOOT_STACK_POINTER + PHYSICAL_MEMORY_OFFSET;
-        regs.rip = dbg!(guest_code).as_u64();
+        regs.rip = guest_code.as_u64();
         regs.rdi = boot_info_vaddr.as_u64();
 
         self.cpu_fd[vcpuid as usize]
@@ -501,15 +501,15 @@ impl KvmVm {
         Ok(())
     }
 
-    pub fn handle_syscall(&mut self, syscall: KvmSyscall) -> KvmSyscallRet {
+    pub fn handle_syscall(&mut self, syscall: VmSyscall) -> VmSyscallRet {
         match syscall {
-            KvmSyscall::Mmap {
+            VmSyscall::Mmap {
                 addr: _,
                 len: _,
                 prot: _,
                 flags: _,
             } => {
-                return KvmSyscallRet::Mmap(Err(vmsyscall::Error::NotImplemented));
+                return VmSyscallRet::Mmap(Err(vmsyscall::Error::NotImplemented));
                 /*
                 let ret = unsafe {
                     mmap(
@@ -553,25 +553,25 @@ impl KvmVm {
                 KvmSyscallRet::Mmap(Ok(region.mmap_start.as_u64() as _))
                 */
             }
-            KvmSyscall::Madvise {
+            VmSyscall::Madvise {
                 addr: _,
                 len: _,
                 advice: _,
-            } => KvmSyscallRet::Madvise(Err(vmsyscall::Error::NotImplemented)),
-            KvmSyscall::Mremap {
+            } => VmSyscallRet::Madvise(Err(vmsyscall::Error::NotImplemented)),
+            VmSyscall::Mremap {
                 addr: _,
                 len: _,
                 new_len: _,
                 flags: _,
-            } => KvmSyscallRet::Mremap(Err(vmsyscall::Error::NotImplemented)),
-            KvmSyscall::Munmap { addr: _, len: _ } => {
-                KvmSyscallRet::Munmap(Err(vmsyscall::Error::NotImplemented))
+            } => VmSyscallRet::Mremap(Err(vmsyscall::Error::NotImplemented)),
+            VmSyscall::Munmap { addr: _, len: _ } => {
+                VmSyscallRet::Munmap(Err(vmsyscall::Error::NotImplemented))
             }
-            KvmSyscall::Mprotect {
+            VmSyscall::Mprotect {
                 addr: _,
                 len: _,
                 prot: _,
-            } => KvmSyscallRet::Mprotect(Err(vmsyscall::Error::NotImplemented)),
+            } => VmSyscallRet::Mprotect(Err(vmsyscall::Error::NotImplemented)),
         }
     }
 
