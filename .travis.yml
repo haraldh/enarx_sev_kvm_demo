@@ -24,11 +24,12 @@ matrix:
 install:
   - rustup component add rustfmt
   - rustup toolchain add nightly
-  - rustup component add rust-src
+  - rustup component add rust-src --toolchain nightly
+  - rustup component add llvm-tools-preview --toolchain nightly
   - cargo install cargo-xbuild
 script:
   - cargo fmt -- --check
   - cargo build --package vmrun
   - cargo test --package vmrun
   - cargo +nightly rustc --package app -- -C panic=abort -C relocation-model=static -C link-arg=-nostartfiles
-  - cargo +nightly xbuild --package kernel --target kernel/x86_64-kernel.json
+  - APP=target/debug/app cargo +nightly xbuild --package kernel --target kernel/x86_64-kernel.json
