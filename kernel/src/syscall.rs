@@ -1,6 +1,6 @@
 use crate::arch::InterruptStack;
 use crate::{exit_hypervisor, println, serial_print, HyperVisorExitCode};
-use vmsyscall::error::*;
+use syscall::*;
 
 enum Syscall {
     Write = 1,
