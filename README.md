@@ -1,9 +1,12 @@
+[![Build Status](https://travis-ci.org/haraldh/enarx_sev_kvm_demo.svg?branch=master)](https://travis-ci.org/haraldh/enarx_sev_kvm_demo)
+
 ## Current State
 * Sets up kvm in x86 64bit mode with pagetables
 * Boots to a modified [blog_os kernel](https://os.phil-opp.com/)
 * Exception handling
 * Serial print
 * Exit codes
+* Simple ELF app execution in Ring3 with syscalls
 
 ## TODO
 ### vmrun
