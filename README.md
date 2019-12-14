@@ -25,9 +25,9 @@
 ```bash
 $ rustup toolchain add nightly
 $ rustup toolchain add nightly-2019-11-17
-$ rustup component add rust-src
+$ rustup component add rust-src --toolchain nightly
 $ rustup component add rust-src --toolchain nightly-2019-11-17
-$ rustup component add llvm-tools-preview
+$ rustup component add llvm-tools-preview --toolchain nightly
 $ rustup component add llvm-tools-preview --toolchain nightly-2019-11-17
 $ cargo install cargo-xbuild
 ```
