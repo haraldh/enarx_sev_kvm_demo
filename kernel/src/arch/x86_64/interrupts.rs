@@ -6,7 +6,6 @@
 
 use super::gdt;
 use crate::{exit_hypervisor, hlt_loop, println, HyperVisorExitCode};
-use lazy_static::lazy_static;
 use pic8259_simple::ChainedPics;
 use spin;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
@@ -34,28 +33,39 @@ impl InterruptIndex {
 pub static PICS: spin::Mutex<ChainedPics> =
     spin::Mutex::new(unsafe { ChainedPics::new(PIC_1_OFFSET, PIC_2_OFFSET) });
 
-lazy_static! {
-    static ref IDT: InterruptDescriptorTable = {
-        let mut idt = InterruptDescriptorTable::new();
-        unsafe {
-        idt.stack_segment_fault.set_handler_fn(stack_segment_fault).set_stack_index(1);
-        idt.general_protection_fault.set_handler_fn(general_protection_fault).set_stack_index(1);
-        idt.breakpoint.set_handler_fn(breakpoint_handler).set_stack_index(1);
-        idt.invalid_tss.set_handler_fn(invalid_tss_handler).set_stack_index(1);
-        idt.segment_not_present.set_handler_fn(segment_not_present_handler).set_stack_index(1);
-        idt.page_fault.set_handler_fn(page_fault_handler).set_stack_index(1);
+pub static mut IDT: Option<InterruptDescriptorTable> = None;
+
+pub fn init_idt() {
+    unsafe {
+        IDT.replace({
+            let mut idt = InterruptDescriptorTable::new();
+            idt.stack_segment_fault
+                .set_handler_fn(stack_segment_fault)
+                .set_stack_index(1);
+            idt.general_protection_fault
+                .set_handler_fn(general_protection_fault)
+                .set_stack_index(1);
+            idt.breakpoint
+                .set_handler_fn(breakpoint_handler)
+                .set_stack_index(1);
+            idt.invalid_tss
+                .set_handler_fn(invalid_tss_handler)
+                .set_stack_index(1);
+            idt.segment_not_present
+                .set_handler_fn(segment_not_present_handler)
+                .set_stack_index(1);
+            idt.page_fault
+                .set_handler_fn(page_fault_handler)
+                .set_stack_index(1);
             idt.double_fault
                 .set_handler_fn(double_fault_handler)
                 .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
-        }
-        idt[InterruptIndex::Timer.as_usize()].set_handler_fn(timer_interrupt_handler);
-        //idt[InterruptIndex::Keyboard.as_usize()].set_handler_fn(keyboard_interrupt_handler);
-        idt
-    };
-}
-
-pub fn init_idt() {
-    IDT.load();
+            idt[InterruptIndex::Timer.as_usize()].set_handler_fn(timer_interrupt_handler);
+            //idt[InterruptIndex::Keyboard.as_usize()].set_handler_fn(keyboard_interrupt_handler);
+            idt
+        });
+        IDT.as_ref().unwrap().load();
+    }
 }
 
 extern "x86-interrupt" fn stack_segment_fault(

@@ -6,7 +6,6 @@ use core::panic::PanicInfo;
 use kernel::arch::OffsetPageTable;
 use kernel::memory::BootInfoFrameAllocator;
 use kernel::{exit_hypervisor, serial_println, HyperVisorExitCode};
-use lazy_static::lazy_static;
 use vmbootspec::{entry_point, BootInfo};
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 
@@ -29,21 +28,19 @@ fn stack_overflow() {
     stack_overflow(); // for each recursion, the return address is pushed
 }
 
-lazy_static! {
-    static ref TEST_IDT: InterruptDescriptorTable = {
-        let mut idt = InterruptDescriptorTable::new();
-        unsafe {
+pub static mut TEST_IDT: Option<InterruptDescriptorTable> = None;
+
+pub fn init_test_idt() {
+    unsafe {
+        TEST_IDT.replace({
+            let mut idt = InterruptDescriptorTable::new();
             idt.double_fault
                 .set_handler_fn(test_double_fault_handler)
                 .set_stack_index(kernel::arch::x86_64::gdt::DOUBLE_FAULT_IST_INDEX);
-        }
-
-        idt
-    };
-}
-
-pub fn init_test_idt() {
-    TEST_IDT.load();
+            idt
+        });
+        TEST_IDT.as_ref().unwrap().load();
+    }
 }
 
 extern "x86-interrupt" fn test_double_fault_handler(
