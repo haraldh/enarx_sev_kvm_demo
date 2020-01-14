@@ -12,7 +12,7 @@ vmsyscall = {version = "0", path = "../vmsyscall"}
 kvm-ioctls = "0.4.0"
 kvm-bindings = "0.2.0"
 vmm-sys-util = "0.3.1"
-bit_field = "0.9.0"
+bit_field = "0.10.0"
 xmas-elf = "0.7.0"
 bitflags = "1.2.1"
 mmap = "0.1.1"
