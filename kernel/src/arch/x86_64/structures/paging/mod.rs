@@ -7,5 +7,5 @@ pub use self::mapper::Mapper;
 pub use self::mapper::OffsetPageTable;
 
 pub use x86_64::structures::paging::{
-    FrameAllocator, Page, PageTable, PageTableFlags, PhysFrame, Size4KiB,
+    FrameAllocator, Page, PageTable, PageTableFlags, PhysFrame, Size4KiB, UnusedPhysFrame,
 };

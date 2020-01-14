@@ -1,6 +1,8 @@
 //! Global Descriptor Table init
 
 use x86_64::instructions::segmentation::{load_ds, load_es, load_fs, load_gs, load_ss};
+use x86_64::registers::control::{Cr4, Cr4Flags};
+use x86_64::registers::model_specific::{FsBase, GsBase};
 use x86_64::structures::gdt::GlobalDescriptorTable;
 use x86_64::structures::gdt::{Descriptor, DescriptorFlags, SegmentSelector};
 use x86_64::structures::tss::TaskStateSegment;
@@ -13,11 +15,11 @@ pub static mut GDT: Option<(GlobalDescriptorTable, Selectors)> = None;
 
 pub const KERNEL_CODE_SEG: u16 = 1;
 pub const KERNEL_DATA_SEG: u16 = 2;
-pub const KERNEL_TLS_SEG: u16 = 2;
+pub const KERNEL_TLS_SEG: u16 = 0;
 pub const USER_DATA_SEG: u16 = 3;
 pub const USER_CODE_SEG: u16 = 4;
-pub const USER_TLS_SEG: u16 = 5;
-pub const TSS_SEG: u16 = 6;
+pub const USER_TLS_SEG: u16 = 0;
+pub const TSS_SEG: u16 = 5;
 
 #[cfg(test)]
 #[test_case]
@@ -62,7 +64,7 @@ pub struct Selectors {
     //pub tls_selector: SegmentSelector,
     pub user_data_selector: SegmentSelector,
     pub user_code_selector: SegmentSelector,
-    pub user_tls_selector: SegmentSelector,
+    //pub user_tls_selector: SegmentSelector,
     pub tss_selector: SegmentSelector,
 }
 
@@ -70,6 +72,8 @@ pub fn init() {
     use x86_64::instructions::segmentation::set_cs;
 
     unsafe {
+        Cr4::update(|f| f.insert(Cr4Flags::FSGSBASE));
+
         TSS = Some({
             let mut tss = TaskStateSegment::new();
 
@@ -120,7 +124,7 @@ pub fn init() {
             */
             let user_data_selector = gdt.add_entry(Descriptor::user_data_segment());
             let user_code_selector = gdt.add_entry(Descriptor::user_code_segment());
-            let user_tls_selector = gdt.add_entry(Descriptor::user_data_segment());
+            //let user_tls_selector = gdt.add_entry(Descriptor::user_data_segment());
             let tss_selector = gdt.add_entry(Descriptor::tss_segment(TSS.as_ref().unwrap()));
             (
                 gdt,
@@ -130,7 +134,7 @@ pub fn init() {
                     //tls_selector,
                     user_data_selector,
                     user_code_selector,
-                    user_tls_selector,
+                    //user_tls_selector,
                     tss_selector,
                 },
             )
@@ -139,16 +143,15 @@ pub fn init() {
 
     let gdt = unsafe { GDT.as_ref().unwrap() };
     unsafe {
-        asm!("
-            mov ax, 0
-            mov ss, ax
-            mov ds, ax
-            mov es, ax
-            mov fs, ax
-            mov gs, ax"
-         : : : : "intel", "volatile");
+        load_ss(SegmentSelector(0));
+        load_ds(SegmentSelector(0));
+        load_es(SegmentSelector(0));
+        load_fs(SegmentSelector(0));
+        load_gs(SegmentSelector(0));
     }
+
     gdt.0.load();
+
     unsafe {
         set_cs(gdt.1.code_selector);
         load_ss(gdt.1.data_selector);
@@ -163,8 +166,10 @@ pub fn init() {
         load_ds(SegmentSelector(0));
         load_es(SegmentSelector(0));
         load_fs(SegmentSelector(0));
+        FsBase::write(VirtAddr::new(0));
         load_gs(SegmentSelector(0));
-
+        GsBase::write(FsBase::read());
+        GsBase::write(VirtAddr::new(0));
         // Is done later with the real kernel stack
         // use x86_64::instructions::tables::load_tss;
         // load_tss(gdt.1.tss_selector);

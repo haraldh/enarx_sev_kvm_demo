@@ -17,8 +17,14 @@ pub const BOOT_STACK_POINTER: u64 = HIMEM_START as u64 - 0x1000;
 pub const BOOT_STACK_POINTER_SIZE: u64 = BOOT_STACK_POINTER - SYSCALL_PHYS_ADDR - 0x1000;
 pub const PHYSICAL_MEMORY_OFFSET: u64 = 0x800_0000_0000;
 
-pub const USER_STACK_SIZE: usize = 4 * 1024; // 1 MB
-pub const USER_STACK_OFFSET: usize = 0x0000_0080_0000_0000 * 4;
+pub const PML4_SIZE: usize = 0x0000_0080_0000_0000;
+
+pub const USER_OFFSET: usize = 0;
+pub const USER_STACK_SIZE: usize = 8 * 1024 * 1024; // 8 MB
+pub const USER_STACK_OFFSET: usize = PML4_SIZE * 4;
+pub const USER_TLS_OFFSET: usize = USER_STACK_OFFSET + PML4_SIZE;
+pub const USER_TLS_SIZE: usize = PML4_SIZE / 65536;
+pub const USER_HEAP_OFFSET: usize = USER_OFFSET + PML4_SIZE;
 
 #[repr(C)]
 pub struct PageTables {

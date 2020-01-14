@@ -8,7 +8,7 @@ pub mod syscall;
 use crate::memory::BootInfoFrameAllocator;
 use alloc::alloc::{GlobalAlloc, Layout};
 use core::ptr::null_mut;
-use vmbootspec::layout::{USER_STACK_OFFSET, USER_STACK_SIZE};
+use vmbootspec::layout::{USER_STACK_OFFSET, USER_STACK_SIZE, USER_TLS_OFFSET};
 use vmbootspec::{BootInfo, MemoryRegionType};
 
 use crate::arch::x86_64::structures::paging::{
@@ -17,6 +17,7 @@ use crate::arch::x86_64::structures::paging::{
 
 pub use x86_64::{PhysAddr, VirtAddr};
 
+use crate::arch::x86_64::structures::paging::mapper::MapperFlush;
 use xmas_elf::program::{self, ProgramHeader64};
 
 const PAGESIZE: usize = 4096;
@@ -51,7 +52,9 @@ pub fn init_heap(
             .allocate_frame()
             .ok_or(MapToError::FrameAllocationFailed)?;
         let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
-        unsafe { mapper.map_to(page, frame, flags, frame_allocator)?.flush() };
+        mapper
+            .map_to(page, frame, flags, PageTableFlags::empty(), frame_allocator)?
+            .flush();
     }
 
     unsafe {
@@ -77,7 +80,9 @@ pub fn init_stack(
             .allocate_frame()
             .ok_or(MapToError::FrameAllocationFailed)?;
         let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
-        unsafe { mapper.map_to(page, frame, flags, frame_allocator)?.flush() };
+        mapper
+            .map_to(page, frame, flags, PageTableFlags::empty(), frame_allocator)?
+            .flush();
     }
 
     // Guard Page
@@ -85,11 +90,15 @@ pub fn init_stack(
         .allocate_frame()
         .ok_or(MapToError::FrameAllocationFailed)?;
     let flags = PageTableFlags::PRESENT;
-    unsafe {
-        mapper
-            .map_to(stack_start_page, frame, flags, frame_allocator)?
-            .flush()
-    };
+    mapper
+        .map_to(
+            stack_start_page,
+            frame,
+            flags,
+            PageTableFlags::empty(),
+            frame_allocator,
+        )?
+        .flush();
 
     unsafe {
         use x86_64::instructions::tables::load_tss;
@@ -153,31 +162,92 @@ pub fn init(
 }
 
 fn init_after_stack_swap() -> ! {
-    let mut frame_allocator = unsafe { FRAME_ALLOCATOR.take().unwrap() };
+    let frame_allocator = unsafe { FRAME_ALLOCATOR.as_mut().unwrap() };
     let mapper = unsafe { MAPPER.as_mut().unwrap() };
     let entry_point = unsafe { ENTRY_POINT.take().unwrap() };
 
     frame_allocator.set_region_type_usable(MemoryRegionType::KernelStack);
 
-    entry_point(mapper, &mut frame_allocator)
+    entry_point(mapper, frame_allocator)
+}
+
+// TODO: muti-thread or syscall-proxy
+pub static mut NEXT_MMAP: u64 = 0;
+
+// TODO: muti-thread or syscall-proxy
+pub fn mmap_user(len: usize) -> *mut u8 {
+    let virt_start_addr;
+    unsafe {
+        virt_start_addr = VirtAddr::new(NEXT_MMAP as u64);
+    }
+    let start_page: Page = Page::containing_address(virt_start_addr);
+    let end_page: Page = Page::containing_address(virt_start_addr + len - 1u64);
+    let page_range = Page::range_inclusive(start_page, end_page);
+
+    let mut frame_allocator;
+    let mut mapper;
+    unsafe {
+        frame_allocator = FRAME_ALLOCATOR.take().unwrap();
+        mapper = MAPPER.take().unwrap();
+    }
+    for page in page_range {
+        let frame = frame_allocator
+            .allocate_frame()
+            .ok_or(MapToError::FrameAllocationFailed)
+            .unwrap();
+        //println!("page {:#?} frame {:#?}", page, frame);
+        mapper
+            .map_to(
+                page,
+                frame,
+                PageTableFlags::PRESENT
+                    | PageTableFlags::WRITABLE
+                    | PageTableFlags::USER_ACCESSIBLE,
+                PageTableFlags::USER_ACCESSIBLE,
+                &mut frame_allocator,
+            )
+            .and_then(|f| {
+                f.flush();
+                Ok(())
+            })
+            .or_else(|e| match e {
+                MapToError::PageAlreadyMapped => Ok(()),
+                _ => Err(e),
+            })
+            .unwrap();
+    }
+
+    let ret;
+    unsafe {
+        ret = NEXT_MMAP as *mut u8;
+        NEXT_MMAP += len as u64;
+        FRAME_ALLOCATOR.replace(frame_allocator);
+        MAPPER.replace(mapper);
+    }
+    ret
 }
 
 pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFrameAllocator) -> ! {
     use xmas_elf::program::ProgramHeader;
 
-    let sp = USER_STACK_OFFSET + USER_STACK_SIZE - 256;
-    println!("USER_STACK_OFFSET={:#X}", USER_STACK_OFFSET);
-    let sp_page = Page::containing_address(VirtAddr::new(USER_STACK_OFFSET as u64));
-    let frame = frame_allocator.allocate_frame().unwrap();
+    let virt_start_addr = VirtAddr::new(USER_STACK_OFFSET as u64);
+    let start_page: Page = Page::containing_address(virt_start_addr);
+    let end_page: Page = Page::containing_address(virt_start_addr + USER_STACK_SIZE - 256u64);
+    let page_range = Page::range_inclusive(start_page, end_page);
 
-    unsafe {
+    for page in page_range {
+        let frame = frame_allocator
+            .allocate_frame()
+            .ok_or(MapToError::FrameAllocationFailed)
+            .unwrap();
         mapper
             .map_to(
-                sp_page,
+                page,
                 frame,
                 PageTableFlags::PRESENT
                     | PageTableFlags::WRITABLE
                     | PageTableFlags::USER_ACCESSIBLE,
+                PageTableFlags::USER_ACCESSIBLE,
                 frame_allocator,
             )
             .unwrap()
@@ -202,24 +272,112 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
 
     entry_point = elf_file.header.pt2.entry_point();
 
+    let mut user_tls = false;
+
     for program_header in elf_file.program_iter() {
         match program_header {
             ProgramHeader::Ph64(header) => {
                 let segment = *header;
-                println!("{:#?}", segment);
-                map_user_segment(
+                //println!("{:#?}", segment);
+                let has_tls = map_user_segment(
                     &segment,
                     PhysAddr::new(app_start_ptr),
                     mapper,
                     frame_allocator,
                 )
                 .unwrap();
+                if has_tls == true {
+                    user_tls = true;
+                }
             }
             ProgramHeader::Ph32(_) => panic!("does not support 32 bit elf files"),
         }
     }
+
     println!("app_entry_point={:#X}", entry_point);
+
+    use crate::alloc::string::ToString;
+    use alloc::string::String;
+    let mut crt0sp = crt0stack::Crt0Stack::new();
+    crt0sp.argv.push("/init".to_string());
+    crt0sp.auxv.push(crt0stack::AuxvPair {
+        key: crt0stack::AT_EGID,
+        value: 1,
+    });
+    crt0sp.auxv.push(crt0stack::AuxvPair {
+        key: crt0stack::AT_GID,
+        value: 1,
+    });
+    crt0sp.auxv.push(crt0stack::AuxvPair {
+        key: crt0stack::AT_UID,
+        value: 1,
+    });
+    crt0sp.auxv.push(crt0stack::AuxvPair {
+        key: crt0stack::AT_EUID,
+        value: 1,
+    });
+    crt0sp.auxv.push(crt0stack::AuxvPair {
+        key: crt0stack::AT_PAGESZ,
+        value: 4096,
+    });
+    crt0sp.auxv.push(crt0stack::AuxvPair {
+        key: crt0stack::AT_SECURE,
+        value: 0,
+    });
+    crt0sp.auxv.push(crt0stack::AuxvPair {
+        key: crt0stack::AT_CLKTCK,
+        value: 100,
+    });
+    crt0sp.auxv.push(crt0stack::AuxvPair {
+        key: crt0stack::AT_FLAGS,
+        value: 0,
+    });
+
+    crt0sp.auxv.push(crt0stack::AuxvPair {
+        key: crt0stack::AT_HWCAP,
+        value: 0xbfebfbff,
+    });
+    crt0sp.auxv.push(crt0stack::AuxvPair {
+        key: crt0stack::AT_HWCAP2,
+        value: 1, // HWCAP2_FSGSBASE
+    });
+    let r1 = x86_64::instructions::random::RdRand::new()
+        .unwrap()
+        .get_u64()
+        .unwrap();
+    let r2 = x86_64::instructions::random::RdRand::new()
+        .unwrap()
+        .get_u64()
+        .unwrap();
+
+    crt0sp.random = Some([0u8; 16]);
+
+    {
+        let ra = &mut crt0sp.random.unwrap();
+        let r1u8 = unsafe { core::slice::from_raw_parts(&r1 as *const u64 as *const u8, 8) };
+        let r2u8 = unsafe { core::slice::from_raw_parts(&r2 as *const u64 as *const u8, 8) };
+        ra[0..8].copy_from_slice(r1u8);
+        ra[8..16].copy_from_slice(r2u8);
+    }
+
+    crt0sp.platform = Some("x86_64".to_string());
+    crt0sp.exec_fn = Some("/init".to_string());
+
+    crt0sp.auxv.push(crt0stack::AuxvPair {
+        key: crt0stack::AT_RANDOM,
+        value: x86_64::instructions::random::RdRand::new()
+            .unwrap()
+            .get_u64()
+            .unwrap(),
+    });
+
+    let sp_slice =
+        unsafe { core::slice::from_raw_parts_mut((USER_STACK_OFFSET) as *mut u8, USER_STACK_SIZE) };
+
+    let sp_idx = crt0sp.serialize(sp_slice);
+    let sp = &mut sp_slice[sp_idx] as *mut u8 as usize;
     println!("stackpointer={:#X}", sp);
+    println!("USER_STACK_OFFSET={:#X}", USER_STACK_OFFSET);
 
     unsafe {
         syscall::usermode(entry_point as usize, sp, 0);
@@ -231,15 +389,25 @@ pub(crate) fn map_user_segment(
     file_start: PhysAddr,
     page_table: &mut OffsetPageTable,
     frame_allocator: &mut impl FrameAllocator<Size4KiB>,
-) -> Result<(), MapToError> {
+) -> Result<bool, MapToError> {
     let typ = segment.get_type().unwrap();
+    let mut has_tls = false;
+
     match typ {
-        program::Type::Load => {
+        program::Type::Load /*| program::Type::Tls */=> {
             let mem_size = segment.mem_size;
             let file_size = segment.file_size;
             let file_offset = segment.offset;
             let phys_start_addr = file_start + file_offset;
             let virt_start_addr = VirtAddr::new(segment.virtual_addr);
+            let virt_end_addr = (virt_start_addr + segment.mem_size as u64).align_up(4096u64);
+
+            unsafe {
+                if NEXT_MMAP < virt_end_addr.as_u64() {
+                    NEXT_MMAP = virt_end_addr.as_u64();
+                    //println!("NEXT_MMAP = {:X}", NEXT_MMAP);
+                }
+            }
 
             let start_page: Page = Page::containing_address(virt_start_addr);
             let end_page: Page = Page::containing_address(virt_start_addr + mem_size - 1u64);
@@ -259,16 +427,22 @@ pub(crate) fn map_user_segment(
                 let frame = frame_allocator
                     .allocate_frame()
                     .ok_or(MapToError::FrameAllocationFailed)?;
-                unsafe {
-                    page_table
-                        .map_to(
-                            page,
-                            frame,
-                            page_table_flags | PageTableFlags::WRITABLE,
-                            frame_allocator,
-                        )?
-                        .flush()
-                };
+                page_table
+                    .map_to(
+                        page,
+                        frame,
+                        page_table_flags | PageTableFlags::WRITABLE,
+                        PageTableFlags::USER_ACCESSIBLE,
+                        frame_allocator,
+                    )
+                    .and_then(|f| {
+                        f.flush();
+                        Ok(())
+                    })
+                    .or_else(|e| match e {
+                        MapToError::PageAlreadyMapped => Ok(()),
+                        _ => Err(e),
+                    })?;
             }
             unsafe {
                 let src = core::slice::from_raw_parts(
@@ -294,7 +468,71 @@ pub(crate) fn map_user_segment(
                     .flush();
             }
         }
+        /*
+        program::Type::Tls => {
+            let mem_size = segment.mem_size;
+            let file_size = segment.file_size;
+            let file_offset = segment.offset;
+            let phys_start_addr = file_start + file_offset;
+            let virt_start_addr = VirtAddr::new(USER_TLS_OFFSET as u64);
+            let virt_end_addr = (virt_start_addr + segment.mem_size as u64).align_up(4096u64);
+
+            unsafe {
+                if NEXT_MMAP < virt_end_addr.as_u64() {
+                    NEXT_MMAP = virt_end_addr.as_u64();
+                    println!("NEXT_MMAP = {:X}", NEXT_MMAP);
+                }
+            }
+
+            let start_page: Page = Page::containing_address(virt_start_addr);
+            let end_page: Page = Page::containing_address(virt_start_addr + mem_size - 1u64);
+            let page_range = Page::range_inclusive(start_page, end_page);
+            //println!("{:#?}", page_range);
+
+            let flags = segment.flags;
+            let mut page_table_flags = PageTableFlags::PRESENT | PageTableFlags::USER_ACCESSIBLE;
+            if !flags.is_execute() {
+                page_table_flags |= PageTableFlags::NO_EXECUTE
+            };
+            if flags.is_write() {
+                page_table_flags |= PageTableFlags::WRITABLE
+            };
+
+            for page in page_range {
+                let frame = frame_allocator
+                    .allocate_frame()
+                    .ok_or(MapToError::FrameAllocationFailed)?;
+                page_table
+                    .map_to(
+                        page,
+                        frame,
+                        PageTableFlags::PRESENT
+                            | PageTableFlags::WRITABLE
+                            | PageTableFlags::USER_ACCESSIBLE,
+                        frame_allocator,
+                    )?
+                    .flush();
+            }
+            unsafe {
+                let src = core::slice::from_raw_parts(
+                    phys_start_addr.as_u64() as *const u8,
+                    file_size as _,
+                );
+                let dst = core::slice::from_raw_parts_mut(
+                    virt_start_addr.as_mut_ptr::<u8>(),
+                    file_size as _,
+                );
+                dst.copy_from_slice(src);
+
+                let dst = core::slice::from_raw_parts_mut(
+                    (virt_start_addr + file_size).as_mut_ptr::<u8>(),
+                    mem_size as usize - file_size as usize,
+                );
+                dst.iter_mut().for_each(|i| *i = 0);
+            }
+        }
+        */
         _ => {}
     }
-    Ok(())
+    Ok(has_tls)
 }

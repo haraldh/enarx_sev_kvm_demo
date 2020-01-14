@@ -50,17 +50,19 @@ impl PhysToVirt for PhysOffset {
 // delegate all trait implementations to inner
 
 impl<'a> Mapper<Size1GiB> for OffsetPageTable<'a> {
-    unsafe fn map_to<A>(
+    fn map_to<A>(
         &mut self,
         page: Page<Size1GiB>,
-        frame: PhysFrame<Size1GiB>,
+        frame: UnusedPhysFrame<Size1GiB>,
         flags: PageTableFlags,
+        p321_insert_flag_mask: PageTableFlags,
         allocator: &mut A,
     ) -> Result<MapperFlush<Size1GiB>, MapToError>
     where
         A: FrameAllocator<Size4KiB>,
     {
-        self.inner.map_to(page, frame, flags, allocator)
+        self.inner
+            .map_to(page, frame, flags, p321_insert_flag_mask, allocator)
     }
 
     fn unmap(
@@ -84,17 +86,19 @@ impl<'a> Mapper<Size1GiB> for OffsetPageTable<'a> {
 }
 
 impl<'a> Mapper<Size2MiB> for OffsetPageTable<'a> {
-    unsafe fn map_to<A>(
+    fn map_to<A>(
         &mut self,
         page: Page<Size2MiB>,
-        frame: PhysFrame<Size2MiB>,
+        frame: UnusedPhysFrame<Size2MiB>,
         flags: PageTableFlags,
+        p321_insert_flag_mask: PageTableFlags,
         allocator: &mut A,
     ) -> Result<MapperFlush<Size2MiB>, MapToError>
     where
         A: FrameAllocator<Size4KiB>,
     {
-        self.inner.map_to(page, frame, flags, allocator)
+        self.inner
+            .map_to(page, frame, flags, p321_insert_flag_mask, allocator)
     }
 
     fn unmap(
@@ -118,17 +122,19 @@ impl<'a> Mapper<Size2MiB> for OffsetPageTable<'a> {
 }
 
 impl<'a> Mapper<Size4KiB> for OffsetPageTable<'a> {
-    unsafe fn map_to<A>(
+    fn map_to<A>(
         &mut self,
         page: Page<Size4KiB>,
-        frame: PhysFrame<Size4KiB>,
+        frame: UnusedPhysFrame<Size4KiB>,
         flags: PageTableFlags,
+        p321_insert_flag_mask: PageTableFlags,
         allocator: &mut A,
     ) -> Result<MapperFlush<Size4KiB>, MapToError>
     where
         A: FrameAllocator<Size4KiB>,
     {
-        self.inner.map_to(page, frame, flags, allocator)
+        self.inner
+            .map_to(page, frame, flags, p321_insert_flag_mask, allocator)
     }
 
     fn unmap(

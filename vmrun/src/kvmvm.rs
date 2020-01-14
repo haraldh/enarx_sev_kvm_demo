@@ -509,7 +509,7 @@ impl KvmVm {
                 prot: _,
                 flags: _,
             } => {
-                return VmSyscallRet::Mmap(Err(vmsyscall::Error::NotImplemented));
+                return VmSyscallRet::Mmap(Err(vmsyscall::Error::Errno(vmsyscall::errno::ENOSYS)));
                 /*
                 let ret = unsafe {
                     mmap(
@@ -557,21 +557,21 @@ impl KvmVm {
                 addr: _,
                 len: _,
                 advice: _,
-            } => VmSyscallRet::Madvise(Err(vmsyscall::Error::NotImplemented)),
+            } => VmSyscallRet::Madvise(Err(vmsyscall::Error::Errno(vmsyscall::errno::ENOSYS))),
             VmSyscall::Mremap {
                 addr: _,
                 len: _,
                 new_len: _,
                 flags: _,
-            } => VmSyscallRet::Mremap(Err(vmsyscall::Error::NotImplemented)),
+            } => VmSyscallRet::Mremap(Err(vmsyscall::Error::Errno(vmsyscall::errno::ENOSYS))),
             VmSyscall::Munmap { addr: _, len: _ } => {
-                VmSyscallRet::Munmap(Err(vmsyscall::Error::NotImplemented))
+                VmSyscallRet::Munmap(Err(vmsyscall::Error::Errno(vmsyscall::errno::ENOSYS)))
             }
             VmSyscall::Mprotect {
                 addr: _,
                 len: _,
                 prot: _,
-            } => VmSyscallRet::Mprotect(Err(vmsyscall::Error::NotImplemented)),
+            } => VmSyscallRet::Mprotect(Err(vmsyscall::Error::Errno(vmsyscall::errno::ENOSYS))),
         }
     }
 

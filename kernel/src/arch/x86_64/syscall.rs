@@ -1,5 +1,6 @@
 use super::gdt;
 use crate::println;
+use core::hint::unreachable_unchecked;
 use core::ops::{Deref, DerefMut};
 use core::{mem, slice};
 use x86_64::registers::control::EferFlags;
@@ -377,7 +378,8 @@ pub unsafe extern "C" fn syscall_instruction() -> ! {
     scratch_push!();
     preserved_push!();
 
-    asm!("push fs 
+    asm!("rdfsbase r11
+        push r11
         mov r11, $0
         mov fs, r11"
         : : "i"(gdt::KERNEL_TLS_SEG << 3) : : "intel", "volatile");
@@ -390,8 +392,9 @@ pub unsafe extern "C" fn syscall_instruction() -> ! {
     inner(rsp);
 
     // Interrupt return
-    asm!("pop fs"
-    : : : : "intel", "volatile");
+    asm!("pop r11
+          wrfsbase r11"
+        : : : : "intel", "volatile");
 
     preserved_pop!();
     scratch_pop!();
@@ -412,7 +415,7 @@ pub unsafe extern "C" fn syscall_instruction() -> ! {
           swapgs
           sysretq
           " : : : : "intel", "volatile");
-    unreachable!();
+    unreachable_unchecked();
 }
 
 #[naked]
@@ -436,12 +439,12 @@ pub unsafe fn usermode(ip: usize, sp: usize, arg: usize) -> ! {
     // Go to usermode
     asm!("mov ds, r14d
          mov es, r14d
-         mov fs, r15d
          mov gs, r14d
+         mov fs, r15d         
          xor rax, rax
+         xor rdx, rdx
          xor rbx, rbx
          xor rcx, rcx
-         xor rdx, rdx
          xor rsi, rsi
          xor rdi, rdi
          xor rbp, rbp
@@ -461,5 +464,5 @@ pub unsafe fn usermode(ip: usize, sp: usize, arg: usize) -> ! {
              "{r15}"((gdt::USER_TLS_SEG << 3) | 3) // TLS segment
          : // No clobbers because it never returns
          : "intel", "volatile");
-    unreachable!();
+    unreachable_unchecked()
 }

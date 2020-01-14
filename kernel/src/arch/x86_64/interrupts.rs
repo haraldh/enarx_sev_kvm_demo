@@ -130,7 +130,7 @@ extern "x86-interrupt" fn page_fault_handler(
 extern "x86-interrupt" fn double_fault_handler(
     stack_frame: &mut InterruptStackFrame,
     _error_code: u64, // Always 0
-) {
+) -> ! {
     println!("EXCEPTION: DOUBLE FAULT\n{:#?}", stack_frame);
     hlt_loop();
 }

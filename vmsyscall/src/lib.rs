@@ -5,6 +5,10 @@
 
 #![no_std]
 
+pub mod arch;
+pub use arch::errno;
+pub use arch::syscall;
+
 pub const TRIGGER_PORT: u16 = 0xFF;
 
 use serde::{Deserialize, Serialize};
@@ -37,6 +41,7 @@ pub enum VmSyscall {
         len: usize,
         prot: i32,
     },
+    // Todo: extend with needed hypervisor proxy syscalls
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -50,8 +55,7 @@ pub enum VmSyscallRet {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub enum Error {
-    ENOMEM,
-    NotImplemented,
+    Errno(i32),
     SerializeError,
     DeSerializeError,
 }

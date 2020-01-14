@@ -7,7 +7,7 @@ pub use self::offset_page_table::OffsetPageTable;
 
 use x86_64::structures::paging::{
     page_table::PageTableFlags, FrameAllocator, Page, PageSize, PhysFrame, Size1GiB, Size2MiB,
-    Size4KiB,
+    Size4KiB, UnusedPhysFrame,
 };
 
 use x86_64::{PhysAddr, VirtAddr};
@@ -80,16 +80,63 @@ pub trait Mapper<S: PageSize> {
     /// This function might need additional physical frames to create new page tables. These
     /// frames are allocated from the `allocator` argument. At most three frames are required.
     ///
-    /// This function is unsafe because the caller must guarantee that passed `frame` is
-    /// unused, i.e. not used for any other mappings.
-    unsafe fn map_to<A>(
+    /// # Examples
+    ///
+    /// Create USER_ACCESSIBLE mapping and update the top hierarchy to be USER_ACCESSIBLE, too:
+    ///
+    /// ```
+    /// # use x86_64::structures::paging::{
+    /// #    Mapper, UnusedPhysFrame, Page, FrameAllocator,
+    /// #    Size4KiB, OffsetPageTable, page_table::PageTableFlags
+    /// # };
+    /// # fn test(mapper: &mut OffsetPageTable, frame_allocator: &mut impl FrameAllocator<Size4KiB>,
+    /// #         page: Page<Size4KiB>, frame: UnusedPhysFrame) {
+    ///         mapper
+    ///           .map_to(
+    ///               page,
+    ///               frame,
+    ///              PageTableFlags::PRESENT
+    ///                   | PageTableFlags::WRITABLE
+    ///                   | PageTableFlags::USER_ACCESSIBLE,
+    ///               PageTableFlags::USER_ACCESSIBLE,
+    ///               frame_allocator,
+    ///           )
+    ///           .unwrap()
+    ///           .flush();
+    /// # }
+    /// ```
+    ///
+    /// Create a mapping without updating the top hierarchy:
+    /// ```
+    /// # use x86_64::structures::paging::{
+    /// #    Mapper, UnusedPhysFrame, Page, FrameAllocator,
+    /// #    Size4KiB, OffsetPageTable, page_table::PageTableFlags
+    /// # };
+    /// # fn test(mapper: &mut OffsetPageTable, frame_allocator: &mut impl FrameAllocator<Size4KiB>,
+    /// #         page: Page<Size4KiB>, frame: UnusedPhysFrame) {
+    ///         mapper
+    ///           .map_to(
+    ///               page,
+    ///               frame,
+    ///              PageTableFlags::PRESENT
+    ///                   | PageTableFlags::WRITABLE,
+    ///               PageTableFlags::empty(),
+    ///               frame_allocator,
+    ///           )
+    ///           .unwrap()
+    ///           .flush();
+    /// # }
+    /// ```
+    fn map_to<A>(
         &mut self,
         page: Page<S>,
-        frame: PhysFrame<S>,
+        frame: UnusedPhysFrame<S>,
         flags: PageTableFlags,
+        p321_insert_flag_mask: PageTableFlags,
         frame_allocator: &mut A,
     ) -> Result<MapperFlush<S>, MapToError>
     where
+        Self: Sized,
         A: FrameAllocator<Size4KiB>;
 
     /// Removes a mapping from the page table and returns the frame that used to be mapped.
@@ -111,22 +158,21 @@ pub trait Mapper<S: PageSize> {
     fn translate_page(&self, page: Page<S>) -> Result<PhysFrame<S>, TranslateError>;
 
     /// Maps the given frame to the virtual page with the same address.
-    ///
-    /// This function is unsafe because the caller must guarantee that the passed `frame` is
-    /// unused, i.e. not used for any other mappings.
     unsafe fn identity_map<A>(
         &mut self,
-        frame: PhysFrame<S>,
+        frame: UnusedPhysFrame<S>,
         flags: PageTableFlags,
+        p321_insert_flag_mask: PageTableFlags,
         frame_allocator: &mut A,
     ) -> Result<MapperFlush<S>, MapToError>
     where
+        Self: Sized,
         A: FrameAllocator<Size4KiB>,
         S: PageSize,
         Self: Mapper<S>,
     {
         let page = Page::containing_address(VirtAddr::new(frame.start_address().as_u64()));
-        self.map_to(page, frame, flags, frame_allocator)
+        self.map_to(page, frame, flags, p321_insert_flag_mask, frame_allocator)
     }
 }
 
@@ -201,3 +247,5 @@ pub enum TranslateError {
     /// The page table entry for the given page points to an invalid physical address.
     InvalidFrameAddress(PhysAddr),
 }
+
+static _ASSERT_OBJECT_SAFE: Option<&(dyn MapperAllSizes + Sync)> = None;
