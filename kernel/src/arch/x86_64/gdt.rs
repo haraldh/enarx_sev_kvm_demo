@@ -1,8 +1,7 @@
 //! Global Descriptor Table init
 
 use x86_64::instructions::segmentation::{load_ds, load_es, load_fs, load_gs, load_ss};
-use x86_64::registers::control::{Cr4, Cr4Flags};
-use x86_64::registers::model_specific::{FsBase, GsBase};
+use x86_64::registers::control::{Cr0, Cr0Flags, Cr4, Cr4Flags};
 use x86_64::structures::gdt::GlobalDescriptorTable;
 use x86_64::structures::gdt::{Descriptor, DescriptorFlags, SegmentSelector};
 use x86_64::structures::tss::TaskStateSegment;
@@ -69,10 +68,17 @@ pub struct Selectors {
 }
 
 pub fn init() {
+    println!("init_gdt");
+
     use x86_64::instructions::segmentation::set_cs;
 
     unsafe {
-        Cr4::update(|f| f.insert(Cr4Flags::FSGSBASE));
+        Cr4::update(|f| {
+            f.insert(Cr4Flags::FSGSBASE | Cr4Flags::PHYSICAL_ADDRESS_EXTENSION | Cr4Flags::OSFXSR)
+        });
+        Cr0::update(|f| {
+            f.insert(Cr0Flags::PROTECTED_MODE_ENABLE | Cr0Flags::NUMERIC_ERROR | Cr0Flags::PAGING)
+        });
 
         TSS = Some({
             let mut tss = TaskStateSegment::new();
@@ -89,9 +95,45 @@ pub fn init() {
                 static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
 
                 let stack_start = VirtAddr::from_ptr(&STACK);
+                //println!("double fault stack: 0x{:X}", stack_start.as_u64());
                 stack_start + STACK_SIZE
             };
             tss.interrupt_stack_table[1usize] = {
+                const STACK_SIZE: usize = 4096 * 2;
+                static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+
+                let stack_start = VirtAddr::from_ptr(&STACK);
+                stack_start + STACK_SIZE
+            };
+            tss.interrupt_stack_table[2usize] = {
+                const STACK_SIZE: usize = 4096 * 2;
+                static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+
+                let stack_start = VirtAddr::from_ptr(&STACK);
+                stack_start + STACK_SIZE
+            };
+            tss.interrupt_stack_table[3usize] = {
+                const STACK_SIZE: usize = 4096 * 2;
+                static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+
+                let stack_start = VirtAddr::from_ptr(&STACK);
+                stack_start + STACK_SIZE
+            };
+            tss.interrupt_stack_table[4usize] = {
+                const STACK_SIZE: usize = 4096 * 2;
+                static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+
+                let stack_start = VirtAddr::from_ptr(&STACK);
+                stack_start + STACK_SIZE
+            };
+            tss.interrupt_stack_table[5usize] = {
+                const STACK_SIZE: usize = 4096 * 2;
+                static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+
+                let stack_start = VirtAddr::from_ptr(&STACK);
+                stack_start + STACK_SIZE
+            };
+            tss.interrupt_stack_table[6usize] = {
                 const STACK_SIZE: usize = 4096 * 2;
                 static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
 
@@ -166,13 +208,14 @@ pub fn init() {
         load_ds(SegmentSelector(0));
         load_es(SegmentSelector(0));
         load_fs(SegmentSelector(0));
-        FsBase::write(VirtAddr::new(0));
+        //FsBase::write(VirtAddr::new(0));
         load_gs(SegmentSelector(0));
-        GsBase::write(FsBase::read());
-        GsBase::write(VirtAddr::new(0));
+        //GsBase::write(FsBase::read());
+        //GsBase::write(VirtAddr::new(0));
+
         // Is done later with the real kernel stack
-        // use x86_64::instructions::tables::load_tss;
-        // load_tss(gdt.1.tss_selector);
+        //use x86_64::instructions::tables::load_tss;
+        //load_tss(gdt.1.tss_selector);
         // FIXME: general_protection_fault 48
     }
 }

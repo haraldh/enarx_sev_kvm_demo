@@ -7,7 +7,10 @@ members = [
     "vmsyscall",
 ]
 
+exclude = [ "kernel" ]
+
 default-members = [
+    "app",
     "vmbootspec",
     "vmrun",
     "vmsyscall",

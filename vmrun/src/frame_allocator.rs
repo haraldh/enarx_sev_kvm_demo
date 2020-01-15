@@ -11,6 +11,13 @@ impl FrameAllocator {
     pub(crate) fn mark_allocated_region(&mut self, region: MemoryRegion) {
         for r in self.memory_map.iter_mut() {
             if r.region_type == region.region_type
+                && r.range.start_frame_number == region.range.start_frame_number
+                && r.range.end_frame_number == region.range.end_frame_number
+            {
+                return;
+            }
+
+            if r.region_type == region.region_type
                 && r.range.end_frame_number >= region.range.start_frame_number
                 && r.range.end_frame_number <= region.range.end_frame_number
             {
@@ -71,6 +78,9 @@ impl FrameAllocator {
             }
             return;
         }
-        panic!("region {:x?} is not a usable memory region", region);
+        panic!(
+            "region {:x?} is not a usable memory region\n{:#?}",
+            region, self.memory_map
+        );
     }
 }

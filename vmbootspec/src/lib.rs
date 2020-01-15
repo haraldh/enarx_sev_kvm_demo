@@ -76,7 +76,7 @@ impl BootInfo {
     /// Create a new boot information structure. This function is only for internal purposes.
     #[allow(unused_variables)]
     #[doc(hidden)]
-    pub fn new(
+    pub const fn new(
         memory_map: MemoryMap,
         recursive_page_table_addr: u64,
         physical_memory_offset: u64,

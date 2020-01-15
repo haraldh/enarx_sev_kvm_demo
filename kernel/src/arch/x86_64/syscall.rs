@@ -37,7 +37,14 @@ pub unsafe fn init() {
     LStar::MSR.write(syscall_instruction as u64);
     FMask::MSR.write(0x300); // Clear trap flag and interrupt enable
     KernelGsBase::write(VirtAddr::new(gdt::TSS.as_ref().unwrap() as *const _ as u64));
-    Efer::write(Efer::read() | EferFlags::SYSTEM_CALL_EXTENSIONS);
+    Efer::update(|f| {
+        f.insert(
+            EferFlags::LONG_MODE_ACTIVE
+                | EferFlags::LONG_MODE_ENABLE
+                | EferFlags::NO_EXECUTE_ENABLE
+                | EferFlags::SYSTEM_CALL_EXTENSIONS,
+        )
+    });
 }
 
 #[allow(dead_code)]

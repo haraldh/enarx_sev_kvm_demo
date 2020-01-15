@@ -3,3 +3,4 @@ target = "x86_64-kernel.json"
 
 [target.'cfg(target_os = "enarx")']
 runner = "../target/release/vmrun"
+

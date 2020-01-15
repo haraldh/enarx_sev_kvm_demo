@@ -215,11 +215,11 @@ impl KvmVm {
 
         // Entry covering VA [0..512GB)
         page_tables.pml4t[0] = boot_pdpte_addr as u64 | 0x7;
-
-        // Entry covering VA [0..512GB) with physical offset PHYSICAL_MEMORY_OFFSET
-        page_tables.pml4t[(PHYSICAL_MEMORY_OFFSET >> 39) as usize & 0x1FFusize] =
-            boot_pdpte_offset_addr as u64 | 0x7;
-
+        /*
+                // Entry covering VA [0..512GB) with physical offset PHYSICAL_MEMORY_OFFSET
+                page_tables.pml4t[(PHYSICAL_MEMORY_OFFSET >> 39) as usize & 0x1FFusize] =
+                    boot_pdpte_offset_addr as u64 | 0x7;
+        */
         // Entry covering VA [0..1GB)
         page_tables.pml3t_ident[0] = boot_pde_addr as u64 | 0x7;
         // 512 2MB entries together covering VA [0..1GB). Note we are assuming
@@ -315,14 +315,16 @@ impl KvmVm {
                         _ => continue,
                     }
 
-                    let start_phys = PhysAddr::new(segment.virtual_addr - PHYSICAL_MEMORY_OFFSET);
+                    let start_phys =
+                        PhysAddr::new(segment.virtual_addr /*- PHYSICAL_MEMORY_OFFSET*/);
                     let start_frame: PhysFrame =
                         PhysFrame::from_start_address(start_phys.align_down(self.page_size as u64))
                             .unwrap();
 
                     let end_frame: PhysFrame = PhysFrame::from_start_address(
                         PhysAddr::new(
-                            (segment.virtual_addr - PHYSICAL_MEMORY_OFFSET) + segment.mem_size - 1,
+                            (segment.virtual_addr/*- PHYSICAL_MEMORY_OFFSET*/) + segment.mem_size
+                                - 1,
                         )
                         .align_up(self.page_size as u64),
                     )
@@ -332,10 +334,9 @@ impl KvmVm {
                         range: frame_range(PhysFrame::range(start_frame, end_frame)),
                         region_type: MemoryRegionType::Kernel,
                     };
-                    /*
-                    dbg!(region);
-                    dbg!(&self.frame_allocator.memory_map);
-                    */
+
+                    //dbg!(region);
+                    //dbg!(&self.frame_allocator.memory_map);
                     self.frame_allocator.mark_allocated_region(region);
 
                     // FIXME: SEV LOAD
@@ -484,7 +485,7 @@ impl KvmVm {
             .get_regs()
             .map_err(|e| ErrorKind::from(&e))?;
         regs.rflags |= 0x2;
-        regs.rsp = BOOT_STACK_POINTER + PHYSICAL_MEMORY_OFFSET;
+        regs.rsp = BOOT_STACK_POINTER;
         regs.rip = guest_code.as_u64();
         regs.rdi = boot_info_vaddr.as_u64();
 

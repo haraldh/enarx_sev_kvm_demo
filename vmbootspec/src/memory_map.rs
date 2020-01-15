@@ -22,7 +22,7 @@ pub struct MemoryMap {
 
 #[doc(hidden)]
 impl MemoryMap {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         MemoryMap {
             entries: [MemoryRegion::empty(); MAX_MEMORY_MAP_SIZE],
             next_entry_index: 0,
@@ -131,7 +131,7 @@ pub struct MemoryRegion {
 
 #[doc(hidden)]
 impl MemoryRegion {
-    pub fn empty() -> Self {
+    pub const fn empty() -> Self {
         MemoryRegion {
             range: FrameRange {
                 start_frame_number: 0,

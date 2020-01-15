@@ -20,17 +20,21 @@ use std::{
 };
 
 fn main() {
-    if env::var_os("CC").is_none() {
-        env::set_var("CC", "clang");
-    }
+    /*
+        if env::var_os("CC").is_none() {
+            env::set_var("CC", "clang");
+        }
 
-    cc::Build::new()
-        .no_default_flags(true)
-        .file("src/arch/x86_64/asm.s")
-        .static_flag(false)
-        .shared_flag(true)
-        .compile("asm");
-
+        cc::Build::new()
+            .no_default_flags(true)
+            .file("src/arch/x86_64/asm/notes.s")
+            .file("src/arch/x86_64/asm/ram64.s")
+            .file("src/arch/x86_64/asm/ram32.s")
+            .file("src/arch/x86_64/asm/rom.s")
+            .static_flag(false)
+            .shared_flag(true)
+            .compile("asm");
+    */
     let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR not set"));
 
     // get access to llvm tools shipped in the llvm-tools-preview rustup component

@@ -1,7 +1,7 @@
 use crate::arch::x86_64::{mmap_user, NEXT_MMAP};
 use crate::arch::InterruptStack;
-use crate::{exit_hypervisor, println, serial_print, HyperVisorExitCode};
-use vmbootspec::layout::USER_HEAP_OFFSET;
+use crate::{exit_hypervisor, println, HyperVisorExitCode};
+//use vmbootspec::layout::USER_HEAP_OFFSET;
 use vmsyscall::errno;
 use vmsyscall::syscall::*;
 

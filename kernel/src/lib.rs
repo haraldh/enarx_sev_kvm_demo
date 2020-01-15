@@ -7,6 +7,7 @@
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 #![feature(asm)]
+#![feature(global_asm)]
 #![feature(naked_functions)]
 
 extern crate alloc;
@@ -15,14 +16,16 @@ use core::panic::PanicInfo;
 use linked_list_allocator::LockedHeap;
 
 pub mod arch;
-pub mod libc;
+//pub mod libc;
 pub mod memory;
+pub mod strlen;
 pub mod syscall;
 
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 pub unsafe fn context_switch(entry_point: fn() -> !, stack_pointer: usize) -> ! {
+    let entry_point: u64 = entry_point as u64 + PHYSICAL_MEMORY_OFFSET;
     asm!("call $1; ${:private}.spin.${:uid}: jmp ${:private}.spin.${:uid}" ::
          "{rsp}"(stack_pointer), "r"(entry_point) :: "intel");
     ::core::hint::unreachable_unchecked()
@@ -67,6 +70,7 @@ pub fn hlt_loop() -> ! {
 
 #[cfg(test)]
 use vmbootspec::entry_point;
+use vmbootspec::layout::PHYSICAL_MEMORY_OFFSET;
 
 #[cfg(test)]
 entry_point!(test_lib_main);

@@ -50,11 +50,14 @@ impl fmt::Write for SerialPort {
 #[doc(hidden)]
 pub fn _print(args: ::core::fmt::Arguments) {
     use core::fmt::Write;
+    use x86_64::instructions::interrupts;
 
     let mut serial_port = unsafe { SerialPort::new(0x3F8) };
-    serial_port
-        .write_fmt(args)
-        .expect("Printing to serial failed");
+    interrupts::without_interrupts(|| {
+        serial_port
+            .write_fmt(args)
+            .expect("Printing to serial failed");
+    });
 }
 
 /// Prints to the host through the serial interface.
