@@ -1,4 +1,7 @@
 [target.'cfg(target_os = "enarx")']
-runner = "target/debug/vmrun"
-#runner = "/home/harald/bin/qemu-runner"
-
+#runner = "target/debug/vmrun"
+runner = [ "bash",
+           "-c",
+           "qemu-kvm -cpu host -smp 1 -m 1024 -nodefaults -no-acpi -no-hpet -nographic -no-reboot -device isa-debug-exit,iobase=0xf4,iosize=0x04 -serial mon:stdio -kernel \"$@\"; ret=$?; ((ret==33)) && exit 0; exit $ret",
+           "--"
+         ]
