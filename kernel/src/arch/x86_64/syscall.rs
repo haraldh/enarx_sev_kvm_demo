@@ -1,8 +1,6 @@
 use super::gdt;
 use crate::println;
 use core::hint::unreachable_unchecked;
-use core::ops::{Deref, DerefMut};
-use core::{mem, slice};
 use x86_64::registers::control::EferFlags;
 use x86_64::registers::model_specific::{Efer, KernelGsBase, Msr};
 use x86_64::VirtAddr;
@@ -27,10 +25,14 @@ impl FMask {
     pub const MSR: Msr = Msr::new(0xc0000084);
 }
 
+extern "C" {
+    fn syscall_instruction() -> !;
+}
+
 pub unsafe fn init() {
     Star::MSR.write(
         (((gdt::GDT.as_ref().unwrap().1.code_selector.index() as u64) << 3) << 32)
-            // FIXME: might want to use sysret someday for performance
+            // FIXME: might (not) want to use sysret someday for performance
             | ((((gdt::GDT.as_ref().unwrap().1.user_data_selector.index() as u64 - 1) << 3) | 3)
                 << 48),
     );
@@ -47,7 +49,6 @@ pub unsafe fn init() {
     });
 }
 
-#[allow(dead_code)]
 #[repr(packed)]
 pub struct ScratchRegisters {
     pub r11: usize,
@@ -75,37 +76,6 @@ impl ScratchRegisters {
     }
 }
 
-macro_rules! scratch_push {
-    () => (asm!(
-        "push rax
-        push rcx
-        push rdx
-        push rdi
-        push rsi
-        push r8
-        push r9
-        push r10
-        push r11"
-        : : : : "intel", "volatile"
-    ));
-}
-
-macro_rules! scratch_pop {
-    () => (asm!(
-        "pop r11
-        pop r10
-        pop r9
-        pop r8
-        pop rsi
-        pop rdi
-        pop rdx
-        pop rcx
-        pop rax"
-        : : : : "intel", "volatile"
-    ));
-}
-
-#[allow(dead_code)]
 #[repr(packed)]
 pub struct PreservedRegisters {
     pub r15: usize,
@@ -127,30 +97,6 @@ impl PreservedRegisters {
     }
 }
 
-macro_rules! preserved_push {
-    () => (asm!(
-        "push rbx
-        push rbp
-        push r12
-        push r13
-        push r14
-        push r15"
-        : : : : "intel", "volatile"
-    ));
-}
-
-macro_rules! preserved_pop {
-    () => (asm!(
-        "pop r15
-        pop r14
-        pop r13
-        pop r12
-        pop rbp
-        pop rbx"
-        : : : : "intel", "volatile"
-    ));
-}
-#[allow(dead_code)]
 #[repr(packed)]
 pub struct IretRegisters {
     pub rip: usize,
@@ -172,257 +118,40 @@ impl IretRegisters {
     }
 }
 
-// Not a function pointer because it somehow messes up the returning
-// from clone() (via clone_ret()). Not sure what the problem is.
-macro_rules! with_interrupt_stack {
-    (unsafe fn $wrapped:ident($stack:ident) -> usize $code:block) => {
-        #[inline(never)]
-        unsafe fn $wrapped(stack: *mut InterruptStack) {
-            let $stack = &mut *stack;
-            $stack.scratch.rax = $code;
-        }
-    };
-}
-
-#[derive(Copy, Clone, Debug, Default)]
-#[repr(C)]
-#[cfg(target_arch = "x86_64")]
-pub struct IntRegisters {
-    // TODO: Some of these don't get set by Redox yet. Should they?
-    pub r15: usize,
-    pub r14: usize,
-    pub r13: usize,
-    pub r12: usize,
-    pub rbp: usize,
-    pub rbx: usize,
-    pub r11: usize,
-    pub r10: usize,
-    pub r9: usize,
-    pub r8: usize,
-    pub rax: usize,
-    pub rcx: usize,
-    pub rdx: usize,
-    pub rsi: usize,
-    pub rdi: usize,
-    // pub orig_rax: usize,
-    pub rip: usize,
-    pub cs: usize,
-    pub rflags: usize,
-    pub rsp: usize,
-    pub ss: usize,
-    // pub fs_base: usize,
-    // pub gs_base: usize,
-    // pub ds: usize,
-    // pub es: usize,
-    pub fs: usize,
-    // pub gs: usize
-}
-
-impl Deref for IntRegisters {
-    type Target = [u8];
-    fn deref(&self) -> &[u8] {
-        unsafe {
-            slice::from_raw_parts(
-                self as *const IntRegisters as *const u8,
-                mem::size_of::<IntRegisters>(),
-            )
-        }
-    }
-}
-
-impl DerefMut for IntRegisters {
-    fn deref_mut(&mut self) -> &mut [u8] {
-        unsafe {
-            slice::from_raw_parts_mut(
-                self as *mut IntRegisters as *mut u8,
-                mem::size_of::<IntRegisters>(),
-            )
-        }
-    }
-}
-
-#[allow(dead_code)]
 #[repr(packed)]
-pub struct InterruptStack {
+pub struct SyscallStack {
     pub fs: usize,
     pub preserved: PreservedRegisters,
     pub scratch: ScratchRegisters,
     pub iret: IretRegisters,
 }
 
-impl InterruptStack {
+impl SyscallStack {
     pub fn dump(&self) {
         self.iret.dump();
         self.scratch.dump();
         self.preserved.dump();
         println!("FS:    {:>016X}", { self.fs });
     }
-    /// Saves all registers to a struct used by the proc:
-    /// scheme to read/write registers.
-    pub fn save(&self, all: &mut IntRegisters) {
-        all.fs = self.fs;
-
-        all.r15 = self.preserved.r15;
-        all.r14 = self.preserved.r14;
-        all.r13 = self.preserved.r13;
-        all.r12 = self.preserved.r12;
-        all.rbp = self.preserved.rbp;
-        all.rbx = self.preserved.rbx;
-        all.r11 = self.scratch.r11;
-        all.r10 = self.scratch.r10;
-        all.r9 = self.scratch.r9;
-        all.r8 = self.scratch.r8;
-        all.rsi = self.scratch.rsi;
-        all.rdi = self.scratch.rdi;
-        all.rdx = self.scratch.rdx;
-        all.rcx = self.scratch.rcx;
-        all.rax = self.scratch.rax;
-        all.rip = self.iret.rip;
-        all.cs = self.iret.cs;
-        all.rflags = self.iret.rflags;
-
-        // Set rsp and ss:
-
-        const CPL_MASK: usize = 0b11;
-
-        let cs: usize;
-        unsafe {
-            asm!("mov $0, cs" : "=r"(cs) ::: "intel");
-        }
-
-        if self.iret.cs & CPL_MASK == cs & CPL_MASK {
-            // Privilege ring didn't change, so neither did the stack
-            all.rsp = self as *const Self as usize // rsp after Self was pushed to the stack
-                + mem::size_of::<Self>() // disregard Self
-                - mem::size_of::<usize>() * 2; // well, almost: rsp and ss need to be excluded as they aren't present
-            unsafe {
-                asm!("mov $0, ss" : "=r"(all.ss) ::: "intel");
-            }
-        } else {
-            all.rsp = self.iret.rsp;
-            all.ss = self.iret.ss;
-        }
-    }
-    /// Loads all registers from a struct used by the proc:
-    /// scheme to read/write registers.
-    pub fn load(&mut self, all: &IntRegisters) {
-        // TODO: Which of these should be allowed to change?
-
-        // self.fs = all.fs;
-        self.preserved.r15 = all.r15;
-        self.preserved.r14 = all.r14;
-        self.preserved.r13 = all.r13;
-        self.preserved.r12 = all.r12;
-        self.preserved.rbp = all.rbp;
-        self.preserved.rbx = all.rbx;
-        self.scratch.r11 = all.r11;
-        self.scratch.r10 = all.r10;
-        self.scratch.r9 = all.r9;
-        self.scratch.r8 = all.r8;
-        self.scratch.rsi = all.rsi;
-        self.scratch.rdi = all.rdi;
-        self.scratch.rdx = all.rdx;
-        self.scratch.rcx = all.rcx;
-        self.scratch.rax = all.rax;
-        self.iret.rip = all.rip;
-
-        // These should probably be restricted
-        // self.iret.cs = all.cs;
-        // self.iret.rflags = all.eflags;
-    }
-    /// Enables the "Trap Flag" in the FLAGS register, causing the CPU
-    /// to send a Debug exception after the next instruction. This is
-    /// used for singlestep in the proc: scheme.
-    pub fn set_singlestep(&mut self, enabled: bool) {
-        if enabled {
-            self.iret.rflags |= 1 << 8;
-        } else {
-            self.iret.rflags &= !(1 << 8);
-        }
-    }
 }
 
-#[naked]
-pub unsafe extern "C" fn syscall_instruction() -> ! {
-    with_interrupt_stack! {
-        unsafe fn inner(stack) -> usize {
-            let rbp;
-            asm!("" : "={rbp}"(rbp) : : : "intel", "volatile");
+#[no_mangle]
+pub unsafe extern "C" fn syscall_rust(stack: *mut SyscallStack) {
+    let stack = &mut *stack;
+    let rbp;
+    asm!("" : "={rbp}"(rbp) : : : "intel", "volatile");
 
-            let scratch = &stack.scratch;
-            crate::syscall::handle_syscall(
-                scratch.rax,
-                scratch.rdi,
-                scratch.rsi,
-                scratch.rdx,
-                scratch.r10,
-                scratch.r8,
-                rbp,
-                stack)
-        }
-    }
-
-    // Yes, this is magic. No, you don't need to understand
-    asm!("
-          swapgs                    // Set gs segment to TSS
-          mov gs:[28], rsp          // Save userspace rsp
-          mov rsp, gs:[4]           // Load kernel rsp
-          push $0                   // Push userspace data segment
-          push qword ptr gs:[28]    // Push userspace rsp
-          mov qword ptr gs:[28], 0  // Clear userspace rsp
-          push r11                  // Push rflags
-          push $1                   // Push userspace code segment
-          push rcx                  // Push userspace return pointer
-          swapgs                    // Restore gs
-          "
-          :
-          : "i"((gdt::USER_DATA_SEG << 3) | 3),
-            "i"((gdt::USER_CODE_SEG << 3) | 3)
-          :
-          : "intel", "volatile");
-
-    // Push scratch registers
-    scratch_push!();
-    preserved_push!();
-
-    asm!("rdfsbase r11
-        push r11
-        mov r11, $0
-        mov fs, r11"
-        : : "i"(gdt::KERNEL_TLS_SEG << 3) : : "intel", "volatile");
-
-    // Get reference to stack variables
-
-    let rsp: *mut InterruptStack;
-    asm!("mov rdi, rsp" : "={rdi}"(rsp) : : : "intel", "volatile");
-
-    inner(rsp);
-
-    // Interrupt return
-    asm!("pop r11
-          wrfsbase r11"
-        : : : : "intel", "volatile");
-
-    preserved_pop!();
-    scratch_pop!();
-
-    // FIXME: want to protect the kernel against userspace?
-    // https://www.kernel.org/doc/Documentation/x86/entry_64.txt
-
-    // This works, too
-    //asm!("iretq" : : : : "intel", "volatile");
-
-    asm!("
-          swapgs
-          pop rcx                  // Pop rflags
-          pop r11                  // Pop userspace code segment
-          pop r11                  // Pop userspace return pointer
-          pop qword ptr gs:[28]    // Pop userspace rsp
-          mov rsp, gs:[28]         // Restore userspace rsp
-          swapgs
-          sysretq
-          " : : : : "intel", "volatile");
-    unreachable_unchecked();
+    let scratch = &stack.scratch;
+    stack.scratch.rax = crate::syscall::handle_syscall(
+        scratch.rax,
+        scratch.rdi,
+        scratch.rsi,
+        scratch.rdx,
+        scratch.r10,
+        scratch.r8,
+        rbp,
+        stack,
+    );
 }
 
 #[naked]

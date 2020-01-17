@@ -9,6 +9,7 @@
 #![feature(asm)]
 #![feature(global_asm)]
 #![feature(naked_functions)]
+#![feature(thread_local)]
 
 extern crate alloc;
 

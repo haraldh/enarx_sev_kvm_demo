@@ -2,10 +2,22 @@
 name = "vmsyscall"
 version = "0.1.0"
 authors = ["Harald Hoyer <harald@redhat.com>"]
-license = "MIT/Apache-2.0"
+license = "Apache-2.0"
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+categories = [
+    "no-std",
+]
+
+keywords = [
+    "errno",
+    "syscall",
+    "no_std",
+]
 
 [dependencies]
 serde = { version = "1.0", default-features = false, features = ["derive"] }
+
+[features]
+default = []
+no_std = []

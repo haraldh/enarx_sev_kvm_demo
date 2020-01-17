@@ -10,6 +10,7 @@ PHDRS
   rodata PT_LOAD FILEHDR PHDRS ;
   data   PT_LOAD               ;
   text   PT_LOAD               ;
+  /* thread_local   PT_TLS              ; */
 }
 
 /* Loaders like to put stuff in low memory (< 1M), so we don't use it. */
@@ -28,7 +29,9 @@ SECTIONS
 {
 	/* Mapping in the program headers makes it easier to mmap the whole file. */
 	. = ram_min;
+
 	. += SIZEOF_HEADERS;
+    . = ALIGN(4096);
 
 	.notes  : { *(.note .note.* .notes)         } :rodata :notes
 	.rodata : { *(.rodata .rodata.*)            } :rodata
@@ -38,6 +41,22 @@ SECTIONS
 		*(.ram64)
 		*(.ram32)
 	} :text
+
+/* Thread local
+ … has an STT_TLS symbol but doesn't have an SHF_TLS section
+
+    .tdata : {
+        __tdata_start = .;
+        *(.tdata*)
+        . = ALIGN(4096);
+        __tdata_end = .;
+        __tbss_start = .;
+        *(.tbss*)
+        . += 8;
+        . = ALIGN(4096);
+        __tbss_end = .;
+    } :thread_local
+*/
 
 	firmware_ram_size = . - ram_min;
 
@@ -57,7 +76,6 @@ SECTIONS
 
 	ASSERT((. <= ram_max - stack_size), "firmware size too big for RAM region")
 
-	/* Match edk2's GccBase.lds DISCARD section */
 	/DISCARD/ : {
 		*(.note.GNU-stack)
 		*(.gnu_debuglink)

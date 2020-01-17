@@ -16,12 +16,17 @@ use vmbootspec::layout::{
 };
 use vmbootspec::{BootInfo, MemoryRegionType};
 
+use crate::alloc::string::ToString;
 use crate::arch::x86_64::structures::paging::{
     mapper::MapToError, FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags, Size4KiB,
 };
 
 pub use x86_64::{PhysAddr, VirtAddr};
 
+use crt0stack::auxv::{
+    AuxvPair, AT_CLKTCK, AT_EGID, AT_EUID, AT_FLAGS, AT_GID, AT_HWCAP, AT_PAGESZ, AT_SECURE, AT_UID,
+};
+use crt0stack::Crt0Stack;
 use x86_64::registers::control::Cr3;
 use xmas_elf::program::{self, ProgramHeader64};
 
@@ -354,49 +359,44 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
     println!("app_entry_point={:#X}", entry_point);
     println!("{}:{}", file!(), line!());
 
-    use crate::alloc::string::ToString;
-    let mut crt0sp = crt0stack::Crt0Stack::new();
+    let mut crt0sp = Crt0Stack::new();
     crt0sp.argv.push("/init".to_string());
-    crt0sp.auxv.push(crt0stack::AuxvPair {
-        key: crt0stack::AT_EGID,
+    crt0sp.auxv.push(AuxvPair {
+        key: AT_EGID,
         value: 1,
     });
-    crt0sp.auxv.push(crt0stack::AuxvPair {
-        key: crt0stack::AT_GID,
+    crt0sp.auxv.push(AuxvPair {
+        key: AT_GID,
         value: 1,
     });
-    crt0sp.auxv.push(crt0stack::AuxvPair {
-        key: crt0stack::AT_UID,
+    crt0sp.auxv.push(AuxvPair {
+        key: AT_UID,
         value: 1,
     });
-    crt0sp.auxv.push(crt0stack::AuxvPair {
-        key: crt0stack::AT_EUID,
+    crt0sp.auxv.push(AuxvPair {
+        key: AT_EUID,
         value: 1,
     });
-    crt0sp.auxv.push(crt0stack::AuxvPair {
-        key: crt0stack::AT_PAGESZ,
+    crt0sp.auxv.push(AuxvPair {
+        key: AT_PAGESZ,
         value: 4096,
     });
-    crt0sp.auxv.push(crt0stack::AuxvPair {
-        key: crt0stack::AT_SECURE,
+    crt0sp.auxv.push(AuxvPair {
+        key: AT_SECURE,
         value: 0,
     });
-    crt0sp.auxv.push(crt0stack::AuxvPair {
-        key: crt0stack::AT_CLKTCK,
+    crt0sp.auxv.push(AuxvPair {
+        key: AT_CLKTCK,
         value: 100,
     });
-    crt0sp.auxv.push(crt0stack::AuxvPair {
-        key: crt0stack::AT_FLAGS,
+    crt0sp.auxv.push(AuxvPair {
+        key: AT_FLAGS,
         value: 0,
     });
 
-    crt0sp.auxv.push(crt0stack::AuxvPair {
-        key: crt0stack::AT_HWCAP,
-        value: 0xbfebfbff,
-    });
-    crt0sp.auxv.push(crt0stack::AuxvPair {
-        key: crt0stack::AT_HWCAP2,
-        value: 1, // HWCAP2_FSGSBASE
+    crt0sp.auxv.push(AuxvPair {
+        key: AT_HWCAP,
+        value: 0xbfebfbff, // (boot_cpu_data.x86_capability[CPUID_1_EDX])
     });
     let r1 = x86_64::instructions::random::RdRand::new()
         .unwrap()

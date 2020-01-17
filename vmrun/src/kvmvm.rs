@@ -1,6 +1,3 @@
-use kvm_bindings::{kvm_mp_state, kvm_segment, kvm_userspace_memory_region, KVM_MAX_CPUID_ENTRIES};
-use kvm_ioctls::{Kvm, VcpuFd, VmFd};
-
 use crate::arch::x86_64::{
     consts::*,
     gdt::{gdt_entry, kvm_segment_from_gdt},
@@ -10,6 +7,9 @@ use crate::arch::x86_64::{
 use crate::error::*;
 use crate::frame_allocator::FrameAllocator;
 use crate::{context, map_context};
+use kvm_bindings::{kvm_mp_state, kvm_segment, kvm_userspace_memory_region, KVM_MAX_CPUID_ENTRIES};
+use kvm_ioctls::{Kvm, VcpuFd, VmFd};
+use linux_errno::*;
 use vmbootspec::{layout::*, BootInfo, FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
 use vmsyscall::{VmSyscall, VmSyscallRet};
 
@@ -211,27 +211,16 @@ impl KvmVm {
         // Puts PML4 right after zero page but aligned to 4k.
         let boot_pdpte_addr = PDPTE_START;
         let boot_pde_addr = PDE_START;
-        let boot_pdpte_offset_addr = PDPTE_OFFSET_START;
 
         // Entry covering VA [0..512GB)
         page_tables.pml4t[0] = boot_pdpte_addr as u64 | 0x7;
-        /*
-                // Entry covering VA [0..512GB) with physical offset PHYSICAL_MEMORY_OFFSET
-                page_tables.pml4t[(PHYSICAL_MEMORY_OFFSET >> 39) as usize & 0x1FFusize] =
-                    boot_pdpte_offset_addr as u64 | 0x7;
-        */
+
         // Entry covering VA [0..1GB)
         page_tables.pml3t_ident[0] = boot_pde_addr as u64 | 0x7;
+
         // 512 2MB entries together covering VA [0..1GB). Note we are assuming
         // CPU supports 2MB pages (/proc/cpuinfo has 'pse'). All modern CPUs do.
-        for i in 0..1 {
-            page_tables.pml2t_ident[i] = ((i as u64) << 21) | 0x183u64;
-        }
-
-        // Entry covering VA [0..512GB) with physical offset PHYSICAL_MEMORY_OFFSET
-        for i in 0..512 {
-            page_tables.pml3t_offset[i] = ((i as u64) << 30) | 0x183u64;
-        }
+        page_tables.pml2t_ident[0] = 0x183u64;
 
         let guest_pg_addr: *mut PageTables = self
             .addr_gpa2hva(PhysAddr::new(PML4_START as _))?
@@ -506,11 +495,11 @@ impl KvmVm {
         match syscall {
             VmSyscall::Mmap {
                 addr: _,
-                len: _,
+                length: _,
                 prot: _,
                 flags: _,
             } => {
-                return VmSyscallRet::Mmap(Err(vmsyscall::Error::Errno(vmsyscall::errno::ENOSYS)));
+                return VmSyscallRet::Mmap(Err(vmsyscall::Error::Errno(ENOSYS.into())));
                 /*
                 let ret = unsafe {
                     mmap(
@@ -556,23 +545,23 @@ impl KvmVm {
             }
             VmSyscall::Madvise {
                 addr: _,
-                len: _,
+                length: _,
                 advice: _,
-            } => VmSyscallRet::Madvise(Err(vmsyscall::Error::Errno(vmsyscall::errno::ENOSYS))),
+            } => VmSyscallRet::Madvise(Err(vmsyscall::Error::Errno(ENOSYS.into()))),
             VmSyscall::Mremap {
-                addr: _,
-                len: _,
-                new_len: _,
+                old_address: _,
+                old_size: _,
+                new_size: _,
                 flags: _,
-            } => VmSyscallRet::Mremap(Err(vmsyscall::Error::Errno(vmsyscall::errno::ENOSYS))),
-            VmSyscall::Munmap { addr: _, len: _ } => {
-                VmSyscallRet::Munmap(Err(vmsyscall::Error::Errno(vmsyscall::errno::ENOSYS)))
+            } => VmSyscallRet::Mremap(Err(vmsyscall::Error::Errno(ENOSYS.into()))),
+            VmSyscall::Munmap { addr: _, length: _ } => {
+                VmSyscallRet::Munmap(Err(vmsyscall::Error::Errno(ENOSYS.into())))
             }
             VmSyscall::Mprotect {
                 addr: _,
-                len: _,
+                length: _,
                 prot: _,
-            } => VmSyscallRet::Mprotect(Err(vmsyscall::Error::Errno(vmsyscall::errno::ENOSYS))),
+            } => VmSyscallRet::Mprotect(Err(vmsyscall::Error::Errno(ENOSYS.into()))),
         }
     }
 

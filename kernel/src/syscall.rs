@@ -1,11 +1,21 @@
 use crate::arch::x86_64::{mmap_user, NEXT_MMAP};
-use crate::arch::InterruptStack;
+use crate::arch::SyscallStack;
 use crate::{exit_hypervisor, println, HyperVisorExitCode};
 //use vmbootspec::layout::USER_HEAP_OFFSET;
-use vmsyscall::errno;
-use vmsyscall::syscall::*;
+use linux_errno::*;
+use linux_syscall::*;
 
-pub fn handle_syscall(
+trait NegAsUsize {
+    fn neg_as_usize(self) -> usize;
+}
+
+impl NegAsUsize for Errno {
+    fn neg_as_usize(self) -> usize {
+        -Into::<i64>::into(self) as _
+    }
+}
+
+pub extern "C" fn handle_syscall(
     a: usize,
     b: usize,
     c: usize,
@@ -13,9 +23,9 @@ pub fn handle_syscall(
     e: usize,
     f: usize,
     _stack_base_bp: usize,
-    stack: &mut InterruptStack,
+    stack: &mut SyscallStack,
 ) -> usize {
-    match a as u64 {
+    match (a as u64).into() {
         SYSCALL_EXIT => {
             println!("exit({})", b);
             exit_hypervisor(if b == 0 {
@@ -47,12 +57,12 @@ pub fn handle_syscall(
                     }
                     Err(_) => {
                         println!("write({}, …) = -EINVAL", b);
-                        -errno::EINVAL as _
+                        EINVAL.neg_as_usize()
                     }
                 }
             } else {
                 println!("write({}, \"…\") = -EBADFD", b);
-                -errno::EBADFD as _
+                EBADFD.neg_as_usize()
             }
         }
         SYSCALL_ARCH_PRCTL => {
@@ -72,7 +82,7 @@ pub fn handle_syscall(
                 ARCH_GET_GS => unimplemented!(),
                 x => {
                     println!("arch_prctl(0x{:X}, 0x{:X}) = -EINVAL", x, c);
-                    -errno::EINVAL as _
+                    EINVAL.neg_as_usize()
                 }
             }
         }
@@ -155,6 +165,7 @@ pub fn handle_syscall(
             println!("syscall({}, {}, {}, {}, {}, {})", a, b, c, d, e, f);
             stack.dump();
             panic!("syscall {} not yet implemented", a)
-        } //-ENOSYS as usize,
+            // ENOSYS.neg_as_usize(),
+        }
     }
 }
