@@ -82,3 +82,17 @@ macro_rules! println {
     ($fmt:expr) => ($crate::serial_print!(concat!($fmt, "\n")));
     ($fmt:expr, $($arg:tt)*) => ($crate::serial_print!(concat!($fmt, "\n"), $($arg)*));
 }
+
+#[macro_export]
+macro_rules! print {
+    () => ();
+    ($fmt:expr) => ($crate::serial_print!($fmt));
+    ($fmt:expr, $($arg:tt)*) => ($crate::serial_print!($fmt, $($arg)*));
+}
+
+#[macro_export]
+macro_rules! eprintln {
+    () => {};
+    ($fmt:expr) => {};
+    ($fmt:expr, $($arg:tt)*) => {};
+}

@@ -1,6 +1,6 @@
 use crate::arch::x86_64::{brk_user, mmap_user, NEXT_MMAP};
 //use crate::arch::SyscallStack;
-use crate::{exit_hypervisor, println, HyperVisorExitCode};
+use crate::{eprintln, exit_hypervisor, print, println, HyperVisorExitCode};
 //use vmbootspec::layout::USER_HEAP_OFFSET;
 use linux_errno::*;
 use linux_syscall::*;
@@ -24,7 +24,7 @@ pub fn handle_syscall(
     f: usize,
     nr: usize,
 ) -> usize {
-    println!(
+    eprintln!(
         "> syscall({}, 0x{:X}, 0x{:X}, 0x{:X}, {}, {}, 0x{:X})",
         nr, a, b, c, d, e, f
     );
@@ -51,21 +51,25 @@ pub fn handle_syscall(
             let fd = a;
             let data = b as *const u8;
             let len = c;
-            if fd == 1 {
-                let cstr = unsafe { core::slice::from_raw_parts(data, len) };
-                match core::str::from_utf8(cstr) {
-                    Ok(s) => {
-                        println!("write({}, {:#?}) = {}", a, s, len);
-                        len
-                    }
-                    Err(_) => {
-                        println!("write({}, …) = -EINVAL", a);
-                        EINVAL.neg_as_usize()
+            match fd {
+                1 | 2 => {
+                    let cstr = unsafe { core::slice::from_raw_parts(data, len) };
+                    match core::str::from_utf8(cstr) {
+                        Ok(s) => {
+                            print!("{}", s);
+                            eprintln!("write({}, {:#?}) = {}", fd, s, len);
+                            len
+                        }
+                        Err(_) => {
+                            eprintln!("write({}, …) = -EINVAL", fd);
+                            EINVAL.neg_as_usize()
+                        }
                     }
                 }
-            } else {
-                println!("write({}, \"…\") = -EBADFD", a);
-                EBADFD.neg_as_usize()
+                _ => {
+                    eprintln!("write({}, \"…\") = -EBADFD", a);
+                    EBADFD.neg_as_usize()
+                }
             }
         }
         SYSCALL_ARCH_PRCTL => {
