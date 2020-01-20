@@ -1,2 +1,2 @@
-[target.'cfg(target_os = "enarx")']
-runner = "target/debug/vmrun"
+#[target.'cfg(target_os = "enarx")']
+#runner = "target/debug/vmrun"

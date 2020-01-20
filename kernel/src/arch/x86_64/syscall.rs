@@ -136,22 +136,21 @@ impl SyscallStack {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn syscall_rust(stack: *mut SyscallStack) {
-    let stack = &mut *stack;
-    let rbp;
-    asm!("" : "={rbp}"(rbp) : : : "intel", "volatile");
+pub unsafe extern "C" fn test_syscall_rust() -> usize {
+    syscall_rust(1, 2, 3, 4, 5, 6, 7)
+}
 
-    let scratch = &stack.scratch;
-    stack.scratch.rax = crate::syscall::handle_syscall(
-        scratch.rax,
-        scratch.rdi,
-        scratch.rsi,
-        scratch.rdx,
-        scratch.r10,
-        scratch.r8,
-        rbp,
-        stack,
-    );
+#[no_mangle]
+pub unsafe extern "C" fn syscall_rust(
+    a: usize,
+    b: usize,
+    c: usize,
+    d: usize,
+    e: usize,
+    f: usize,
+    nr: usize,
+) -> usize {
+    crate::syscall::handle_syscall(a, b, c, d, e, f, nr)
 }
 
 #[naked]
@@ -192,6 +191,7 @@ pub unsafe fn usermode(ip: usize, sp: usize, arg: usize) -> ! {
          xor r13, r13
          xor r14, r14
          xor r15, r15
+         wrfsbase r11
          fninit
          pop rdi
          iretq"

@@ -1,5 +1,5 @@
-use crate::arch::x86_64::{mmap_user, NEXT_MMAP};
-use crate::arch::SyscallStack;
+use crate::arch::x86_64::{brk_user, mmap_user, NEXT_MMAP};
+//use crate::arch::SyscallStack;
 use crate::{exit_hypervisor, println, HyperVisorExitCode};
 //use vmbootspec::layout::USER_HEAP_OFFSET;
 use linux_errno::*;
@@ -15,20 +15,23 @@ impl NegAsUsize for Errno {
     }
 }
 
-pub extern "C" fn handle_syscall(
+pub fn handle_syscall(
     a: usize,
     b: usize,
     c: usize,
     d: usize,
     e: usize,
     f: usize,
-    _stack_base_bp: usize,
-    stack: &mut SyscallStack,
+    nr: usize,
 ) -> usize {
-    match (a as u64).into() {
+    println!(
+        "> syscall({}, 0x{:X}, 0x{:X}, 0x{:X}, {}, {}, 0x{:X})",
+        nr, a, b, c, d, e, f
+    );
+    match (nr as u64).into() {
         SYSCALL_EXIT => {
-            println!("exit({})", b);
-            exit_hypervisor(if b == 0 {
+            println!("exit({})", a);
+            exit_hypervisor(if a == 0 {
                 HyperVisorExitCode::Success
             } else {
                 HyperVisorExitCode::Failed
@@ -36,8 +39,8 @@ pub extern "C" fn handle_syscall(
             loop {}
         }
         SYSCALL_EXIT_GROUP => {
-            println!("exit_group({})", b);
-            exit_hypervisor(if b == 0 {
+            println!("exit_group({})", a);
+            exit_hypervisor(if a == 0 {
                 HyperVisorExitCode::Success
             } else {
                 HyperVisorExitCode::Failed
@@ -45,23 +48,23 @@ pub extern "C" fn handle_syscall(
             loop {}
         }
         SYSCALL_WRITE => {
-            let fd = b;
-            let data = c as *const u8;
-            let len = d;
+            let fd = a;
+            let data = b as *const u8;
+            let len = c;
             if fd == 1 {
                 let cstr = unsafe { core::slice::from_raw_parts(data, len) };
                 match core::str::from_utf8(cstr) {
                     Ok(s) => {
-                        println!("write({}, {:#?}) = {}", b, s, len);
+                        println!("write({}, {:#?}) = {}", a, s, len);
                         len
                     }
                     Err(_) => {
-                        println!("write({}, …) = -EINVAL", b);
+                        println!("write({}, …) = -EINVAL", a);
                         EINVAL.neg_as_usize()
                     }
                 }
             } else {
-                println!("write({}, \"…\") = -EBADFD", b);
+                println!("write({}, \"…\") = -EBADFD", a);
                 EBADFD.neg_as_usize()
             }
         }
@@ -71,25 +74,28 @@ pub extern "C" fn handle_syscall(
             const ARCH_GET_FS: usize = 0x1003;
             const ARCH_GET_GS: usize = 0x1004;
 
-            match b {
+            match a {
                 ARCH_SET_FS => {
-                    println!("arch_prctl(ARCH_SET_FS, 0x{:X}) = 0", c);
-                    stack.fs = c;
+                    println!("arch_prctl(ARCH_SET_FS, 0x{:X}) = 0", b);
+                    let value: u64 = b as _;
+                    unsafe {
+                        asm!("wrfsbase $0" :: "r" (value) );
+                    }
                     0
                 }
                 ARCH_GET_FS => unimplemented!(),
                 ARCH_SET_GS => unimplemented!(),
                 ARCH_GET_GS => unimplemented!(),
                 x => {
-                    println!("arch_prctl(0x{:X}, 0x{:X}) = -EINVAL", x, c);
+                    println!("arch_prctl(0x{:X}, 0x{:X}) = -EINVAL", x, b);
                     EINVAL.neg_as_usize()
                 }
             }
         }
         SYSCALL_MMAP => {
-            println!("mmap(0x{:X}, {}, …)", b, c);
-            if b == 0 {
-                let ret = mmap_user(c);
+            println!("mmap(0x{:X}, {}, …)", a, b);
+            if a == 0 {
+                let ret = mmap_user(b);
                 println!("Syscall::MMap = {:#?}", ret);
                 ret as _
             } else {
@@ -97,14 +103,14 @@ pub extern "C" fn handle_syscall(
             }
         }
         SYSCALL_BRK => unsafe {
-            match b {
+            match a {
                 0 => {
-                    println!("brk(0x{:X}) = 0x{:X}", b, NEXT_MMAP);
+                    println!("brk(0x{:X}) = 0x{:X}", a, NEXT_MMAP);
                     NEXT_MMAP as _
                 }
                 n => {
-                    mmap_user(n - NEXT_MMAP as usize);
-                    println!("brk(0x{:X}) = 0x{:X}", b, NEXT_MMAP);
+                    brk_user(n - NEXT_MMAP as usize);
+                    println!("brk(0x{:X}) = 0x{:X}", a, NEXT_MMAP);
                     n as _
                 }
             }
@@ -122,7 +128,7 @@ pub extern "C" fn handle_syscall(
                 machine: [u8; 65],
                 domainname: [u8; 65],
             };
-            let uts_ptr: *mut NewUtsname = b as _;
+            let uts_ptr: *mut NewUtsname = a as _;
             unsafe {
                 (*uts_ptr).sysname[..6].copy_from_slice(b"Linux\0");
                 (*uts_ptr).nodename[..6].copy_from_slice(b"enarx\0");
@@ -135,13 +141,13 @@ pub extern "C" fn handle_syscall(
         }
         SYSCALL_READLINK => {
             use cstrptr::CStr;
-            let pathname = unsafe { CStr::from_ptr(b as _) };
-            let outbuf = unsafe { core::slice::from_raw_parts_mut(c as _, d as _) };
+            let pathname = unsafe { CStr::from_ptr(a as _) };
+            let outbuf = unsafe { core::slice::from_raw_parts_mut(b as _, c as _) };
             outbuf[..6].copy_from_slice(b"/init\0");
             println!(
                 "readlink({:#?}, \"/init\", {}) = 5",
                 pathname.to_string_lossy(),
-                d
+                c
             );
             5
         }
@@ -161,10 +167,39 @@ pub extern "C" fn handle_syscall(
             println!("set_tid_address(…) = 63618");
             63618
         }
+        SYSCALL_IOCTL => match a {
+            1 => {
+                match b {
+                    0x5413 /* TIOCGWINSZ */ => {
+                        #[repr(C, packed)]
+                        struct WinSize {
+                            ws_row: u16,
+                            ws_col: u16,
+                            ws_xpixel: u16,
+                            ws_ypixel: u16,
+                        };
+                        let p: *mut WinSize = c as _;
+                        let winsize = WinSize {
+                            ws_row: 40,
+                            ws_col: 80,
+                            ws_xpixel: 0,
+                            ws_ypixel: 0
+                        };
+                        unsafe {
+                            p.write_volatile(winsize);
+                        }
+                        println!("ioctl(1, TIOCGWINSZ, {{ws_row=40, ws_col=80, ws_xpixel=0, ws_ypixel=0}}) = 0");
+                        0
+                    },
+                    _ => EINVAL.neg_as_usize(),
+                }
+            }
+            _ => EINVAL.neg_as_usize(),
+        },
         _ => {
-            println!("syscall({}, {}, {}, {}, {}, {})", a, b, c, d, e, f);
-            stack.dump();
-            panic!("syscall {} not yet implemented", a)
+            println!("syscall({}, {}, {}, {}, {}, {}, {})", nr, a, b, c, d, e, f);
+            //stack.dump();
+            panic!("syscall {} not yet implemented", nr)
             // ENOSYS.neg_as_usize(),
         }
     }

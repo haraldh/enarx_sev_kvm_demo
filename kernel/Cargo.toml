@@ -24,10 +24,8 @@ serde_cbor = { version = "0.11", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 # redox_syscall = "0.1.56"
 cstrptr = { version = "0.1", default-features = false, features = ["alloc", "unstable"] }
-#linux-syscall = { version="0.1", git = "https://github.com/enarx/enarx" }
-#linux-errno = { version="0.1", git = "https://github.com/enarx/enarx" }
-linux-syscall = { version="0.1", path="../../enarx/enarx/linux-syscall" }
-linux-errno = { version="0.1", path="../../enarx/enarx/linux-errno" }
+linux-syscall = { version="0.1", git = "https://github.com/enarx/enarx" }
+linux-errno = { version="0.1", git = "https://github.com/enarx/enarx" }
 
 crt0stack = { version = "0", git="https://github.com/haraldh/crt0stack", features = ["no_std"] }
 #safe-transmute = "0.10.1"

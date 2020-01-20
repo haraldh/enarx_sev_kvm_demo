@@ -22,8 +22,6 @@ pub const PML4_SIZE: usize = 0x0000_0080_0000_0000;
 pub const USER_OFFSET: usize = 0;
 pub const USER_STACK_SIZE: usize = 8 * 1024 * 1024; // 8 MB
 pub const USER_STACK_OFFSET: usize = PML4_SIZE * 4;
-pub const USER_TLS_OFFSET: usize = USER_STACK_OFFSET + PML4_SIZE;
-pub const USER_TLS_SIZE: usize = PML4_SIZE / 65536;
 pub const USER_HEAP_OFFSET: usize = USER_OFFSET + PML4_SIZE;
 
 #[repr(C)]
