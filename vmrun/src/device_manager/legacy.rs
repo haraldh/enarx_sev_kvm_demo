@@ -7,7 +7,7 @@
 #![cfg(target_arch = "x86_64")]
 
 use std::fmt;
-use std::io::{self, stdout};
+use std::io::{self, stderr, stdout};
 use std::sync::{Arc, Mutex};
 
 use fc_devices as devices;
@@ -41,6 +41,7 @@ type Result<T> = ::std::result::Result<T, Error>;
 pub struct PortIODeviceManager {
     pub io_bus: devices::Bus,
     pub stdio_serial: Arc<Mutex<devices::legacy::Serial>>,
+    pub stdio_serial_err: Arc<Mutex<devices::legacy::Serial>>,
     pub i8042: Arc<Mutex<devices::legacy::I8042Device>>,
 
     pub com_evt_1_3: EventFd,
@@ -60,6 +61,10 @@ impl PortIODeviceManager {
             com_evt_1_3.try_clone().map_err(Error::EventFd)?,
             Box::new(stdout()),
         )));
+        let stdio_serial_err = Arc::new(Mutex::new(devices::legacy::Serial::new_out(
+            com_evt_1_3.try_clone().map_err(Error::EventFd)?,
+            Box::new(stderr()),
+        )));
 
         // Create exit event for i8042
         let exit_evt = EventFd::new(EFD_NONBLOCK).map_err(Error::EventFd)?;
@@ -71,6 +76,7 @@ impl PortIODeviceManager {
         Ok(PortIODeviceManager {
             io_bus,
             stdio_serial,
+            stdio_serial_err,
             i8042,
             com_evt_1_3,
             com_evt_2_4,
@@ -85,6 +91,10 @@ impl PortIODeviceManager {
             .insert(self.stdio_serial.clone(), 0x3f8, 0x8)
             .map_err(Error::BusError)?;
         self.io_bus
+            .insert(self.stdio_serial_err.clone(), 0x2f8, 0x8)
+            .map_err(Error::BusError)?;
+        /*
+        self.io_bus
             .insert(
                 Arc::new(Mutex::new(devices::legacy::Serial::new_sink(
                     self.com_evt_2_4.try_clone().map_err(Error::EventFd)?,
@@ -93,6 +103,7 @@ impl PortIODeviceManager {
                 0x8,
             )
             .map_err(Error::BusError)?;
+            */
         self.io_bus
             .insert(
                 Arc::new(Mutex::new(devices::legacy::Serial::new_sink(
