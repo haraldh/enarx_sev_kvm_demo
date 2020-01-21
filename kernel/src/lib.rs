@@ -10,6 +10,7 @@
 #![feature(global_asm)]
 #![feature(naked_functions)]
 #![feature(thread_local)]
+#![allow(clippy::empty_loop)]
 
 extern crate alloc;
 
@@ -26,7 +27,7 @@ pub mod syscall;
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 pub unsafe fn context_switch(entry_point: fn() -> !, stack_pointer: usize) -> ! {
-    let entry_point: u64 = entry_point as u64 + PHYSICAL_MEMORY_OFFSET;
+    let entry_point: u64 = entry_point as usize as u64 + PHYSICAL_MEMORY_OFFSET;
     asm!("call $1; ${:private}.spin.${:uid}: jmp ${:private}.spin.${:uid}" ::
          "{rsp}"(stack_pointer), "r"(entry_point) :: "intel");
     ::core::hint::unreachable_unchecked()

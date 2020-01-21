@@ -4,8 +4,10 @@
 
 ram64_start:
     # Indicate (via serial) that we are in long/64-bit mode
-    movw $0x3f8, %dx
+    movw $0x2f8, %dx
     movb $'L', %al
+    outb %al, %dx
+    movb $'\n', %al
     outb %al, %dx
 
     # Enable SSE2 for XMM registers (needed for EFI calling)

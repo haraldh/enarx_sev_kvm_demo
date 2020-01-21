@@ -1,6 +1,6 @@
 use crate::arch::x86_64::{brk_user, mmap_user, NEXT_MMAP};
 //use crate::arch::SyscallStack;
-use crate::{eprintln, exit_hypervisor, print, println, HyperVisorExitCode};
+use crate::{eprintln, exit_hypervisor, print, HyperVisorExitCode};
 //use vmbootspec::layout::USER_HEAP_OFFSET;
 use linux_errno::*;
 use linux_syscall::*;
@@ -15,6 +15,7 @@ impl NegAsUsize for Errno {
     }
 }
 
+#[allow(clippy::many_single_char_names)]
 pub extern "C" fn handle_syscall(
     a: usize,
     b: usize,
@@ -25,13 +26,13 @@ pub extern "C" fn handle_syscall(
     nr: usize,
 ) -> usize {
     eprintln!(
-        "> syscall({}, 0x{:X}, 0x{:X}, 0x{:X}, {}, {}, 0x{:X})",
+        "SC> syscall({}, 0x{:X}, 0x{:X}, 0x{:X}, {}, {}, 0x{:X})",
         nr, a, b, c, d, e, f
     );
 
     match (nr as u64).into() {
         SYSCALL_EXIT => {
-            println!("exit({})", a);
+            eprintln!("SC> exit({})", a);
             exit_hypervisor(if a == 0 {
                 HyperVisorExitCode::Success
             } else {
@@ -40,7 +41,7 @@ pub extern "C" fn handle_syscall(
             loop {}
         }
         SYSCALL_EXIT_GROUP => {
-            println!("exit_group({})", a);
+            eprintln!("SC> exit_group({})", a);
             exit_hypervisor(if a == 0 {
                 HyperVisorExitCode::Success
             } else {
@@ -58,17 +59,17 @@ pub extern "C" fn handle_syscall(
                     match core::str::from_utf8(cstr) {
                         Ok(s) => {
                             print!("{}", s);
-                            eprintln!("write({}, {:#?}) = {}", fd, s, len);
+                            eprintln!("SC> write({}, {:#?}) = {}", fd, s, len);
                             len
                         }
                         Err(_) => {
-                            eprintln!("write({}, …) = -EINVAL", fd);
+                            eprintln!("SC> write({}, …) = -EINVAL", fd);
                             EINVAL.neg_as_usize()
                         }
                     }
                 }
                 _ => {
-                    eprintln!("write({}, \"…\") = -EBADFD", a);
+                    eprintln!("SC> write({}, \"…\") = -EBADFD", a);
                     EBADFD.neg_as_usize()
                 }
             }
@@ -81,7 +82,7 @@ pub extern "C" fn handle_syscall(
 
             match a {
                 ARCH_SET_FS => {
-                    println!("arch_prctl(ARCH_SET_FS, 0x{:X}) = 0", b);
+                    eprintln!("SC> arch_prctl(ARCH_SET_FS, 0x{:X}) = 0", b);
                     let value: u64 = b as _;
                     unsafe {
                         asm!("wrfsbase $0" :: "r" (value) );
@@ -92,37 +93,37 @@ pub extern "C" fn handle_syscall(
                 ARCH_SET_GS => unimplemented!(),
                 ARCH_GET_GS => unimplemented!(),
                 x => {
-                    println!("arch_prctl(0x{:X}, 0x{:X}) = -EINVAL", x, b);
+                    eprintln!("SC> arch_prctl(0x{:X}, 0x{:X}) = -EINVAL", x, b);
                     EINVAL.neg_as_usize()
                 }
             }
         }
         SYSCALL_MMAP => {
-            println!("mmap(0x{:X}, {}, …)", a, b);
             if a == 0 {
                 let ret = mmap_user(b);
-                println!("Syscall::MMap = {:#?}", ret);
+                eprintln!("SC> mmap(0x{:X}, {}, …) = {:#?}", a, b, ret);
                 ret as _
             } else {
+                eprintln!("SC> mmap(0x{:X}, {}, …)", a, b);
                 todo!();
             }
         }
         SYSCALL_BRK => unsafe {
             match a {
                 0 => {
-                    println!("brk(0x{:X}) = 0x{:X}", a, NEXT_MMAP);
+                    eprintln!("SC> brk(0x{:X}) = 0x{:X}", a, NEXT_MMAP);
                     NEXT_MMAP as _
                 }
                 n => {
                     brk_user(n - NEXT_MMAP as usize);
-                    println!("brk(0x{:X}) = 0x{:X}", a, NEXT_MMAP);
+                    eprintln!("SC> brk(0x{:X}) = 0x{:X}", a, NEXT_MMAP);
                     n as _
                 }
             }
         },
         SYSCALL_UNAME => {
-            println!(
-                r##"uname({{sysname="Linux", nodename="enarx", release="5.4.8", version="1", machine="x86_64", domainname="(none)"}}) = 0"##
+            eprintln!(
+                r##"SC> uname({{sysname="Linux", nodename="enarx", release="5.4.8", version="1", machine="x86_64", domainname="(none)"}}) = 0"##
             );
             #[repr(C)]
             struct NewUtsname {
@@ -152,27 +153,27 @@ pub extern "C" fn handle_syscall(
             }
             let outbuf = unsafe { core::slice::from_raw_parts_mut(b as _, c as _) };
             outbuf[..6].copy_from_slice(b"/init\0");
-            println!(
-                "readlink({:#?}, \"/init\", {}) = 5",
+            eprintln!(
+                "SC> readlink({:#?}, \"/init\", {}) = 5",
                 pathname.to_string_lossy(),
                 c
             );
             5
         }
         SYSCALL_RT_SIGACTION => {
-            println!("rt_sigaction(…) = 0");
+            eprintln!("SC> rt_sigaction(…) = 0");
             0
         }
         SYSCALL_RT_SIGPROCMASK => {
-            println!("rt_sigprocmask(…) = 0");
+            eprintln!("SC> rt_sigprocmask(…) = 0");
             0
         }
         SYSCALL_SIGALTSTACK => {
-            println!("sigaltstack(…) = 0");
+            eprintln!("SC> sigaltstack(…) = 0");
             0
         }
         SYSCALL_SET_TID_ADDRESS => {
-            println!("set_tid_address(…) = 63618");
+            eprintln!("SC> set_tid_address(…) = 63618");
             63618
         }
         SYSCALL_IOCTL => match a {
@@ -196,7 +197,7 @@ pub extern "C" fn handle_syscall(
                         unsafe {
                             p.write_volatile(winsize);
                         }
-                        println!("ioctl(1, TIOCGWINSZ, {{ws_row=40, ws_col=80, ws_xpixel=0, ws_ypixel=0}}) = 0");
+                        eprintln!("SC> ioctl(1, TIOCGWINSZ, {{ws_row=40, ws_col=80, ws_xpixel=0, ws_ypixel=0}}) = 0");
                         0
                     },
                     _ => EINVAL.neg_as_usize(),
@@ -204,8 +205,64 @@ pub extern "C" fn handle_syscall(
             }
             _ => EINVAL.neg_as_usize(),
         },
+        SYSCALL_FSTAT => match a {
+            1 => {
+                fn makedev(x: u64, y: u64) -> u64 {
+                    (((x) & 0xffff_f000u64) << 32)
+                        | (((x) & 0x0000_0fffu64) << 8)
+                        | (((y) & 0xffff_ff00u64) << 12)
+                        | ((y) & 0x0000_00ffu64)
+                }
+
+                #[repr(C)]
+                #[derive(Debug, Copy, Clone)]
+                pub struct timespec {
+                    pub tv_sec: i64,
+                    pub tv_nsec: i64,
+                };
+
+                #[repr(C)]
+                #[derive(Debug, Copy, Clone)]
+                pub struct Stat {
+                    pub st_dev: u64,
+                    pub st_ino: u64,
+                    pub st_nlink: u64,
+                    pub st_mode: u32,
+                    pub st_uid: u32,
+                    pub st_gid: u32,
+                    pub __pad0: i32,
+                    pub st_rdev: u64,
+                    pub st_size: i64,
+                    pub st_blksize: i64,
+                    pub st_blocks: i64,
+                    pub st_atime: timespec,
+                    pub st_mtime: timespec,
+                    pub st_ctime: timespec,
+                    pub __glibc_reserved: [i64; 3usize],
+                };
+
+                let p: &mut Stat = &mut unsafe { *(c as *mut Stat) };
+                p.st_dev = makedev(0, 0x17);
+                p.st_ino = 3;
+                p.st_mode = 0o020000 | 0o620; // S_IFCHR
+                p.st_nlink = 1;
+                p.st_uid = 1000;
+                p.st_gid = 5;
+                p.st_blksize = 1024;
+                p.st_blocks = 0;
+                p.st_rdev = makedev(0x88, 0);
+                p.st_atime.tv_sec=1579603508 /* 2020-01-21T11:45:08.467721685+0100 */;
+                p.st_atime.tv_nsec = 0;
+                p.st_mtime.tv_sec=1579603507 /* 2020-01-21T11:45:07.467721685+0100 */;
+                p.st_mtime.tv_nsec = 0;
+                p.st_ctime.tv_sec=1579507218 /* 2020-01-20T09:00:18.467721685+0100 */;
+                p.st_ctime.tv_nsec = 0;
+                0
+            }
+            _ => EBADF.neg_as_usize(),
+        },
         _ => {
-            println!("syscall({}, {}, {}, {}, {}, {}, {})", nr, a, b, c, d, e, f);
+            eprintln!("syscall({}, {}, {}, {}, {}, {}, {})", nr, a, b, c, d, e, f);
             //stack.dump();
             panic!("syscall {} not yet implemented", nr)
             // ENOSYS.neg_as_usize(),

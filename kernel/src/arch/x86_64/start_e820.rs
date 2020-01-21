@@ -57,14 +57,14 @@ use vmbootspec::{
 const TYPE_RAM: u32 = 1;
 
 unsafe fn rust_start_820(hvm_start_info: *mut HvmStartInfo) -> ! {
-    serial_println!("rust_start_820");
+    eprintln!("rust_start_820");
 
     let e820_count = (*hvm_start_info).memmap_entries;
     let e820_table = core::slice::from_raw_parts_mut(
         (*hvm_start_info).memmap_paddr as *mut HvmMemmapTableEntry,
         e820_count as _,
     );
-    serial_println!("e820_count={}", e820_count);
+    eprintln!("e820_count={}", e820_count);
 
     let boot_info_addr: *mut BootInfo = BOOTINFO_PHYS_ADDR as _;
     core::ptr::write(boot_info_addr, core::mem::zeroed());
@@ -94,7 +94,7 @@ unsafe fn rust_start_820(hvm_start_info: *mut HvmStartInfo) -> ! {
             if end > ((HIMEM_START as u64) * 2) {
                 start = (HIMEM_START as u64) * 2;
             }
-            serial_println!("RAM found");
+            eprintln!("RAM found");
             boot_info.memory_map.add_region(MemoryRegion {
                 range: FrameRange::new(start, end),
                 region_type: MemoryRegionType::Usable,

@@ -3,7 +3,7 @@
 
 ram32_start:
     # Indicate (via serial) that we are executing out of RAM
-    movw $0x3f8, %dx
+    movw $0x2f8, %dx
     movb $'R', %al
     outb %al, %dx
 
@@ -45,7 +45,7 @@ enable_paging:
     movl %eax, %cr0
 
     # Indicate (via serial) that we have enabled paging
-    movw $0x3f8, %dx
+    movw $0x2f8, %dx
     movb $'P', %al
     outb %al, %dx
 

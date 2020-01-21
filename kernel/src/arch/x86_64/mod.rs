@@ -113,7 +113,7 @@ pub fn init_stack(
         .flush();
 
     unsafe {
-        println!("load_tss");
+        eprintln!("load_tss");
         use x86_64::instructions::tables::load_tss;
         gdt::GDT.as_ref().unwrap().0.load();
         gdt::TSS.as_mut().unwrap().privilege_stack_table[0] = stack_end;
@@ -144,8 +144,9 @@ static mut MAPPER: Option<OffsetPageTable> = None;
 
 pub unsafe fn init_offset_pagetable() {
     let p3o: &mut [u64] = core::slice::from_raw_parts_mut(PDPTE_OFFSET_START as _, 512);
-    for i in 0..512 {
-        p3o[i] = ((i as u64) << 30) | 0x183u64;
+
+    for (i, entry) in p3o.iter_mut().enumerate().take(512) {
+        *entry = ((i as u64) << 30) | 0x183u64;
     }
     let (level_4_table_frame, _) = Cr3::read();
 
@@ -173,7 +174,7 @@ pub fn init(
     unsafe { syscall::init() };
     interrupts::init();
 
-    println!("{:#?}", boot_info);
+    eprintln!("{:#?}", boot_info);
 
     let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
 
@@ -356,8 +357,8 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
     let entry_point;
     let app_start_ptr = unsafe { &_app_start_addr as *const _ as u64 } + PHYSICAL_MEMORY_OFFSET;
     unsafe {
-        println!("app start {:#X}", app_start_ptr);
-        println!("app size {:#X}", &_app_size as *const _ as u64);
+        eprintln!("app start {:#X}", app_start_ptr);
+        eprintln!("app size {:#X}", &_app_size as *const _ as u64);
     }
     let app_bin = unsafe {
         core::slice::from_raw_parts(
@@ -392,8 +393,8 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
         }
     }
 
-    println!("app_entry_point={:#X}", entry_point);
-    println!("{}:{}", file!(), line!());
+    eprintln!("app_entry_point={:#X}", entry_point);
+    //println!("{}:{}", file!(), line!());
 
     unsafe {
         NEXT_MMAP += 2 * 4096 as u64;
@@ -437,7 +438,7 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
     const ELF64_HDR_SIZE: u64 = 0x40;
     const ELF64_PHDR_SIZE: u64 = 56;
 
-    println!(
+    eprintln!(
         "AT_PHDR: 0x{:X}",
         load_addr.unwrap().as_u64() + ELF64_HDR_SIZE
     );
@@ -445,19 +446,19 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
         key: AT_PHDR,
         value: (load_addr.unwrap().as_u64() + ELF64_HDR_SIZE) as _,
     });
-    println!("AT_PHENT: {}", ELF64_PHDR_SIZE);
+    eprintln!("AT_PHENT: {}", ELF64_PHDR_SIZE);
     crt0sp.auxv.push(AuxvPair {
         key: AT_PHENT,
         value: ELF64_PHDR_SIZE as _,
     });
-    println!("AT_PHNUM: {}", elf_file.program_iter().count());
+    eprintln!("AT_PHNUM: {}", elf_file.program_iter().count());
     crt0sp.auxv.push(AuxvPair {
         key: AT_PHNUM,
         value: elf_file.program_iter().count(),
     });
     crt0sp.auxv.push(AuxvPair {
         key: AT_HWCAP,
-        value: 0xbfebfbff, // (boot_cpu_data.x86_capability[CPUID_1_EDX])
+        value: 0xbfeb_fbff, // (boot_cpu_data.x86_capability[CPUID_1_EDX])
     });
     crt0sp.auxv.push(AuxvPair {
         key: AT_HWCAP2,
@@ -490,9 +491,9 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
 
     let sp_idx = crt0sp.serialize(sp_slice);
     let sp = &mut sp_slice[sp_idx] as *mut u8 as usize;
-    println!("stackpointer={:#X}", sp);
-    println!("USER_STACK_OFFSET={:#X}", USER_STACK_OFFSET);
-
+    eprintln!("stackpointer={:#X}", sp);
+    eprintln!("USER_STACK_OFFSET={:#X}", USER_STACK_OFFSET);
+    eprintln!("\n========= APP START =============\n");
     unsafe {
         syscall::usermode(entry_point as usize, sp, 0);
     }
@@ -507,6 +508,9 @@ pub(crate) fn map_user_segment<T: FrameAllocator<Size4KiB> + FrameDeallocator<Si
     let typ = segment.get_type().unwrap();
 
     match typ {
+        program::Type::Interp => {
+            panic!("App is not a static binary");
+        }
         program::Type::Load => {
             let mem_size = segment.mem_size;
             let file_size = segment.file_size;
@@ -518,7 +522,7 @@ pub(crate) fn map_user_segment<T: FrameAllocator<Size4KiB> + FrameDeallocator<Si
             unsafe {
                 if NEXT_MMAP < virt_end_addr.as_u64() {
                     NEXT_MMAP = virt_end_addr.as_u64();
-                    println!("NEXT_MMAP = {:X}", NEXT_MMAP);
+                    eprintln!("NEXT_MMAP = {:X}", NEXT_MMAP);
                 }
             }
 

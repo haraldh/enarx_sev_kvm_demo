@@ -68,7 +68,7 @@ pub struct Selectors {
 }
 
 pub fn init() {
-    println!("init_gdt");
+    eprintln!("init_gdt");
 
     use x86_64::instructions::segmentation::set_cs;
 

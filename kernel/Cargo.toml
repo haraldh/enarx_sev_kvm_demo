@@ -30,6 +30,8 @@ linux-errno = { version="0.1", git = "https://github.com/enarx/enarx" }
 crt0stack = { version = "0", git="https://github.com/haraldh/crt0stack", features = ["no_std"] }
 #safe-transmute = "0.10.1"
 
+lazy_static = { version="1.4.0", features = ["spin_no_std"] }
+
 [build-dependencies]
 cc = "1.0.37"
 llvm-tools = "0.1.1"

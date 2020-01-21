@@ -5,7 +5,7 @@
 #![cfg(not(windows))]
 
 use super::gdt;
-use crate::{exit_hypervisor, hlt_loop, println, HyperVisorExitCode};
+use crate::{eprintln, exit_hypervisor, hlt_loop, HyperVisorExitCode};
 use pic8259_simple::ChainedPics;
 use spin;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
@@ -36,7 +36,7 @@ pub static PICS: spin::Mutex<ChainedPics> =
 pub static mut IDT: Option<InterruptDescriptorTable> = None;
 
 pub fn init() {
-    println!("interrupts::init");
+    eprintln!("interrupts::init");
     unsafe {
         IDT.replace({
             let mut idt = InterruptDescriptorTable::new();
@@ -117,8 +117,8 @@ extern "x86-interrupt" fn stack_segment_fault(
     stack_frame: &mut InterruptStackFrame,
     error_code: u64,
 ) {
-    println!("stack_segment_fault {}", error_code);
-    println!("{:#?}", stack_frame);
+    eprintln!("stack_segment_fault {}", error_code);
+    eprintln!("{:#?}", stack_frame);
     exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
@@ -127,8 +127,8 @@ extern "x86-interrupt" fn general_protection_fault(
     stack_frame: &mut InterruptStackFrame,
     error_code: u64,
 ) {
-    println!("general_protection_fault {}", error_code);
-    println!("{:#?}", stack_frame);
+    eprintln!("general_protection_fault {}", error_code);
+    eprintln!("{:#?}", stack_frame);
     exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
@@ -137,57 +137,57 @@ extern "x86-interrupt" fn segment_not_present_handler(
     stack_frame: &mut InterruptStackFrame,
     error_code: u64,
 ) {
-    println!("segment_not_present_handler {}", error_code);
-    println!("{:#?}", stack_frame);
+    eprintln!("segment_not_present_handler {}", error_code);
+    eprintln!("{:#?}", stack_frame);
     exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
 
 extern "x86-interrupt" fn invalid_opcode_handler(stack_frame: &mut InterruptStackFrame) {
-    println!("invalid_opcode_handler");
-    println!("{:#?}", stack_frame);
+    eprintln!("invalid_opcode_handler");
+    eprintln!("{:#?}", stack_frame);
     exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
 
 extern "x86-interrupt" fn divide_error_handler(stack_frame: &mut InterruptStackFrame) {
-    println!("divide_error_handler");
-    println!("{:#?}", stack_frame);
+    eprintln!("divide_error_handler");
+    eprintln!("{:#?}", stack_frame);
     exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
 
 extern "x86-interrupt" fn debug_handler(stack_frame: &mut InterruptStackFrame) {
-    println!("debug_handler");
-    println!("{:#?}", stack_frame);
+    eprintln!("debug_handler");
+    eprintln!("{:#?}", stack_frame);
     exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
 
 extern "x86-interrupt" fn overflow_handler(stack_frame: &mut InterruptStackFrame) {
-    println!("overflow_handler");
-    println!("{:#?}", stack_frame);
+    eprintln!("overflow_handler");
+    eprintln!("{:#?}", stack_frame);
     exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
 
 extern "x86-interrupt" fn bound_range_exceeded_handler(stack_frame: &mut InterruptStackFrame) {
-    println!("bound_range_exceeded_handler");
-    println!("{:#?}", stack_frame);
+    eprintln!("bound_range_exceeded_handler");
+    eprintln!("{:#?}", stack_frame);
     exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
 
 extern "x86-interrupt" fn device_not_available_handler(stack_frame: &mut InterruptStackFrame) {
-    println!("device_not_available_handler");
-    println!("{:#?}", stack_frame);
+    eprintln!("device_not_available_handler");
+    eprintln!("{:#?}", stack_frame);
     exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
 
 extern "x86-interrupt" fn x87_floating_point_handler(stack_frame: &mut InterruptStackFrame) {
-    println!("x87_floating_point_handler");
-    println!("{:#?}", stack_frame);
+    eprintln!("x87_floating_point_handler");
+    eprintln!("{:#?}", stack_frame);
     exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
@@ -196,30 +196,30 @@ extern "x86-interrupt" fn alignment_check_handler(
     stack_frame: &mut InterruptStackFrame,
     error_code: u64,
 ) {
-    println!("alignment_check_handler");
-    println!("Error Code: {:?}", error_code);
-    println!("{:#?}", stack_frame);
+    eprintln!("alignment_check_handler");
+    eprintln!("Error Code: {:?}", error_code);
+    eprintln!("{:#?}", stack_frame);
     exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
 
 extern "x86-interrupt" fn machine_check_handler(stack_frame: &mut InterruptStackFrame) -> ! {
-    println!("machine_check_handler");
-    println!("{:#?}", stack_frame);
+    eprintln!("machine_check_handler");
+    eprintln!("{:#?}", stack_frame);
     exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
 
 extern "x86-interrupt" fn simd_floating_point_handler(stack_frame: &mut InterruptStackFrame) {
-    println!("simd_floating_point_handler");
-    println!("{:#?}", stack_frame);
+    eprintln!("simd_floating_point_handler");
+    eprintln!("{:#?}", stack_frame);
     exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
 
 extern "x86-interrupt" fn virtualization_handler(stack_frame: &mut InterruptStackFrame) {
-    println!("virtualization_handler");
-    println!("{:#?}", stack_frame);
+    eprintln!("virtualization_handler");
+    eprintln!("{:#?}", stack_frame);
     exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
@@ -228,9 +228,9 @@ extern "x86-interrupt" fn security_exception_handler(
     stack_frame: &mut InterruptStackFrame,
     error_code: u64,
 ) {
-    println!("security_exception_handler");
-    println!("Error Code: {:?}", error_code);
-    println!("{:#?}", stack_frame);
+    eprintln!("security_exception_handler");
+    eprintln!("Error Code: {:?}", error_code);
+    eprintln!("{:#?}", stack_frame);
     exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
@@ -239,20 +239,20 @@ extern "x86-interrupt" fn invalid_tss_handler(
     stack_frame: &mut InterruptStackFrame,
     error_code: u64,
 ) {
-    println!("invalid_tss_handler {}", error_code);
-    println!("{:#?}", stack_frame);
+    eprintln!("invalid_tss_handler {}", error_code);
+    eprintln!("{:#?}", stack_frame);
     exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
 
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: &mut InterruptStackFrame) {
-    println!("EXCEPTION: BREAKPOINT");
-    println!("{:#?}", stack_frame);
+    eprintln!("EXCEPTION: BREAKPOINT");
+    eprintln!("{:#?}", stack_frame);
 }
 
 extern "x86-interrupt" fn non_maskable_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    println!("EXCEPTION: NMI");
-    println!("{:#?}", stack_frame);
+    eprintln!("EXCEPTION: NMI");
+    eprintln!("{:#?}", stack_frame);
 }
 
 extern "x86-interrupt" fn page_fault_handler(
@@ -261,10 +261,10 @@ extern "x86-interrupt" fn page_fault_handler(
 ) {
     use x86_64::registers::control::Cr2;
 
-    println!("EXCEPTION: PAGE FAULT");
-    println!("Accessed Address: {:?}", Cr2::read());
-    println!("Error Code: {:?}", error_code);
-    println!("{:#?}", stack_frame);
+    eprintln!("EXCEPTION: PAGE FAULT");
+    eprintln!("Accessed Address: {:?}", Cr2::read());
+    eprintln!("Error Code: {:?}", error_code);
+    eprintln!("{:#?}", stack_frame);
     exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
@@ -273,20 +273,20 @@ extern "x86-interrupt" fn double_fault_handler(
     stack_frame: &mut InterruptStackFrame,
     _error_code: u64, // Always 0
 ) -> ! {
-    println!("EXCEPTION: DOUBLE FAULT\n{:#?}", stack_frame);
+    eprintln!("EXCEPTION: DOUBLE FAULT\n{:#?}", stack_frame);
     //exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
 
 extern "x86-interrupt" fn unknown_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    println!("EXCEPTION: unknown interrupt");
-    println!("{:#?}", stack_frame);
+    eprintln!("EXCEPTION: unknown interrupt");
+    eprintln!("{:#?}", stack_frame);
     exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
 
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: &mut InterruptStackFrame) {
-    println!(".");
+    eprintln!(".");
     unsafe {
         PICS.lock()
             .notify_end_of_interrupt(InterruptIndex::Timer.as_u8());
@@ -301,7 +301,7 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: &mut Interrup
 
     let scancode: u8 = unsafe { port.read() };
 
-    println!("Keyboard scancode {}", scancode);
+    eprintln!("Keyboard scancode {}", scancode);
     /*
         if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
             if let Some(key) = keyboard.process_keyevent(key_event) {
@@ -321,9 +321,9 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: &mut Interrup
 #[cfg(test)]
 #[test_case]
 fn test_breakpoint_exception() {
-    use crate::{serial_print, serial_println};
+    use crate::{serial_eprintln, serial_print};
     serial_print!("test_breakpoint_exception...");
     // invoke a breakpoint exception
     x86_64::instructions::interrupts::int3();
-    serial_println!("[ok]");
+    serial_eprintln!("[ok]");
 }

@@ -23,6 +23,8 @@ impl<'a, P: PhysToVirt> MappedPageTable<'a, P> {
     /// Creates a new `MappedPageTable` that uses the passed closure for converting virtual
     /// to physical addresses.
     ///
+    /// # Safety
+    ///
     /// This function is unsafe because the caller must guarantee that the passed `phys_to_virt`
     /// closure is correct. Also, the passed `level_4_table` must point to the level 4 page table
     /// of a valid page table hierarchy. Otherwise this function might break memory safety, e.g.
@@ -388,7 +390,7 @@ impl<'a, P: PhysToVirt> MapperAllSizes for MappedPageTable<'a, P> {
             Err(PageTableWalkError::NotMapped) => return TranslateResult::PageNotMapped,
             Err(PageTableWalkError::MappedToHugePage) => {
                 let frame = PhysFrame::containing_address(p3[addr.p3_index()].addr());
-                let offset = addr.as_u64() & 0o_777_777_7777;
+                let offset = addr.as_u64() & 0o7_777_777_777;
                 return TranslateResult::Frame1GiB { frame, offset };
             }
         };
@@ -397,7 +399,7 @@ impl<'a, P: PhysToVirt> MapperAllSizes for MappedPageTable<'a, P> {
             Err(PageTableWalkError::NotMapped) => return TranslateResult::PageNotMapped,
             Err(PageTableWalkError::MappedToHugePage) => {
                 let frame = PhysFrame::containing_address(p2[addr.p2_index()].addr());
-                let offset = addr.as_u64() & 0o_777_7777;
+                let offset = addr.as_u64() & 0o7_777_777;
                 return TranslateResult::Frame2MiB { frame, offset };
             }
         };

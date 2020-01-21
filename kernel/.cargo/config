@@ -4,7 +4,7 @@ target = "x86_64-kernel.json"
 [target.'cfg(target_os = "enarx")']
 #runner = [ "bash",
 #           "-c",
-#           "qemu-system-x86_64 -enable-kvm -cpu host -smp 1 -m 128 -nodefaults -vga none -nographic -no-reboot -device isa-debug-exit,iobase=0xf4,iosize=0x04 -serial mon:stdio -kernel \"$@\"; ret=$?; ((ret==33)) && exit 0; exit $ret",
+#           "qemu-system-x86_64 -enable-kvm -cpu host -smp 1 -m 128 -nodefaults -vga none -nographic -no-reboot -device isa-debug-exit,iobase=0xf4,iosize=0x04 -chardev stdio,mux=on,id=char0 -mon chardev=char0,mode=readline -serial chardev:char0 -serial chardev:char0 -kernel \"$@\"; ret=$?; ((ret==33)) && exit 0; exit $ret",
 #           "--"
 #         ]
 runner = "../target/debug/vmrun"

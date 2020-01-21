@@ -1,5 +1,4 @@
 use super::gdt;
-use crate::println;
 use core::hint::unreachable_unchecked;
 use x86_64::registers::control::EferFlags;
 use x86_64::registers::model_specific::{Efer, KernelGsBase, Msr};
@@ -10,19 +9,19 @@ use x86_64::VirtAddr;
 pub struct Star;
 impl Star {
     /// The underlying model specific register.
-    pub const MSR: Msr = Msr::new(0xc0000081);
+    pub const MSR: Msr = Msr::new(0xc000_0081);
 }
 
 pub struct LStar;
 impl LStar {
     /// The underlying model specific register.
-    pub const MSR: Msr = Msr::new(0xc0000082);
+    pub const MSR: Msr = Msr::new(0xc000_0082);
 }
 
 pub struct FMask;
 impl FMask {
     /// The underlying model specific register.
-    pub const MSR: Msr = Msr::new(0xc0000084);
+    pub const MSR: Msr = Msr::new(0xc000_0084);
 }
 
 extern "C" {
@@ -36,7 +35,7 @@ pub unsafe fn init() {
             | ((((gdt::GDT.as_ref().unwrap().1.user_data_selector.index() as u64 - 1) << 3) | 3)
                 << 48),
     );
-    LStar::MSR.write(syscall_instruction as u64);
+    LStar::MSR.write(syscall_instruction as usize as u64);
     FMask::MSR.write(0x300); // Clear trap flag and interrupt enable
     KernelGsBase::write(VirtAddr::new(gdt::TSS.as_ref().unwrap() as *const _ as u64));
     Efer::update(|f| {
@@ -49,97 +48,7 @@ pub unsafe fn init() {
     });
 }
 
-#[repr(packed)]
-pub struct ScratchRegisters {
-    pub r11: usize,
-    pub r10: usize,
-    pub r9: usize,
-    pub r8: usize,
-    pub rsi: usize,
-    pub rdi: usize,
-    pub rdx: usize,
-    pub rcx: usize,
-    pub rax: usize,
-}
-
-impl ScratchRegisters {
-    pub fn dump(&self) {
-        println!("RAX:   {:>016X}", { self.rax });
-        println!("RCX:   {:>016X}", { self.rcx });
-        println!("RDX:   {:>016X}", { self.rdx });
-        println!("RDI:   {:>016X}", { self.rdi });
-        println!("RSI:   {:>016X}", { self.rsi });
-        println!("R8:    {:>016X}", { self.r8 });
-        println!("R9:    {:>016X}", { self.r9 });
-        println!("R10:   {:>016X}", { self.r10 });
-        println!("R11:   {:>016X}", { self.r11 });
-    }
-}
-
-#[repr(packed)]
-pub struct PreservedRegisters {
-    pub r15: usize,
-    pub r14: usize,
-    pub r13: usize,
-    pub r12: usize,
-    pub rbp: usize,
-    pub rbx: usize,
-}
-
-impl PreservedRegisters {
-    pub fn dump(&self) {
-        println!("RBX:   {:>016X}", { self.rbx });
-        println!("RBP:   {:>016X}", { self.rbp });
-        println!("R12:   {:>016X}", { self.r12 });
-        println!("R13:   {:>016X}", { self.r13 });
-        println!("R14:   {:>016X}", { self.r14 });
-        println!("R15:   {:>016X}", { self.r15 });
-    }
-}
-
-#[repr(packed)]
-pub struct IretRegisters {
-    pub rip: usize,
-    pub cs: usize,
-    pub rflags: usize,
-    // Will only be present if interrupt is raised from another
-    // privilege ring
-    pub rsp: usize,
-    pub ss: usize,
-}
-
-impl IretRegisters {
-    pub fn dump(&self) {
-        println!("RFLAG: {:>016X}", { self.rflags });
-        println!("CS:    {:>016X}", { self.cs });
-        println!("RIP:   {:>016X}", { self.rip });
-        println!("RSP:   {:>016X}", { self.rsp });
-        println!("SS:    {:>016X}", { self.ss });
-    }
-}
-
-#[repr(packed)]
-pub struct SyscallStack {
-    pub fs: usize,
-    pub preserved: PreservedRegisters,
-    pub scratch: ScratchRegisters,
-    pub iret: IretRegisters,
-}
-
-impl SyscallStack {
-    pub fn dump(&self) {
-        self.iret.dump();
-        self.scratch.dump();
-        self.preserved.dump();
-        println!("FS:    {:>016X}", { self.fs });
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn test_syscall_rust() -> usize {
-    syscall_rust(1, 2, 3, 4, 5, 6, 7)
-}
-
+#[allow(clippy::many_single_char_names)]
 #[no_mangle]
 pub unsafe extern "C" fn syscall_rust(
     a: usize,
