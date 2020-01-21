@@ -28,8 +28,8 @@ pml2t = 0xb000;
 pml3to = 0xf000;
 
 MEMORY {
-    rom : ORIGIN = 1M, /* ram_min */
-    LENGTH = 4M - 64K /* ram_max - ram_min - stack_size */
+    rom : ORIGIN = 1M, /* ram_min */ LENGTH = 4M - 64K /* ram_max - ram_min - stack_size */
+    app : ORIGIN = 4M, /* ram_min */ LENGTH = 4M - 64K /* ram_max - ram_min - stack_size */
 }
 
 SECTIONS
@@ -42,8 +42,7 @@ SECTIONS
 		*(.ram64)
 		*(.ram32)
 	} > rom :text
-    . = ALIGN(4096);
-	.data   : { KEEP(*(.app)) } >rom :app
+
 
 /* Thread local
  … has an STT_TLS symbol but doesn't have an SHF_TLS section
@@ -71,6 +70,8 @@ SECTIONS
 	.rom : { KEEP(*(.rom)) } > rom
 
 	firmware_rom_size = . - ram_min;
+
+	.data  : { KEEP(*(.app)) } >app :app
 
 	/DISCARD/ : {
 	    *(.eh_frame*)
