@@ -15,7 +15,7 @@ impl NegAsUsize for Errno {
     }
 }
 
-pub fn handle_syscall(
+pub extern "C" fn handle_syscall(
     a: usize,
     b: usize,
     c: usize,
