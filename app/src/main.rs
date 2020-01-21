@@ -1,6 +1,12 @@
+fn main2() {
+    println!("Hello World!");
+    println!("It works!");
+}
+
 fn main() {
     // Iterators can be collected into vectors
-    let mut collected_iterator: Vec<i32> = (0..10).collect();
+    let collected_iterator: Vec<usize> = (0..100).collect();
+    let collected_iterator = Box::new(collected_iterator);
     println!("Collected (0..10) into: {:?}", collected_iterator);
 
     // The `vec!` macro can be used to initialize a vector
@@ -12,10 +18,6 @@ fn main() {
     xs.push(4);
     println!("Vector: {:?}", xs);
 
-    // Error! Immutable vectors can't grow
-    collected_iterator.push(0);
-    // FIXME ^ Comment out this line
-
     // The `len` method yields the number of elements currently stored in a vector
     println!("Vector length: {}", xs.len());
 
@@ -25,15 +27,6 @@ fn main() {
     // `pop` removes the last element from the vector and returns it
     println!("Pop last element: {:?}", xs.pop());
 
-    // Out of bounds indexing yields a panic
-    //println!("Fourth element: {}", xs[3]);
-    // FIXME ^ Comment out this line
-
-    /*
-        for i in 1..10000 {
-            xs.push(i);
-        }
-    */
     // `Vector`s can be easily iterated over
     println!("Contents of xs:");
     for x in xs.iter() {
