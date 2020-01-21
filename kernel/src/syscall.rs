@@ -28,6 +28,7 @@ pub extern "C" fn handle_syscall(
         "> syscall({}, 0x{:X}, 0x{:X}, 0x{:X}, {}, {}, 0x{:X})",
         nr, a, b, c, d, e, f
     );
+
     match (nr as u64).into() {
         SYSCALL_EXIT => {
             println!("exit({})", a);
@@ -146,6 +147,9 @@ pub extern "C" fn handle_syscall(
         SYSCALL_READLINK => {
             use cstrptr::CStr;
             let pathname = unsafe { CStr::from_ptr(a as _) };
+            if !pathname.to_string_lossy().eq("/proc/self/exe") {
+                return ENOENT.neg_as_usize();
+            }
             let outbuf = unsafe { core::slice::from_raw_parts_mut(b as _, c as _) };
             outbuf[..6].copy_from_slice(b"/init\0");
             println!(
