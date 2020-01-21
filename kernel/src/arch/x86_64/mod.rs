@@ -456,9 +456,10 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
         key: AT_PHNUM,
         value: elf_file.program_iter().count(),
     });
+    let r = unsafe { core::arch::x86_64::__cpuid(1) };
     crt0sp.auxv.push(AuxvPair {
         key: AT_HWCAP,
-        value: 0xbfeb_fbff, // (boot_cpu_data.x86_capability[CPUID_1_EDX])
+        value: r.edx as _,
     });
     crt0sp.auxv.push(AuxvPair {
         key: AT_HWCAP2,
