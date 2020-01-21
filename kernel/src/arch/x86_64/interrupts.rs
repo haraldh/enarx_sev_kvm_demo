@@ -321,9 +321,9 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: &mut Interrup
 #[cfg(test)]
 #[test_case]
 fn test_breakpoint_exception() {
-    use crate::{serial_eprintln, serial_print};
-    serial_print!("test_breakpoint_exception...");
+    use crate::{print, println};
+    print!("test_breakpoint_exception...");
     // invoke a breakpoint exception
     x86_64::instructions::interrupts::int3();
-    serial_eprintln!("[ok]");
+    println!("[ok]");
 }

@@ -88,7 +88,7 @@ fn test_lib_main(boot_info: &'static mut vmbootspec::BootInfo) -> ! {
         test_main();
         hlt_loop();
     }
-    println!("{}:{} test_lib_main", file!(), line!());
+    //println!("{}:{} test_lib_main", file!(), line!());
 
     crate::arch::init(boot_info, inner);
 }

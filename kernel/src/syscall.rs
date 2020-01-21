@@ -25,11 +25,12 @@ pub extern "C" fn handle_syscall(
     f: usize,
     nr: usize,
 ) -> usize {
-    eprintln!(
-        "SC> syscall({}, 0x{:X}, 0x{:X}, 0x{:X}, {}, {}, 0x{:X})",
-        nr, a, b, c, d, e, f
-    );
-
+    /*
+        eprintln!(
+            "SC> raw: syscall({}, 0x{:X}, 0x{:X}, 0x{:X}, {}, {}, 0x{:X})",
+            nr, a, b, c, d, e, f
+        );
+    */
     match (nr as u64).into() {
         SYSCALL_EXIT => {
             eprintln!("SC> exit({})", a);
@@ -58,8 +59,8 @@ pub extern "C" fn handle_syscall(
                     let cstr = unsafe { core::slice::from_raw_parts(data, len) };
                     match core::str::from_utf8(cstr) {
                         Ok(s) => {
-                            print!("{}", s);
                             eprintln!("SC> write({}, {:#?}) = {}", fd, s, len);
+                            print!("{}", s);
                             len
                         }
                         Err(_) => {

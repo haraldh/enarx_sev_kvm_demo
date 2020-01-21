@@ -174,7 +174,7 @@ pub fn init(
     unsafe { syscall::init() };
     interrupts::init();
 
-    eprintln!("{:#?}", boot_info);
+    //eprintln!("{:#?}", boot_info);
 
     let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
 

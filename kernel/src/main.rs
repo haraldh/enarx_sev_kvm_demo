@@ -29,7 +29,6 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
 #[cfg(test)]
 fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     fn inner(_mapper: &mut OffsetPageTable, _frame_allocator: &mut BootInfoFrameAllocator) -> ! {
-        println!("{}:{} test_main", file!(), line!());
         test_main();
         println!("It did not crash!");
         exit_hypervisor(HyperVisorExitCode::Success);
