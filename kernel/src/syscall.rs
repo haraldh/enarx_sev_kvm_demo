@@ -138,6 +138,11 @@ pub extern "C" fn handle_syscall(
                 }
             }
         }
+        SYSCALL_MUNMAP => {
+            let ret = 0;
+            eprintln!("SC> dummy munmap(0x{:X}, {}, …) = {:#?}", a, b, ret);
+            ret
+        }
         SYSCALL_MMAP => {
             if a == 0 {
                 let ret = mmap_user(b);
