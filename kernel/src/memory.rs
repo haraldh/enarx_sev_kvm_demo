@@ -2,8 +2,8 @@ use crate::arch::x86_64::{
     structures::paging::{FrameAllocator, OffsetPageTable, PageTable, PhysFrame, Size4KiB},
     PhysAddr, VirtAddr,
 };
-use vmbootspec::{MemoryMap, MemoryRegionType};
-use x86_64::structures::paging::UnusedPhysFrame;
+use vmbootspec::{FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
+use x86_64::structures::paging::{FrameDeallocator, UnusedPhysFrame};
 
 /// Initialize a new OffsetPageTable.
 ///
@@ -92,5 +92,17 @@ unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
         let frame = self.usable_frames().nth(self.next);
         self.next += 1;
         frame
+    }
+}
+
+impl FrameDeallocator<Size4KiB> for BootInfoFrameAllocator {
+    fn deallocate_frame(&mut self, frame: UnusedPhysFrame<Size4KiB>) {
+        self.memory_map.add_region(MemoryRegion {
+            range: FrameRange::new(
+                frame.start_address().as_u64(),
+                frame.start_address().as_u64() + frame.size() - 1,
+            ),
+            region_type: MemoryRegionType::Usable,
+        })
     }
 }
