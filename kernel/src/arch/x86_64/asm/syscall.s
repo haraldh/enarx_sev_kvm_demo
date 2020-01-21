@@ -19,10 +19,21 @@ syscall_instruction:
     // SYSV:    rdi, rsi, rdx, rcx, r8, r9
     // SYSCALL: rdi, rsi, rdx, r10, r8, r9
     mov    %r10, %rcx
-    mov    %rax, %r10
+    push   %rdi
+    push   %rsi
+    push   %rdx
+    push   %r10
+    push   %r8
+    push   %r9
     push   %rax
     callq  syscall_rust
     pop    %rcx
+    pop    %r9
+    pop    %r8
+    pop    %r10
+    pop    %rdx
+    pop    %rsi
+    pop    %rdi
 
     // FIXME: want to protect the kernel against userspace?
     // https://www.kernel.org/doc/Documentation/x86/entry_64.txt
