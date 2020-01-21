@@ -57,7 +57,7 @@ impl<'a> Mapper<Size1GiB> for OffsetPageTable<'a> {
         flags: PageTableFlags,
         p321_insert_flag_mask: PageTableFlags,
         allocator: &mut A,
-    ) -> Result<MapperFlush<Size1GiB>, MapToError>
+    ) -> Result<MapperFlush<Size1GiB>, MapToError<Size1GiB>>
     where
         A: FrameAllocator<Size4KiB>,
     {
@@ -93,7 +93,7 @@ impl<'a> Mapper<Size2MiB> for OffsetPageTable<'a> {
         flags: PageTableFlags,
         p321_insert_flag_mask: PageTableFlags,
         allocator: &mut A,
-    ) -> Result<MapperFlush<Size2MiB>, MapToError>
+    ) -> Result<MapperFlush<Size2MiB>, MapToError<Size2MiB>>
     where
         A: FrameAllocator<Size4KiB>,
     {
@@ -129,7 +129,7 @@ impl<'a> Mapper<Size4KiB> for OffsetPageTable<'a> {
         flags: PageTableFlags,
         p321_insert_flag_mask: PageTableFlags,
         allocator: &mut A,
-    ) -> Result<MapperFlush<Size4KiB>, MapToError>
+    ) -> Result<MapperFlush<Size4KiB>, MapToError<Size4KiB>>
     where
         A: FrameAllocator<Size4KiB>,
     {
