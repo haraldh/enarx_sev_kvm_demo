@@ -11,6 +11,9 @@ vmbootspec = {version = "0", path = "../vmbootspec"}
 vmsyscall = {version = "0", path = "../vmsyscall"}
 linux-errno = { version="0.1", git = "https://github.com/enarx/enarx" }
 
+fc_devices = { version="0.1", git = "https://github.com/firecracker-microvm/firecracker", package="devices", rev="f55da99544f16280c31919b2596522c18d83e5e1"}
+fc_utils = { version="0.1", git = "https://github.com/firecracker-microvm/firecracker", package="utils", rev="f55da99544f16280c31919b2596522c18d83e5e1" }
+
 kvm-ioctls = "0.4.0"
 kvm-bindings = "0.2.0"
 vmm-sys-util = "0.3.1"
@@ -20,8 +23,6 @@ bitflags = "1.2.1"
 mmap = "0.1.1"
 serde_cbor = "0.11.1"
 serde = { version = "1.0", default-features = false, features = ["derive"] }
-fc_devices = { version="0.1", git = "https://github.com/firecracker-microvm/firecracker", package="devices", rev="f55da99544f16280c31919b2596522c18d83e5e1"}
-fc_utils = { version="0.1", git = "https://github.com/firecracker-microvm/firecracker", package="utils", rev="f55da99544f16280c31919b2596522c18d83e5e1" }
 
 [dependencies.cast]
 version = "0.2.2"
