@@ -18,7 +18,7 @@ bit_field = "0.10.0"
 xmas-elf = "0.7.0"
 bitflags = "1.2.1"
 mmap = "0.1.1"
-serde_cbor = { version = "0.10.3", git = "https://github.com/pyfisch/cbor", tag="v0.10.3"}
+serde_cbor = "0.11.1"
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 fc_devices = { version="0.1", git = "https://github.com/firecracker-microvm/firecracker", package="devices", rev="f55da99544f16280c31919b2596522c18d83e5e1"}
 fc_utils = { version="0.1", git = "https://github.com/firecracker-microvm/firecracker", package="utils", rev="f55da99544f16280c31919b2596522c18d83e5e1" }
