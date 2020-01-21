@@ -75,6 +75,45 @@ pub extern "C" fn handle_syscall(
                 }
             }
         }
+        SYSCALL_WRITEV => {
+            struct Iovec {
+                iov_base: u64,  /* Starting address */
+                iov_len: usize, /* Number of bytes to transfer */
+            };
+            let fd = a;
+            let iov = b as *const Iovec;
+            let iovcnt = c;
+            let iovec = unsafe { core::slice::from_raw_parts(iov, iovcnt) };
+            let mut written: usize = 0;
+            match fd {
+                1 | 2 => {
+                    for iov in iovec {
+                        let data = iov.iov_base as *const u8;
+                        let len = iov.iov_len;
+                        if len == 0 {
+                            continue;
+                        }
+                        let cstr = unsafe { core::slice::from_raw_parts(data, len) };
+                        match core::str::from_utf8(cstr) {
+                            Ok(s) => {
+                                eprintln!("SC> writev({}, {:#?}) = {}", fd, s, len);
+                                print!("{}", s);
+                                written += len;
+                            }
+                            Err(_) => {
+                                eprintln!("SC> writev({}, …) = -EINVAL", fd);
+                                return EINVAL.neg_as_usize();
+                            }
+                        }
+                    }
+                    written
+                }
+                _ => {
+                    eprintln!("SC> write({}, \"…\") = -EBADFD", a);
+                    EBADFD.neg_as_usize()
+                }
+            }
+        }
         SYSCALL_ARCH_PRCTL => {
             const ARCH_SET_GS: usize = 0x1001;
             const ARCH_SET_FS: usize = 0x1002;
