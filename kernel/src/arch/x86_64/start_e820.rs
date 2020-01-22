@@ -1,3 +1,9 @@
+use vmbootspec::layout::{BOOTINFO_PHYS_ADDR, HIMEM_START};
+use vmbootspec::{
+    layout::{PHYSICAL_MEMORY_OFFSET, PML4_START},
+    BootInfo, FrameRange, MemoryRegion, MemoryRegionType,
+};
+
 #[inline(always)]
 pub fn read_ebx() -> u64 {
     let val: u64;
@@ -47,12 +53,6 @@ pub struct HvmMemmapTableEntry {
     entry_type: u32, /* Mapping type                              */
     reserved: u32,   /* Must be zero for Version 1.               */
 }
-
-use vmbootspec::layout::{BOOTINFO_PHYS_ADDR, HIMEM_START};
-use vmbootspec::{
-    layout::{PHYSICAL_MEMORY_OFFSET, PML4_START},
-    BootInfo, FrameRange, MemoryRegion, MemoryRegionType,
-};
 
 const TYPE_RAM: u32 = 1;
 

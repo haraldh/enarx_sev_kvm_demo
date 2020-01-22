@@ -3,7 +3,6 @@ pub mod serial;
 pub mod asm;
 pub mod gdt;
 pub mod interrupts;
-pub mod mem;
 mod start_e820;
 pub mod structures;
 pub mod syscall;
