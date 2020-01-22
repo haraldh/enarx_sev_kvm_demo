@@ -1,8 +1,3 @@
-fn main2() {
-    println!("Hello World!");
-    println!("It works!");
-}
-
 fn main() {
     // Iterators can be collected into vectors
     let collected_iterator: Vec<usize> = (0..100).collect();
