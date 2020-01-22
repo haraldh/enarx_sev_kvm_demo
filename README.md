@@ -32,6 +32,7 @@
 ```bash
 $ rustup toolchain add nightly
 $ rustup toolchain add nightly-2019-11-17
+$ rustup target add x86_64-unknown-linux-musl
 $ rustup component add rust-src --toolchain nightly
 $ rustup component add rust-src --toolchain nightly-2019-11-17
 $ rustup component add llvm-tools-preview --toolchain nightly
