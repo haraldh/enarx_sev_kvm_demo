@@ -9,8 +9,6 @@ pub mod structures;
 pub mod syscall;
 
 use crate::memory::BootInfoFrameAllocator;
-use alloc::alloc::{GlobalAlloc, Layout};
-use core::ptr::null_mut;
 use vmbootspec::layout::{
     PDPTE_OFFSET_START, PHYSICAL_MEMORY_OFFSET, USER_STACK_OFFSET, USER_STACK_SIZE,
 };
@@ -118,18 +116,6 @@ pub fn init_stack(
     }
 
     Ok(())
-}
-
-pub struct Dummy;
-
-unsafe impl GlobalAlloc for Dummy {
-    unsafe fn alloc(&self, _layout: Layout) -> *mut u8 {
-        null_mut()
-    }
-
-    unsafe fn dealloc(&self, _ptr: *mut u8, _layout: Layout) {
-        panic!("dealloc should be never called")
-    }
 }
 
 static mut ENTRY_POINT: Option<
@@ -402,8 +388,6 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
     let mut crt0sp = Crt0Stack::new();
     crt0sp.argv.push("/init".to_string());
     crt0sp.envp.push("LANG=C".to_string());
-    crt0sp.envp.push("LANG=C".to_string());
-    crt0sp.argv.push("/init".to_string());
 
     crt0sp.add_auxv_entry(AuxvEntry::ExecFilename("/init".to_string()));
     crt0sp.add_auxv_entry(AuxvEntry::Platform("x86_64".to_string()));
