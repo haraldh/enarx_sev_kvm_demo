@@ -81,9 +81,7 @@ pub unsafe fn usermode(ip: usize, sp: usize, arg: usize) -> ! {
           : "intel", "volatile");
 
     // Go to usermode
-    asm!("mov ds, r14d
-         mov es, r14d
-         mov gs, r14d
+    asm!("
          xor rax, rax
          xor rdx, rdx
          xor rbx, rbx
@@ -99,13 +97,17 @@ pub unsafe fn usermode(ip: usize, sp: usize, arg: usize) -> ! {
          xor r13, r13
          xor r14, r14
          xor r15, r15
-         mov fs, r11         
+         mov ds, r11
+         mov es, r11
+         mov fs, r11
+         mov gs, r11
          wrfsbase r11
+         wrgsbase r11
          fninit
          pop rdi
          iretq"
          : // No output because it never returns
-         :   "{r14}"((gdt::USER_DATA_SEG << 3) | 3) // Data segment
+         :
          : // No clobbers because it never returns
          : "intel", "volatile");
     unreachable_unchecked()
