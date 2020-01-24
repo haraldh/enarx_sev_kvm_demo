@@ -1,3 +1,8 @@
+#[cfg(not(target_feature = "crt-static"))]
+compile_error!(
+    "The app has to be statically linked! Use e.g. `--target x86_64-unknown-linux-musl´"
+);
+
 fn main() {
     // Iterators can be collected into vectors
     let collected_iterator: Vec<usize> = (0..100).collect();
