@@ -1,54 +1,7 @@
 //! print to serial port
-use core::fmt;
 use lazy_static::lazy_static;
 use spin::Mutex;
-use x86_64::instructions::port::PortWriteOnly;
-
-/// Minimal serial port
-pub struct SerialPort {
-    data: PortWriteOnly<u8>,
-}
-
-impl SerialPort {
-    /// Creates a new serial port interface on the given I/O port.
-    ///
-    /// # Safety
-    ///
-    /// This function is unsafe because the caller must ensure that the given base address
-    /// really points to a serial port device.
-    pub const unsafe fn new(base: u16) -> SerialPort {
-        SerialPort {
-            data: PortWriteOnly::<u8>::new(base),
-        }
-    }
-
-    /// Sends a byte on the serial port.
-    #[inline]
-    pub fn send(&mut self, data: u8) {
-        unsafe {
-            match data {
-                8 | 0x7F => {
-                    self.data.write(8);
-                    self.data.write(b' ');
-                    self.data.write(8)
-                }
-                _ => {
-                    self.data.write(data);
-                }
-            }
-        }
-    }
-}
-
-impl fmt::Write for SerialPort {
-    #[inline]
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        for byte in s.bytes() {
-            self.send(byte);
-        }
-        Ok(())
-    }
-}
+use uart_16550::SerialPort;
 
 lazy_static! {
     pub static ref SERIAL1: Mutex<SerialPort> = {
