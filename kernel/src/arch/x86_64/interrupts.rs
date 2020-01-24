@@ -274,7 +274,7 @@ extern "x86-interrupt" fn double_fault_handler(
     _error_code: u64, // Always 0
 ) -> ! {
     eprintln!("EXCEPTION: DOUBLE FAULT\n{:#?}", stack_frame);
-    //exit_hypervisor(HyperVisorExitCode::Failed);
+    exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }
 
