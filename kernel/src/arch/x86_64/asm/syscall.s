@@ -38,8 +38,10 @@ syscall_instruction:
     // FIXME: want to protect the kernel against userspace?
     // https://www.kernel.org/doc/Documentation/x86/entry_64.txt
     // use:
-    //iretq
+    iretq
 
+    // FIXME: comment out iretq for fast return with sysretq
+    cli
     swapgs
     pop    %rcx             // Pop userspace return pointer
     add    $0x8,%rsp        // Pop userspace code segment
@@ -47,4 +49,5 @@ syscall_instruction:
     popq   %gs:0x1c         // Pop userspace rsp
     mov    %gs:0x1c,%rsp    // Restore userspace rsp
     swapgs
+    sti
     sysretq
