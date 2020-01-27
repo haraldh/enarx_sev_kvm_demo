@@ -63,7 +63,7 @@ jobs:
     - name: "Install cargo-xbuild"
       run: cargo install cargo-xbuild --debug --root binaries
 
-      # install QEMU
+      # install lld
     - name: Install lld
       run: sudo apt install lld
 
@@ -76,7 +76,7 @@ jobs:
     - name: Install QEMU (Linux)
       run: |
         sudo apt update
-        sudo apt install qemu-system-x86 lld
+        sudo apt install qemu-system-x86
 
     - name: "Print QEMU Version"
       run: qemu-system-x86_64 --version
