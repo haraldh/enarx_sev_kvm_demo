@@ -4,13 +4,11 @@ members = [
     "app",
     "vmrun",
     "kernel",
-    "vmsyscall",
 ]
 
 default-members = [
     "vmbootspec",
     "vmrun",
-    "vmsyscall",
 ]
 
 # would want

@@ -24,6 +24,8 @@ pub const USER_STACK_SIZE: usize = 8 * 1024 * 1024; // 8 MB
 pub const USER_STACK_OFFSET: usize = PML4_SIZE * 4;
 pub const USER_HEAP_OFFSET: usize = USER_OFFSET + PML4_SIZE;
 
+pub const SYSCALL_TRIGGER_PORT: u16 = 0xFF;
+
 #[repr(C)]
 pub struct PageTables {
     pub pml4t: [u64; 512],           // 0x9000

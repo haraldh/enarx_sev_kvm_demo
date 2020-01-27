@@ -5,12 +5,12 @@ use vmsyscall::{VmSyscall, VmSyscallRet};
 #[cfg(test)]
 use crate::{serial_print, serial_println};
 #[cfg(test)]
-use vmsyscall::errno;
+use linux_errno::*;
 
-pub fn madvise(addr: *mut c_void, len: usize, advice: i32) -> Result<i32, Error> {
+pub fn madvise(addr: *mut c_void, length: usize, advice: i32) -> Result<i32, Error> {
     let s = VmSyscall::Madvise {
         addr: addr as usize,
-        len,
+        length,
         advice,
     };
     let ret = vm_syscall(s)?;
@@ -24,14 +24,14 @@ pub fn madvise(addr: *mut c_void, len: usize, advice: i32) -> Result<i32, Error>
 fn test_madvise() {
     serial_print!("test_madvise...");
     let ret = madvise(core::ptr::null_mut(), 0, 0).unwrap_err();
-    assert_eq!(ret, Error::Errno(errno::ENOSYS));
+    assert_eq!(ret, Error::Errno(ENOSYS.into()));
     serial_println!("[ok]");
 }
 
-pub fn mmap(addr: *mut c_void, len: usize, prot: i32, flags: i32) -> Result<*mut c_void, Error> {
+pub fn mmap(addr: *mut c_void, length: usize, prot: i32, flags: i32) -> Result<*mut c_void, Error> {
     let s = VmSyscall::Mmap {
         addr: addr as usize,
-        len,
+        length,
         prot,
         flags,
     };
@@ -49,20 +49,20 @@ pub fn mmap(addr: *mut c_void, len: usize, prot: i32, flags: i32) -> Result<*mut
 fn test_mmap() {
     serial_print!("test_mmap...");
     let ret = mmap(core::ptr::null_mut(), 0, 0, 0).unwrap_err();
-    assert_eq!(ret, Error::Errno(errno::ENOSYS));
+    assert_eq!(ret, Error::Errno(ENOSYS.into()));
     serial_println!("[ok]");
 }
 
 pub fn mremap(
-    addr: *mut c_void,
-    len: usize,
-    new_len: usize,
+    old_address: *mut c_void,
+    old_size: usize,
+    new_size: usize,
     flags: i32,
 ) -> Result<*mut c_void, Error> {
     let s = VmSyscall::Mremap {
-        addr: addr as usize,
-        len,
-        new_len,
+        old_address: old_address as usize,
+        old_size,
+        new_size,
         flags,
     };
     let ret = vm_syscall(s)?;
@@ -79,14 +79,14 @@ pub fn mremap(
 fn test_mremap() {
     serial_print!("test_mremap...");
     let ret = mremap(core::ptr::null_mut(), 0, 0, 0).unwrap_err();
-    assert_eq!(ret, Error::Errno(errno::ENOSYS));
+    assert_eq!(ret, Error::Errno(ENOSYS.into()));
     serial_println!("[ok]");
 }
 
-pub fn munmap(addr: *mut c_void, len: usize) -> Result<i32, Error> {
+pub fn munmap(addr: *mut c_void, length: usize) -> Result<i32, Error> {
     let s = VmSyscall::Munmap {
         addr: addr as usize,
-        len,
+        length,
     };
     let ret = vm_syscall(s)?;
     match ret {
@@ -99,14 +99,14 @@ pub fn munmap(addr: *mut c_void, len: usize) -> Result<i32, Error> {
 fn test_munmap() {
     serial_print!("test_munmap...");
     let ret = munmap(core::ptr::null_mut(), 0).unwrap_err();
-    assert_eq!(ret, Error::Errno(errno::ENOSYS));
+    assert_eq!(ret, Error::Errno(ENOSYS.into()));
     serial_println!("[ok]");
 }
 
-pub fn mprotect(addr: *mut c_void, len: usize, prot: i32) -> Result<i32, Error> {
+pub fn mprotect(addr: *mut c_void, length: usize, prot: i32) -> Result<i32, Error> {
     let s = VmSyscall::Mprotect {
         addr: addr as usize,
-        len,
+        length,
         prot,
     };
     let ret = vm_syscall(s)?;
@@ -120,7 +120,7 @@ pub fn mprotect(addr: *mut c_void, len: usize, prot: i32) -> Result<i32, Error> 
 fn test_mprotect() {
     serial_print!("test_mprotect...");
     let ret = mprotect(core::ptr::null_mut(), 0, 0).unwrap_err();
-    assert_eq!(ret, Error::Errno(errno::ENOSYS));
+    assert_eq!(ret, Error::Errno(ENOSYS.into()));
     serial_println!("[ok]");
 }
 

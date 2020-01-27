@@ -4,9 +4,9 @@ use serde_cbor;
 use serde_cbor::ser::SliceWrite;
 use serde_cbor::Serializer;
 use std::time::Instant;
+use vmbootspec::layout::SYSCALL_TRIGGER_PORT;
 use vmrun::kvmvm;
 use vmsyscall::VmSyscall;
-use vmsyscall::TRIGGER_PORT as PORT_SYSCALL;
 
 const PORT_QEMU_EXIT: u16 = 0xF4;
 
@@ -42,7 +42,7 @@ fn main() {
             .expect("Hypervisor: VM run failed");
         match ret {
             VcpuExit::IoIn(port, data) => match port {
-                PORT_SYSCALL => {
+                SYSCALL_TRIGGER_PORT => {
                     let size = syscall_reply_size.take().unwrap();
                     data[0] = (size & 0xFF) as _;
                     data[1] = ((size >> 8) & 0xFF) as _;
@@ -62,7 +62,7 @@ fn main() {
                 PORT_QEMU_EXIT if data.eq(&[0x11, 0, 0, 0]) => {
                     std::process::exit(1);
                 }
-                PORT_SYSCALL => {
+                SYSCALL_TRIGGER_PORT => {
                     let syscall_page = kvm.syscall_hostvaddr.unwrap();
 
                     let mut syscall_slice = unsafe {

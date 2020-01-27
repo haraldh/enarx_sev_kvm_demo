@@ -14,8 +14,8 @@ harness = false
 
 [dependencies]
 vmbootspec = {version = "0", path = "../vmbootspec"}
-vmsyscall = { version = "0", path = "../vmsyscall", features = ["no_std"]}
 
+vmsyscall = { version = "0.1", git = "https://github.com/enarx/enarx"}
 linux-syscall = { version="0.1", git = "https://github.com/enarx/enarx" }
 linux-errno = { version="0.1", git = "https://github.com/enarx/enarx" }
 crt0stack = { version = "0.2.1", git="https://github.com/haraldh/crt0stack", features = ["no_std"] }

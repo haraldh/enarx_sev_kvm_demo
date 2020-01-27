@@ -2,9 +2,9 @@ use serde::ser::Serialize;
 use serde_cbor;
 use serde_cbor::ser::SliceWrite;
 use serde_cbor::Serializer;
-use vmbootspec::layout::SYSCALL_PHYS_ADDR;
+use vmbootspec::layout::{SYSCALL_PHYS_ADDR, SYSCALL_TRIGGER_PORT};
 pub use vmsyscall::Error;
-use vmsyscall::{VmSyscall, VmSyscallRet, TRIGGER_PORT};
+use vmsyscall::{VmSyscall, VmSyscallRet};
 use x86_64::instructions::port::Port;
 use x86_64::VirtAddr;
 
@@ -33,7 +33,7 @@ pub fn vm_syscall(syscall: VmSyscall) -> Result<VmSyscallRet, Error> {
     let mut size = writer.bytes_written();
 
     unsafe {
-        let mut port = Port::<u16>::new(TRIGGER_PORT);
+        let mut port = Port::<u16>::new(SYSCALL_TRIGGER_PORT);
         port.write(size as u16);
         size = port.read() as usize;
     }

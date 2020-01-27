@@ -3,5 +3,5 @@ target/
 .settings/
 .DS_store/
 .project/
-/Cargo.lock
+Cargo.lock
 .idea/
