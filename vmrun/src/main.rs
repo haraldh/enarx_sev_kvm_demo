@@ -34,10 +34,6 @@ fn main_qemu(kernel_blob: &str) -> ! {
     eprintln!("Starting QEMU {}", kernel_blob);
     let mut cmd = Command::new("qemu-system-x86_64");
     cmd.args(&[
-        "-machine",
-        "q35",
-        "-cpu",
-        "max",
         "-smp",
         "1",
         "-m",
