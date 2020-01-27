@@ -3,7 +3,7 @@ use serde::ser::Serialize;
 use serde_cbor;
 use serde_cbor::ser::SliceWrite;
 use serde_cbor::Serializer;
-use std::process::{exit, Command, Stdio};
+use std::process::{exit, Command};
 use std::time::Instant;
 use vmbootspec::layout::SYSCALL_TRIGGER_PORT;
 use vmrun::kvmvm;
@@ -58,9 +58,7 @@ fn main_qemu(kernel_blob: &str) -> ! {
         "chardev:char0",
         "-kernel",
     ])
-    .arg(kernel_blob)
-    .stdout(Stdio::inherit())
-    .stderr(Stdio::inherit());
+    .arg(kernel_blob);
     let mut child = cmd.spawn().expect("Unable to start qemu-system-x86_64");
     let status = child.wait().expect("Failed to wait on qemu-system-x86_64");
     let elapsed = start.elapsed();
