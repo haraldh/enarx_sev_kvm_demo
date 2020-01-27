@@ -1,13 +1,13 @@
 [workspace]
 members = [
-    "vmbootspec",
+    "kernel/vmbootspec",
     "app",
     "vmrun",
     "kernel",
 ]
 
 default-members = [
-    "vmbootspec",
+    "kernel/vmbootspec",
     "vmrun",
 ]
 

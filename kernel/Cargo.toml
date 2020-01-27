@@ -13,7 +13,7 @@ name = "stack_overflow"
 harness = false
 
 [dependencies]
-vmbootspec = {version = "0", path = "../vmbootspec"}
+vmbootspec = {version = "0", path = "./vmbootspec"}
 
 vmsyscall = { version = "0.1", git = "https://github.com/enarx/enarx"}
 linux-syscall = { version="0.1", git = "https://github.com/enarx/enarx" }
