@@ -7,7 +7,7 @@ fn main() {
     // Iterators can be collected into vectors
     let collected_iterator: Vec<usize> = (0..100).collect();
     let collected_iterator = Box::new(collected_iterator);
-    println!("Collected (0..10) into: {:?}", collected_iterator);
+    println!("Collected (0..100) into: {:?}", collected_iterator);
 
     // The `vec!` macro can be used to initialize a vector
     let mut xs = vec![1i32, 2, 3];

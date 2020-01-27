@@ -29,5 +29,6 @@ script:
   - cargo build
   - cargo test
   - (cd app; cargo build)
-  - (cd kernel; APP=$(pwd)/../target/x86_64-unknown-linux-musl/debug/app cargo +nightly xbuild )
+  - (cd kernel; APP=$(pwd)/../target/x86_64-unknown-linux-musl/debug/app cargo +nightly xtest )
+  - (cd kernel; APP=$(pwd)/../target/x86_64-unknown-linux-musl/debug/app cargo +nightly xrun )
 

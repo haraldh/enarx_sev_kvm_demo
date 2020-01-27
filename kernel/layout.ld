@@ -4,22 +4,21 @@ OUTPUT_FORMAT(elf64-x86-64)
 EXTERN(rom_end);
 EXTERN(XEN_ELFNOTE_PHYS32_PTR);
 EXTERN(test_syscall_rust);
+EXTERN(stack_end);
 
 PHDRS
 {
   notes  PT_NOTE               ;
   rodata PT_LOAD               ;
   data   PT_LOAD               ;
+  bss    PT_LOAD               ;
   text   PT_LOAD               ;
   app    PT_LOAD               ;
-  /* thread_local   PT_TLS              ; */
 }
 
 /* Loaders like to put stuff in low memory (< 1M), so we don't use it. */
 ram_min = 1M;
 ram_max = 4M;
-/* Our stack grows down from ram_max. TODO: Add a guard for stack overflows. */
-stack_size = 64K;
 
 /* Pagetable locations loaded by crosvm/Firecracker/cloud-hypervisor */
 pml4t = 0x9000;
@@ -28,37 +27,21 @@ pml2t = 0xb000;
 pml3to = 0xf000;
 
 MEMORY {
-    rom : ORIGIN = 1M, /* ram_min */ LENGTH = 4M - 64K /* ram_max - ram_min - stack_size */
-    app : ORIGIN = 4M, /* ram_min */ LENGTH = 4M - 64K /* ram_max - ram_min - stack_size */
+    rom : ORIGIN = 1M, LENGTH = 3M
+    app : ORIGIN = 4M, LENGTH = 4M
 }
 
 SECTIONS
 {
 	.rodata : { *(.rodata .rodata.*)            } >rom :rodata
 	.notes  : { *(.note .note.* .notes)         }  >rom :rodata :notes
-	.data   : { *(.data .data.*) *(.bss .bss.*) *(.got .got.*) } >rom :data
+	.data   : { *(.data .data.*) *(.got .got.*) } >rom :data
 	.text   : {
 		*(.text .text.*)
 		*(.ram64)
 		*(.ram32)
 	} > rom :text
-
-
-/* Thread local
- … has an STT_TLS symbol but doesn't have an SHF_TLS section
-
-    .tdata : {
-        __tdata_start = .;
-        *(.tdata*)
-        . = ALIGN(4096);
-        __tdata_end = .;
-        __tbss_start = .;
-        *(.tbss*)
-        . += 8;
-        . = ALIGN(4096);
-        __tbss_end = .;
-    } :thread_local
-*/
+	.bss   : { *(.bss .bss.*) } >rom :bss
 
 	firmware_ram_size = . - ram_min;
 
