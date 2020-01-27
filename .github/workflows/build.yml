@@ -40,6 +40,7 @@ jobs:
       with:
         path: binaries
         key: ${{ runner.OS }}-binaries
+
     - name: Add binaries/bin to PATH
       run: echo ::add-path::$GITHUB_WORKSPACE/binaries/bin
       shell: bash
@@ -58,18 +59,34 @@ jobs:
 
     - name: "Install Rustup Components"
       run: rustup component add rust-src llvm-tools-preview
+
     - name: "Install cargo-xbuild"
       run: cargo install cargo-xbuild --debug --root binaries
+
+      # install QEMU
+    - name: Install lld
+      run: sudo apt install lld
+
+    - name: "Run Test Framework"
+      run: cargo +nightly xbuild --package kernel --target kernel/x86_64-kernel.json
+      env:
+        APP: target/x86_64-unknown-linux-musl/debug/app
 
       # install QEMU
     - name: Install QEMU (Linux)
       run: |
         sudo apt update
-        sudo apt install qemu-system-x86
+        sudo apt install qemu-system-x86 lld
+
     - name: "Print QEMU Version"
       run: qemu-system-x86_64 --version
 
     - name: "Run Test Framework"
       run: cargo +nightly xtest --package kernel --target kernel/x86_64-kernel.json
+      env:
+        APP: target/x86_64-unknown-linux-musl/debug/app
+
+    - name: "Run App in Kernel"
+      run: cargo +nightly xrun --package kernel --target kernel/x86_64-kernel.json
       env:
         APP: target/x86_64-unknown-linux-musl/debug/app
