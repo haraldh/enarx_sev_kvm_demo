@@ -14,6 +14,11 @@
 
 language: rust
 rust: nightly
+dist: bionic
+
+addons:
+  apt:
+    packages: qemu-system-x86
 
 install:
   - rustup toolchain add nightly
@@ -22,6 +27,7 @@ install:
   - rustup component add llvm-tools-preview --toolchain nightly
   - rustup target add x86_64-unknown-linux-musl --toolchain nightly
   - cargo install cargo-xbuild
+
 script:
   - cargo fmt -- --check
   - (cd app; cargo fmt -- --check)
