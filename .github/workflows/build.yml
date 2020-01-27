@@ -20,11 +20,11 @@ jobs:
     - name: "Checkout Repository"
       uses: actions/checkout@v1
 
-    - name: Install Rustup
-      run: |
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain nightly
-        echo ::add-path::$HOME/.cargo/bin
-      if: runner.os == 'macOS'
+    - name: Install latest nightly
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: true
 
     - name: Set Rustup profile to minimal
       run: rustup set profile minimal
@@ -70,6 +70,6 @@ jobs:
       run: qemu-system-x86_64 --version
 
     - name: "Run Test Framework"
-      run: cargo xtest --package kernel --target kernel/x86_64-kernel.json
+      run: cargo +nightly xtest --package kernel --target kernel/x86_64-kernel.json
       env:
         APP: target/x86_64-unknown-linux-musl/debug/app
