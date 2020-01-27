@@ -1,9 +1,8 @@
-use kvm_ioctls::VcpuExit;
+use kvm_ioctls::{Kvm, VcpuExit};
 use serde::ser::Serialize;
 use serde_cbor;
 use serde_cbor::ser::SliceWrite;
 use serde_cbor::Serializer;
-use std::path::Path;
 use std::process::{exit, Command, Stdio};
 use std::time::Instant;
 use vmbootspec::layout::SYSCALL_TRIGGER_PORT;
@@ -14,11 +13,12 @@ const PORT_QEMU_EXIT: u16 = 0xF4;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+    let kvm = Kvm::new();
 
     match args.len() {
-        3 if args[1].eq("--fallback-qemu") => match Path::new("/dev/kvm").exists() {
-            true => main_kvm(&args[2]),
-            false => main_qemu(&args[2]),
+        3 if args[1].eq("--fallback-qemu") => match kvm {
+            Ok(_) => main_kvm(&args[2]),
+            Err(_) => main_qemu(&args[2]),
         },
         2 => main_kvm(&args[1]),
         _ => {
