@@ -19,6 +19,9 @@ jobs:
     - name: "Checkout Repository"
       uses: actions/checkout@v2
 
+    - name: "Set Default Toolchain"
+      run: rustup default nightly
+
     - name: "Print Rust Version"
       run: |
         rustc -Vv
