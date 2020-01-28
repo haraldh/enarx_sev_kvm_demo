@@ -23,8 +23,8 @@ jobs:
       # install QEMU
     - name: Install QEMU (Linux)
       run: |
-        sudo apt update
-        sudo apt install qemu-system-x86 curl
+        apt update
+        apt install qemu-system-x86 curl
 
     - name: Install latest nightly
       uses: actions-rs/toolchain@v1
