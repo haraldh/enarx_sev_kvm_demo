@@ -21,6 +21,7 @@ use crate::arch::x86_64::structures::paging::{
 pub use x86_64::{PhysAddr, VirtAddr};
 
 use crt0stack::{AuxvEntry, Crt0Stack};
+use x86_64::instructions::random::RdRand;
 use x86_64::registers::control::Cr3;
 use x86_64::structures::paging::FrameDeallocator;
 use xmas_elf::program::{self, ProgramHeader64};
@@ -408,14 +409,18 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
     crt0sp.add_auxv_entry(AuxvEntry::HWCap(r.edx as _));
     crt0sp.add_auxv_entry(AuxvEntry::HWCap2(0));
 
-    let r1 = x86_64::instructions::random::RdRand::new()
-        .unwrap()
-        .get_u64()
-        .unwrap();
-    let r2 = x86_64::instructions::random::RdRand::new()
-        .unwrap()
-        .get_u64()
-        .unwrap();
+    let rdrand = RdRand::new();
+    let (r1, r2) = match rdrand {
+        None => {
+            if cfg!(debug_assertions) {
+                eprintln!("!!! No RDRAND. Using pseudo random numbers!!!");
+                (0xAFFEAFFEAFFEAFFEu64, 0xC0FFEEC0FFEEC0FFu64)
+            } else {
+                panic!("No rdrand supported by CPU")
+            }
+        }
+        Some(rdrand) => (rdrand.get_u64().unwrap(), rdrand.get_u64().unwrap()),
+    };
 
     let mut ra = [0u8; 16];
     let r1u8 = unsafe { core::slice::from_raw_parts(&r1 as *const u64 as *const u8, 8) };
