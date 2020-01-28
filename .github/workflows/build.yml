@@ -56,9 +56,6 @@ jobs:
       env:
         APP: target/x86_64-unknown-linux-musl/debug/app
 
-    - name: "Print QEMU Version"
-      run: qemu-system-x86_64 --version
-
     - name: "Run Kernel Test Framework"
       run: cargo +nightly xtest --package kernel --target kernel/x86_64-kernel.json
       env:
