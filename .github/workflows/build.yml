@@ -20,6 +20,12 @@ jobs:
     - name: "Checkout Repository"
       uses: actions/checkout@v1
 
+      # install QEMU
+    - name: Install QEMU (Linux)
+      run: |
+        sudo apt update
+        sudo apt install qemu-system-x86 curl
+
     - name: Install latest nightly
       uses: actions-rs/toolchain@v1
       with:
@@ -71,12 +77,6 @@ jobs:
       run: cargo +nightly xbuild --package kernel --target kernel/x86_64-kernel.json
       env:
         APP: target/x86_64-unknown-linux-musl/debug/app
-
-      # install QEMU
-    - name: Install QEMU (Linux)
-      run: |
-        sudo apt update
-        sudo apt install qemu-system-x86
 
     - name: "Print QEMU Version"
       run: qemu-system-x86_64 --version
