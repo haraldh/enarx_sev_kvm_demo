@@ -24,8 +24,8 @@ jobs:
 
     - name: "Print Rust Version"
       run: |
-        rustc -Vv
-        cargo -Vv
+        which cargo
+        cargo +nightly -Vv
 
     - name: Cache binaries
       id: cache-bin
@@ -39,13 +39,13 @@ jobs:
       shell: bash
 
     - name: "Run cargo build"
-      run: cargo build
+      run: cargo +nightly build
 
     - name: "Run cargo test"
-      run: cargo test
+      run: cargo +nightly test
 
     - name: 'Build App'
-      run: cargo build --package app --target x86_64-unknown-linux-musl
+      run: cargo +nightly build --package app --target x86_64-unknown-linux-musl
 
     - name: "Build Kernel"
       run: cargo +nightly xbuild --package kernel --target kernel/x86_64-kernel.json
