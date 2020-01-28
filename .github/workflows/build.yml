@@ -15,6 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     container: quay.io/haraldh/rust-nightly-qemu-x86:latest
+    env: 
+      RUSTUP_HOME:  /root/.rustup
     steps:
     - name: "Checkout Repository"
       uses: actions/checkout@v2
