@@ -15,7 +15,7 @@ jobs:
 
     runs-on: ubuntu-latest
     timeout-minutes: 15
-
+    container: ubuntu:rolling
     steps:
     - name: "Checkout Repository"
       uses: actions/checkout@v1
@@ -72,25 +72,21 @@ jobs:
       env:
         APP: target/x86_64-unknown-linux-musl/debug/app
 
-#### Wait for qemu version >= 4
-#### qemu-system-x86_64: warning: TCG doesn't support requested feature: CPUID.01H:ECX.vmx [bit 5]
-#### /build/qemu-XrmZRw/qemu-2.11+dfsg/tcg/tcg.c:2610: tcg fatal error
+      # install QEMU
+    - name: Install QEMU (Linux)
+      run: |
+        sudo apt update
+        sudo apt install qemu-system-x86
 
-#      # install QEMU
-#    - name: Install QEMU (Linux)
-#      run: |
-#        sudo apt update
-#        sudo apt install qemu-system-x86
-#
-#    - name: "Print QEMU Version"
-#      run: qemu-system-x86_64 --version
-#
-#    - name: "Run Test Framework"
-#      run: cargo +nightly xtest --package kernel --target kernel/x86_64-kernel.json
-#      env:
-#        APP: target/x86_64-unknown-linux-musl/debug/app
-#
-#    - name: "Run App in Kernel"
-#      run: cargo +nightly xrun --package kernel --target kernel/x86_64-kernel.json
-#      env:
-#        APP: target/x86_64-unknown-linux-musl/debug/app
+    - name: "Print QEMU Version"
+      run: qemu-system-x86_64 --version
+
+    - name: "Run Test Framework"
+      run: cargo +nightly xtest --package kernel --target kernel/x86_64-kernel.json
+      env:
+        APP: target/x86_64-unknown-linux-musl/debug/app
+
+    - name: "Run App in Kernel"
+      run: cargo +nightly xrun --package kernel --target kernel/x86_64-kernel.json
+      env:
+        APP: target/x86_64-unknown-linux-musl/debug/app
