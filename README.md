@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/haraldh/enarx_sev_kvm_demo.svg?branch=master)](https://travis-ci.org/haraldh/enarx_sev_kvm_demo)
+[![Build Stats](https://github.com/haraldh/enarx_sev_kvm_demo/workflows/Rust/badge.svg)](https://github.com/haraldh/enarx_sev_kvm_demo/actions)
 
 ## Current State
 * Sets up kvm in x86 64bit mode with pagetables
