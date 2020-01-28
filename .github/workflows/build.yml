@@ -22,6 +22,7 @@ jobs:
     - name: "Print Versions"
       run: |
         qemu-system-x86_64 --version
+        which rustup
         which cargo
         rustup show
         cargo +nightly -Vv
