@@ -19,12 +19,11 @@ jobs:
     - name: "Checkout Repository"
       uses: actions/checkout@v2
 
-    - name: "Set Default Toolchain"
-      run: rustup default nightly
-
-    - name: "Print Rust Version"
+    - name: "Print Versions"
       run: |
+        qemu-system-x86_64 --version
         which cargo
+        rustup show
         cargo +nightly -Vv
 
     - name: Cache binaries
