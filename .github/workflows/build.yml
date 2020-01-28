@@ -12,28 +12,12 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    container: ubuntu:rolling
+    container: quay.io/haraldh/rust-nightly-qemu-x86:latest
     steps:
     - name: "Checkout Repository"
-      uses: actions/checkout@v1
-
-      # install QEMU
-    - name: Install QEMU (Linux)
-      run: |
-        apt update
-        apt install qemu-system-x86 curl
-
-    - name: Install latest nightly
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: nightly
-        override: true
-
-    - name: Set Rustup profile to minimal
-      run: rustup set profile minimal
+      uses: actions/checkout@v2
 
     - name: "Print Rust Version"
       run: |
@@ -57,23 +41,10 @@ jobs:
     - name: "Run cargo test"
       run: cargo test
 
-    - name: "Install Rustup Targets"
-      run: rustup target add x86_64-unknown-linux-musl
-
-    - name: 'Build app'
+    - name: 'Build App'
       run: cargo build --package app --target x86_64-unknown-linux-musl
 
-    - name: "Install Rustup Components"
-      run: rustup component add rust-src llvm-tools-preview
-
-    - name: "Install cargo-xbuild"
-      run: cargo install cargo-xbuild --debug --root binaries
-
-      # install lld
-    - name: Install lld
-      run: sudo apt install lld
-
-    - name: "Run Test Framework"
+    - name: "Build Kernel"
       run: cargo +nightly xbuild --package kernel --target kernel/x86_64-kernel.json
       env:
         APP: target/x86_64-unknown-linux-musl/debug/app
@@ -81,7 +52,7 @@ jobs:
     - name: "Print QEMU Version"
       run: qemu-system-x86_64 --version
 
-    - name: "Run Test Framework"
+    - name: "Run Kernel Test Framework"
       run: cargo +nightly xtest --package kernel --target kernel/x86_64-kernel.json
       env:
         APP: target/x86_64-unknown-linux-musl/debug/app
