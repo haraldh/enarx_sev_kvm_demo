@@ -20,13 +20,13 @@ jobs:
       CARGO_HOME:  /root/.cargo
 
     steps:
-      - name: "Print Versions"
-        run: |
-          qemu-system-x86_64 --version
-          which rustup
-          which cargo
-          rustup show
-          cargo +nightly -Vv
+    - name: "Print Versions"
+      run: |
+        qemu-system-x86_64 --version
+        which rustup
+        which cargo
+        rustup show
+        cargo +nightly -Vv
 
     - name: "Checkout Repository"
       uses: actions/checkout@v2
