@@ -16,9 +16,10 @@ fn main() {
     let kvm = Kvm::new();
 
     match args.len() {
-        3 if args[1].eq("--fallback-qemu") => match kvm {
+        3..=std::usize::MAX if args[1].eq("--force-qemu") => main_qemu(&args[2], &args[3..]),
+        3..=std::usize::MAX if args[1].eq("--fallback-qemu") => match kvm {
             Ok(_) => main_kvm(&args[2]),
-            Err(_) => main_qemu(&args[2]),
+            Err(_) => main_qemu(&args[2], &args[3..]),
         },
         2 => main_kvm(&args[1]),
         _ => {
@@ -28,12 +29,12 @@ fn main() {
     }
 }
 
-fn main_qemu(kernel_blob: &str) -> ! {
+fn main_qemu(kernel_blob: &str, extra_args: &[String]) -> ! {
     let start = Instant::now();
 
     eprintln!("Starting QEMU {}", kernel_blob);
     let mut cmd = Command::new("qemu-system-x86_64");
-    cmd.args(&[
+    let mut args = vec![
         "-machine",
         "q35",
         "-cpu",
@@ -57,8 +58,13 @@ fn main_qemu(kernel_blob: &str) -> ! {
         "-serial",
         "chardev:char0",
         "-kernel",
-    ])
-    .arg(kernel_blob);
+    ];
+    args.push(kernel_blob);
+    if !extra_args.is_empty() {
+        eprintln!("Extra args!");
+        args.extend(extra_args.iter().map(String::as_str));
+    }
+    cmd.args(args);
     let mut child = cmd.spawn().expect("Unable to start qemu-system-x86_64");
     let status = child.wait().expect("Failed to wait on qemu-system-x86_64");
     let elapsed = start.elapsed();

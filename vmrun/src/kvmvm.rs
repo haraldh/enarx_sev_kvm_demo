@@ -303,19 +303,15 @@ impl KvmVm {
                         program::Type::Load => {}
                         _ => continue,
                     }
-
-                    let start_phys =
-                        PhysAddr::new(segment.virtual_addr /*- PHYSICAL_MEMORY_OFFSET*/);
+                    //dbg!(segment);
+                    let start_phys = PhysAddr::new(segment.physical_addr);
                     let start_frame: PhysFrame =
                         PhysFrame::from_start_address(start_phys.align_down(self.page_size as u64))
                             .unwrap();
 
                     let end_frame: PhysFrame = PhysFrame::from_start_address(
-                        PhysAddr::new(
-                            (segment.virtual_addr/*- PHYSICAL_MEMORY_OFFSET*/) + segment.mem_size
-                                - 1,
-                        )
-                        .align_up(self.page_size as u64),
+                        PhysAddr::new((segment.physical_addr) + segment.mem_size - 1)
+                            .align_up(self.page_size as u64),
                     )
                     .unwrap();
 
@@ -454,11 +450,7 @@ impl KvmVm {
 
         self.syscall_hostvaddr = Some(self.addr_gpa2hva(syscall_vaddr)?);
 
-        let mut boot_info = BootInfo::new(
-            self.frame_allocator.memory_map.clone(),
-            PML4_START as _,
-            PHYSICAL_MEMORY_OFFSET,
-        );
+        let mut boot_info = BootInfo::new(self.frame_allocator.memory_map.clone());
 
         boot_info.memory_map.sort();
         // Write boot info to boot info page.
@@ -474,6 +466,7 @@ impl KvmVm {
             .get_regs()
             .map_err(|e| ErrorKind::from(&e))?;
         regs.rflags |= 0x2;
+        //dbg!(BOOT_STACK_POINTER, guest_code, boot_info_vaddr);
         regs.rsp = BOOT_STACK_POINTER;
         regs.rip = guest_code.as_u64();
         regs.rdi = boot_info_vaddr.as_u64();

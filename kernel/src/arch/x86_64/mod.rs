@@ -8,10 +8,8 @@ pub mod structures;
 pub mod syscall;
 
 use crate::memory::BootInfoFrameAllocator;
-use vmbootspec::layout::{
-    PDPTE_OFFSET_START, PHYSICAL_MEMORY_OFFSET, USER_STACK_OFFSET, USER_STACK_SIZE,
-};
-use vmbootspec::{BootInfo, MemoryRegionType};
+use vmbootspec::layout::{PHYSICAL_MEMORY_OFFSET, USER_STACK_OFFSET, USER_STACK_SIZE};
+use vmbootspec::BootInfo;
 
 use crate::alloc::string::ToString;
 use crate::arch::x86_64::structures::paging::{
@@ -22,9 +20,27 @@ pub use x86_64::{PhysAddr, VirtAddr};
 
 use crt0stack::{AuxvEntry, Crt0Stack};
 use x86_64::instructions::random::RdRand;
-use x86_64::registers::control::Cr3;
 use x86_64::structures::paging::FrameDeallocator;
 use xmas_elf::program::{self, ProgramHeader64};
+
+/// Defines the entry point function.
+///
+/// The function must have the signature `fn(&'static BootInfo) -> !`.
+///
+/// This macro just creates a function named `_start`, which the linker will use as the entry
+/// point. The advantage of using this macro instead of providing an own `_start` function is
+/// that the macro ensures that the function and argument types are correct.
+#[macro_export]
+macro_rules! entry_point {
+    ($path:path) => {
+        #[export_name = "_start"]
+        pub extern "C" fn __impl_start(boot_info: &'static mut vmbootspec::BootInfo) -> ! {
+            // validate the signature of the program entry point
+            let f: fn(&'static mut vmbootspec::BootInfo) -> ! = $path;
+            f(boot_info)
+        }
+    };
+}
 
 const PAGESIZE: usize = 4096;
 pub fn pagesize() -> usize {
@@ -124,24 +140,6 @@ static mut ENTRY_POINT: Option<
 static mut FRAME_ALLOCATOR: Option<BootInfoFrameAllocator> = None;
 static mut MAPPER: Option<OffsetPageTable> = None;
 
-pub unsafe fn init_offset_pagetable() {
-    let p3o: &mut [u64] = core::slice::from_raw_parts_mut(PDPTE_OFFSET_START as _, 512);
-
-    for (i, entry) in p3o.iter_mut().enumerate().take(512) {
-        *entry = ((i as u64) << 30) | 0x183u64;
-    }
-    let (level_4_table_frame, _) = Cr3::read();
-
-    let pml4t: &mut [u64] =
-        core::slice::from_raw_parts_mut(level_4_table_frame.start_address().as_u64() as _, 512);
-
-    // Entry covering VA [0..512GB) with physical offset PHYSICAL_MEMORY_OFFSET
-    pml4t[(PHYSICAL_MEMORY_OFFSET >> 39) as usize & 0x1FFusize] = PDPTE_OFFSET_START as u64 | 0x7;
-
-    x86_64::instructions::tlb::flush(VirtAddr::new(level_4_table_frame.start_address().as_u64()));
-    x86_64::instructions::tlb::flush(VirtAddr::new(PDPTE_OFFSET_START as _));
-}
-
 pub fn init(
     boot_info: &'static mut BootInfo,
     entry_point: fn(
@@ -149,16 +147,13 @@ pub fn init(
         frame_allocator: &mut BootInfoFrameAllocator,
     ) -> !,
 ) -> ! {
-    unsafe {
-        init_offset_pagetable();
-    }
     gdt::init();
     unsafe { syscall::init() };
     interrupts::init();
 
     //eprintln!("{:#?}", boot_info);
 
-    let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
+    let phys_mem_offset = VirtAddr::new(PHYSICAL_MEMORY_OFFSET);
 
     unsafe { MAPPER.replace(crate::memory::init(phys_mem_offset)) };
 
@@ -183,6 +178,7 @@ fn init_after_stack_swap() -> ! {
     let mapper = unsafe { MAPPER.as_mut().unwrap() };
     let entry_point = unsafe { ENTRY_POINT.take().unwrap() };
 
+    use vmbootspec::MemoryRegionType;
     frame_allocator.set_region_type_usable(MemoryRegionType::KernelStack);
 
     entry_point(mapper, frame_allocator)
@@ -337,7 +333,7 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
 
     // Extract required information from the ELF file.
     let entry_point;
-    let app_start_ptr = unsafe { &_app_start_addr as *const _ as u64 } + PHYSICAL_MEMORY_OFFSET;
+    let app_start_ptr = unsafe { &_app_start_addr as *const _ as u64 };
     unsafe {
         eprintln!("app start {:#X}", app_start_ptr);
         eprintln!("app size {:#X}", &_app_size as *const _ as u64);

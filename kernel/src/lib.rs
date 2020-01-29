@@ -27,7 +27,6 @@ pub mod syscall;
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 pub unsafe fn context_switch(entry_point: fn() -> !, stack_pointer: usize) -> ! {
-    let entry_point: u64 = entry_point as usize as u64 + PHYSICAL_MEMORY_OFFSET;
     asm!("call $1; ${:private}.spin.${:uid}: jmp ${:private}.spin.${:uid}" ::
          "{rsp}"(stack_pointer), "r"(entry_point) :: "intel");
     ::core::hint::unreachable_unchecked()
@@ -69,10 +68,6 @@ pub fn hlt_loop() -> ! {
         x86_64::instructions::hlt();
     }
 }
-
-#[cfg(test)]
-use vmbootspec::entry_point;
-use vmbootspec::layout::PHYSICAL_MEMORY_OFFSET;
 
 #[cfg(test)]
 entry_point!(test_lib_main);

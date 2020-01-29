@@ -9,8 +9,8 @@
 use core::panic::PanicInfo;
 use kernel::arch::OffsetPageTable;
 use kernel::memory::BootInfoFrameAllocator;
-use kernel::{exit_hypervisor, println, HyperVisorExitCode};
-use vmbootspec::{entry_point, BootInfo};
+use kernel::{entry_point, exit_hypervisor, println, HyperVisorExitCode};
+use vmbootspec::BootInfo;
 
 entry_point!(kernel_main);
 

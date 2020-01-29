@@ -5,8 +5,8 @@
 use core::panic::PanicInfo;
 use kernel::arch::OffsetPageTable;
 use kernel::memory::BootInfoFrameAllocator;
-use kernel::{exit_hypervisor, serial_println, HyperVisorExitCode};
-use vmbootspec::{entry_point, BootInfo};
+use kernel::{entry_point, exit_hypervisor, serial_println, HyperVisorExitCode};
+use vmbootspec::BootInfo;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 
 entry_point!(main);

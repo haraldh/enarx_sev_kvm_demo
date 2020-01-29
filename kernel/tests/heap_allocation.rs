@@ -10,8 +10,8 @@ use alloc::{boxed::Box, vec::Vec};
 use core::panic::PanicInfo;
 use kernel::arch::OffsetPageTable;
 use kernel::memory::BootInfoFrameAllocator;
-use kernel::{serial_print, serial_println};
-use vmbootspec::{entry_point, BootInfo};
+use kernel::{entry_point, serial_print, serial_println};
+use vmbootspec::BootInfo;
 
 entry_point!(main);
 
