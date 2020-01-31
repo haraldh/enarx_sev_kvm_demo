@@ -11,7 +11,6 @@ use crate::memory::BootInfoFrameAllocator;
 use vmbootspec::layout::{PHYSICAL_MEMORY_OFFSET, USER_STACK_OFFSET, USER_STACK_SIZE};
 use vmbootspec::BootInfo;
 
-use crate::alloc::string::ToString;
 use crate::arch::x86_64::structures::paging::{
     mapper::MapToError, FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags, Size4KiB,
 };
@@ -381,30 +380,7 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
     const ELF64_HDR_SIZE: u64 = 0x40;
     const ELF64_PHDR_SIZE: u64 = 56;
 
-    let mut crt0sp = Crt0Stack::new();
-    crt0sp.argv.push("/init".to_string());
-    crt0sp.envp.push("LANG=C".to_string());
-
-    crt0sp.add_auxv_entry(AuxvEntry::ExecFilename("/init".to_string()));
-    crt0sp.add_auxv_entry(AuxvEntry::Platform("x86_64".to_string()));
-    crt0sp.add_auxv_entry(AuxvEntry::Uid(1000));
-    crt0sp.add_auxv_entry(AuxvEntry::EUid(1000));
-    crt0sp.add_auxv_entry(AuxvEntry::Gid(1000));
-    crt0sp.add_auxv_entry(AuxvEntry::EGid(1000));
-    crt0sp.add_auxv_entry(AuxvEntry::Pagesize(4096));
-    crt0sp.add_auxv_entry(AuxvEntry::Secure(false));
-    crt0sp.add_auxv_entry(AuxvEntry::ClockTick(100));
-    crt0sp.add_auxv_entry(AuxvEntry::Flags(0));
-    crt0sp.add_auxv_entry(AuxvEntry::PHdr(
-        (load_addr.unwrap().as_u64() + ELF64_HDR_SIZE) as _,
-    ));
-    crt0sp.add_auxv_entry(AuxvEntry::PHent(ELF64_PHDR_SIZE as _));
-    crt0sp.add_auxv_entry(AuxvEntry::PHnum(elf_file.program_iter().count()));
-
     let r = unsafe { core::arch::x86_64::__cpuid(1) };
-    crt0sp.add_auxv_entry(AuxvEntry::HWCap(r.edx as _));
-    crt0sp.add_auxv_entry(AuxvEntry::HWCap2(0));
-
     let rdrand = RdRand::new();
     let (r1, r2) = match rdrand {
         None => {
@@ -423,12 +399,36 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
     let r2u8 = unsafe { core::slice::from_raw_parts(&r2 as *const u64 as *const u8, 8) };
     ra[0..8].copy_from_slice(r1u8);
     ra[8..16].copy_from_slice(r2u8);
-    crt0sp.add_auxv_entry(AuxvEntry::Random(ra));
 
+    let auxv = [
+        AuxvEntry::ExecFilename("/init"),
+        AuxvEntry::Platform("x86_64"),
+        AuxvEntry::Uid(1000),
+        AuxvEntry::EUid(1000),
+        AuxvEntry::Gid(1000),
+        AuxvEntry::EGid(1000),
+        AuxvEntry::Pagesize(4096),
+        AuxvEntry::Secure(false),
+        AuxvEntry::ClockTick(100),
+        AuxvEntry::Flags(0),
+        AuxvEntry::PHdr((load_addr.unwrap().as_u64() + ELF64_HDR_SIZE) as _),
+        AuxvEntry::PHent(ELF64_PHDR_SIZE as _),
+        AuxvEntry::PHnum(elf_file.program_iter().count()),
+        AuxvEntry::HWCap(r.edx as _),
+        AuxvEntry::HWCap2(0),
+        AuxvEntry::Random(ra),
+    ];
     let sp_slice =
         unsafe { core::slice::from_raw_parts_mut((USER_STACK_OFFSET) as *mut u8, USER_STACK_SIZE) };
 
-    let sp_idx = crt0sp.serialize(sp_slice).unwrap();
+    let sp_idx = {
+        Crt0Stack::new()
+            .add_arg("/init")
+            .add_env("LANG=C")
+            .add_aux_entries(&auxv)
+            .serialize(sp_slice)
+            .unwrap()
+    };
     let sp = &mut sp_slice[sp_idx] as *mut u8 as usize;
     eprintln!("stackpointer={:#X}", sp);
     eprintln!("USER_STACK_OFFSET={:#X}", USER_STACK_OFFSET);
