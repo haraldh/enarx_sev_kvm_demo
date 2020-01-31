@@ -3,6 +3,7 @@ use serde::ser::Serialize;
 use serde_cbor;
 use serde_cbor::ser::SliceWrite;
 use serde_cbor::Serializer;
+use std::path::Path;
 use std::process::{exit, Command};
 use std::time::Instant;
 use vmbootspec::layout::SYSCALL_TRIGGER_PORT;
@@ -30,6 +31,11 @@ fn main() {
 }
 
 fn main_qemu(kernel_blob: &str, extra_args: &[String]) -> ! {
+    if !Path::new(kernel_blob).exists() {
+        eprintln!("Kernel image `{}` not found!", kernel_blob);
+        exit(1);
+    }
+
     let start = Instant::now();
 
     eprintln!("Starting QEMU {}", kernel_blob);
@@ -81,6 +87,11 @@ fn main_qemu(kernel_blob: &str, extra_args: &[String]) -> ! {
 
 fn main_kvm(kernel_blob: &str) {
     let start = Instant::now();
+
+    if !Path::new(kernel_blob).exists() {
+        eprintln!("Kernel image `{}` not found!", kernel_blob);
+        exit(1);
+    }
 
     eprintln!("Starting {}", kernel_blob);
 
