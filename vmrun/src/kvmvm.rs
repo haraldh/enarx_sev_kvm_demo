@@ -5,7 +5,6 @@ use crate::arch::x86_64::{
     HostVirtAddr, PhysAddr, VirtAddr,
 };
 use crate::error::*;
-use crate::frame_allocator::FrameAllocator;
 use crate::{context, map_context};
 use kvm_bindings::{kvm_mp_state, kvm_segment, kvm_userspace_memory_region, KVM_MAX_CPUID_ENTRIES};
 use kvm_ioctls::{Kvm, VcpuFd, VmFd};
@@ -28,7 +27,7 @@ pub struct KvmVm {
     pub cpu_fd: Vec<VcpuFd>,
     pub kvm_fd: VmFd,
     page_size: usize,
-    frame_allocator: FrameAllocator,
+    memory_map: MemoryMap,
     userspace_mem_regions: Vec<UserspaceMemRegion>,
     has_irqchip: bool,
     pub syscall_hostvaddr: Option<HostVirtAddr>,
@@ -52,9 +51,7 @@ impl KvmVm {
             cpu_fd: vec![],
             kvm_fd,
             page_size: DEFAULT_GUEST_PAGE_SIZE,
-            frame_allocator: FrameAllocator {
-                memory_map: MemoryMap::new(),
-            },
+            memory_map: MemoryMap::new(),
             userspace_mem_regions: vec![],
             has_irqchip: false,
             syscall_hostvaddr: None,
@@ -68,17 +65,17 @@ impl KvmVm {
             let page_table_frame: PhysFrame =
                 PhysFrame::from_start_address(PhysAddr::new(PML4_START as _)).unwrap();
 
-            vm.frame_allocator.mark_allocated_region(MemoryRegion {
+            vm.memory_map.mark_allocated_region(MemoryRegion {
                 range: frame_range(PhysFrame::range(zero_frame, zero_frame + 1)),
                 region_type: MemoryRegionType::FrameZero,
             });
 
-            vm.frame_allocator.mark_allocated_region(MemoryRegion {
+            vm.memory_map.mark_allocated_region(MemoryRegion {
                 range: frame_range(PhysFrame::range(zero_frame + 1, page_table_frame)),
                 region_type: MemoryRegionType::Reserved,
             });
 
-            vm.frame_allocator.mark_allocated_region(MemoryRegion {
+            vm.memory_map.mark_allocated_region(MemoryRegion {
                 range: frame_range(PhysFrame::range(
                     page_table_frame,
                     page_table_frame + PAGETABLE_LEN / vm.page_size as u64,
@@ -88,14 +85,14 @@ impl KvmVm {
 
             let bootinfo_frame: PhysFrame =
                 PhysFrame::from_start_address(PhysAddr::new(BOOTINFO_PHYS_ADDR)).unwrap();
-            vm.frame_allocator.mark_allocated_region(MemoryRegion {
+            vm.memory_map.mark_allocated_region(MemoryRegion {
                 range: frame_range(PhysFrame::range(bootinfo_frame, bootinfo_frame + 1)),
                 region_type: MemoryRegionType::BootInfo,
             });
 
             let syscall_frame: PhysFrame =
                 PhysFrame::from_start_address(PhysAddr::new(SYSCALL_PHYS_ADDR)).unwrap();
-            vm.frame_allocator.mark_allocated_region(MemoryRegion {
+            vm.memory_map.mark_allocated_region(MemoryRegion {
                 range: frame_range(PhysFrame::range(syscall_frame, syscall_frame + 1)),
                 region_type: MemoryRegionType::SysCall,
             });
@@ -106,7 +103,7 @@ impl KvmVm {
             .unwrap();
 
             if syscall_frame + 1 < stack_frame {
-                vm.frame_allocator.mark_allocated_region(MemoryRegion {
+                vm.memory_map.mark_allocated_region(MemoryRegion {
                     range: frame_range(PhysFrame::range(syscall_frame + 1, stack_frame)),
                     region_type: MemoryRegionType::Reserved,
                 });
@@ -115,7 +112,7 @@ impl KvmVm {
             let stack_frame_end: PhysFrame =
                 PhysFrame::from_start_address(PhysAddr::new(HIMEM_START as u64)).unwrap();
 
-            vm.frame_allocator.mark_allocated_region(MemoryRegion {
+            vm.memory_map.mark_allocated_region(MemoryRegion {
                 range: frame_range(PhysFrame::range(stack_frame, stack_frame_end)),
                 region_type: MemoryRegionType::KernelStack,
             });
@@ -177,7 +174,7 @@ impl KvmVm {
                 .map_err(|e| ErrorKind::from(&e))?
         };
 
-        self.frame_allocator.memory_map.add_region(MemoryRegion {
+        self.memory_map.add_region(MemoryRegion {
             range: FrameRange::new(
                 region.region.guest_phys_addr,
                 region.region.guest_phys_addr + region.region.memory_size,
@@ -321,8 +318,8 @@ impl KvmVm {
                     };
 
                     //dbg!(region);
-                    //dbg!(&self.frame_allocator.memory_map);
-                    self.frame_allocator.mark_allocated_region(region);
+                    //dbg!(&self.memory_map);
+                    self.memory_map.mark_allocated_region(region);
 
                     // FIXME: SEV LOAD
                     let host_slice = unsafe {
@@ -450,7 +447,7 @@ impl KvmVm {
 
         self.syscall_hostvaddr = Some(self.addr_gpa2hva(syscall_vaddr)?);
 
-        let mut boot_info = BootInfo::new(self.frame_allocator.memory_map.clone());
+        let mut boot_info = BootInfo::new(self.memory_map.clone());
 
         boot_info.memory_map.sort();
         // Write boot info to boot info page.

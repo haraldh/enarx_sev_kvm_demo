@@ -126,7 +126,7 @@ pub fn init_stack(
         use x86_64::instructions::tables::load_tss;
         gdt::GDT.as_ref().unwrap().0.load();
         gdt::TSS.as_mut().unwrap().privilege_stack_table[0] = stack_end;
-        //println!("privilege_stack_table[0] = 0x{:X}", stack_end.as_u64());
+        //println!("privilege_stack_table[0] = {:#X}", stack_end.as_u64());
         load_tss(gdt::GDT.as_ref().unwrap().1.tss_selector);
     }
 
@@ -461,7 +461,7 @@ pub(crate) fn map_user_segment<T: FrameAllocator<Size4KiB> + FrameDeallocator<Si
             unsafe {
                 if NEXT_MMAP < virt_end_addr.as_u64() {
                     NEXT_MMAP = virt_end_addr.as_u64();
-                    eprintln!("NEXT_MMAP = {:X}", NEXT_MMAP);
+                    eprintln!("NEXT_MMAP = {:#X}", NEXT_MMAP);
                 }
             }
 

@@ -91,7 +91,7 @@ pub fn init() {
                 static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
 
                 let stack_start = VirtAddr::from_ptr(&STACK);
-                //println!("double fault stack: 0x{:X}", stack_start.as_u64());
+                //println!("double fault stack: {:#X}", stack_start.as_u64());
                 stack_start + STACK_SIZE
             };
             tss.interrupt_stack_table[1usize] = {

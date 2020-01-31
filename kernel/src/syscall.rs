@@ -27,7 +27,7 @@ pub extern "C" fn handle_syscall(
 ) -> usize {
     /*
         eprintln!(
-            "SC> raw: syscall({}, 0x{:X}, 0x{:X}, 0x{:X}, {}, {}, 0x{:X})",
+            "SC> raw: syscall({}, {:#X}, {:#X}, {:#X}, {}, {}, {:#X})",
             nr, a, b, c, d, e, f
         );
     */
@@ -122,7 +122,7 @@ pub extern "C" fn handle_syscall(
 
             match a {
                 ARCH_SET_FS => {
-                    eprintln!("SC> arch_prctl(ARCH_SET_FS, 0x{:X}) = 0", b);
+                    eprintln!("SC> arch_prctl(ARCH_SET_FS, {:#X}) = 0", b);
                     let value: u64 = b as _;
                     unsafe {
                         asm!("wrfsbase $0" :: "r" (value) );
@@ -133,35 +133,35 @@ pub extern "C" fn handle_syscall(
                 ARCH_SET_GS => unimplemented!(),
                 ARCH_GET_GS => unimplemented!(),
                 x => {
-                    eprintln!("SC> arch_prctl(0x{:X}, 0x{:X}) = -EINVAL", x, b);
+                    eprintln!("SC> arch_prctl({:#X}, {:#X}) = -EINVAL", x, b);
                     EINVAL.neg_as_usize()
                 }
             }
         }
         SYSCALL_MUNMAP => {
             let ret = 0;
-            eprintln!("SC> dummy munmap(0x{:X}, {}, …) = {:#?}", a, b, ret);
+            eprintln!("SC> dummy munmap({:#X}, {}, …) = {:#?}", a, b, ret);
             ret
         }
         SYSCALL_MMAP => {
             if a == 0 {
                 let ret = mmap_user(b);
-                eprintln!("SC> mmap(0x{:X}, {}, …) = {:#?}", a, b, ret);
+                eprintln!("SC> mmap({:#X}, {}, …) = {:#?}", a, b, ret);
                 ret as _
             } else {
-                eprintln!("SC> mmap(0x{:X}, {}, …)", a, b);
+                eprintln!("SC> mmap({:#X}, {}, …)", a, b);
                 todo!();
             }
         }
         SYSCALL_BRK => unsafe {
             match a {
                 0 => {
-                    eprintln!("SC> brk(0x{:X}) = 0x{:X}", a, NEXT_MMAP);
+                    eprintln!("SC> brk({:#X}) = {:#X}", a, NEXT_MMAP);
                     NEXT_MMAP as _
                 }
                 n => {
                     brk_user(n - NEXT_MMAP as usize);
-                    eprintln!("SC> brk(0x{:X}) = 0x{:X}", a, NEXT_MMAP);
+                    eprintln!("SC> brk({:#X}) = {:#X}", a, NEXT_MMAP);
                     n as _
                 }
             }
