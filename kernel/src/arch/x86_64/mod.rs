@@ -17,7 +17,8 @@ use crate::arch::x86_64::structures::paging::{
 
 pub use x86_64::{PhysAddr, VirtAddr};
 
-use crt0stack::{AuxvEntry, Crt0Stack};
+use core::pin::Pin;
+use crt0stack::{self, AuxvEntry};
 use x86_64::instructions::random::RdRand;
 use x86_64::structures::paging::FrameDeallocator;
 use xmas_elf::program::{self, ProgramHeader64};
@@ -380,7 +381,7 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
     const ELF64_HDR_SIZE: u64 = 0x40;
     const ELF64_PHDR_SIZE: u64 = 56;
 
-    let r = unsafe { core::arch::x86_64::__cpuid(1) };
+    let hwcap = unsafe { core::arch::x86_64::__cpuid(1) }.edx;
     let rdrand = RdRand::new();
     let (r1, r2) = match rdrand {
         None => {
@@ -414,22 +415,18 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
         AuxvEntry::PHdr((load_addr.unwrap().as_u64() + ELF64_HDR_SIZE) as _),
         AuxvEntry::PHent(ELF64_PHDR_SIZE as _),
         AuxvEntry::PHnum(elf_file.program_iter().count()),
-        AuxvEntry::HWCap(r.edx as _),
+        AuxvEntry::HWCap(hwcap as _),
         AuxvEntry::HWCap2(0),
         AuxvEntry::Random(ra),
     ];
     let sp_slice =
         unsafe { core::slice::from_raw_parts_mut((USER_STACK_OFFSET) as *mut u8, USER_STACK_SIZE) };
 
-    let sp_idx = {
-        Crt0Stack::new()
-            .add_arg("/init")
-            .add_env("LANG=C")
-            .add_aux_entries(&auxv)
-            .serialize(sp_slice)
-            .unwrap()
-    };
-    let sp = &mut sp_slice[sp_idx] as *mut u8 as usize;
+    let sp_slice = Pin::new(sp_slice);
+    let stack = crt0stack::serialize(sp_slice, &["/init"], &["LANG=C"], &auxv).unwrap();
+
+    let (sp, _) = unsafe { stack.initial_ptr() };
+    let sp = sp as usize;
     eprintln!("stackpointer={:#X}", sp);
     eprintln!("USER_STACK_OFFSET={:#X}", USER_STACK_OFFSET);
     eprintln!("\n========= APP START =============\n");
