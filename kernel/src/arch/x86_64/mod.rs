@@ -401,30 +401,36 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
     ra[0..8].copy_from_slice(r1u8);
     ra[8..16].copy_from_slice(r2u8);
 
-    let auxv = [
-        AuxvEntry::ExecFilename("/init"),
-        AuxvEntry::Platform("x86_64"),
-        AuxvEntry::Uid(1000),
-        AuxvEntry::EUid(1000),
-        AuxvEntry::Gid(1000),
-        AuxvEntry::EGid(1000),
-        AuxvEntry::Pagesize(4096),
-        AuxvEntry::Secure(false),
-        AuxvEntry::ClockTick(100),
-        AuxvEntry::Flags(0),
-        AuxvEntry::PHdr((load_addr.unwrap().as_u64() + ELF64_HDR_SIZE) as _),
-        AuxvEntry::PHent(ELF64_PHDR_SIZE as _),
-        AuxvEntry::PHnum(elf_file.program_iter().count()),
-        AuxvEntry::HWCap(hwcap as _),
-        AuxvEntry::HWCap2(0),
-        AuxvEntry::Random(ra),
-    ];
     let sp_slice =
         unsafe { core::slice::from_raw_parts_mut((USER_STACK_OFFSET) as *mut u8, USER_STACK_SIZE) };
 
     let sp_slice = Pin::new(sp_slice);
-    let stack = crt0stack::serialize(sp_slice, &["/init"], &["LANG=C"], &auxv).unwrap();
+    let stack = crt0stack::serialize(
+        sp_slice,
+        &["/init"],
+        &["LANG=C"],
+        &[
+            AuxvEntry::ExecFilename("/init"),
+            AuxvEntry::Platform("x86_64"),
+            AuxvEntry::Uid(1000),
+            AuxvEntry::EUid(1000),
+            AuxvEntry::Gid(1000),
+            AuxvEntry::EGid(1000),
+            AuxvEntry::Pagesize(4096),
+            AuxvEntry::Secure(false),
+            AuxvEntry::ClockTick(100),
+            AuxvEntry::Flags(0),
+            AuxvEntry::PHdr((load_addr.unwrap().as_u64() + ELF64_HDR_SIZE) as _),
+            AuxvEntry::PHent(ELF64_PHDR_SIZE as _),
+            AuxvEntry::PHnum(elf_file.program_iter().count()),
+            AuxvEntry::HWCap(hwcap as _),
+            AuxvEntry::HWCap2(0),
+            AuxvEntry::Random(ra),
+        ],
+    )
+    .unwrap();
 
+    // Don't drop the returned ManuallyDrop object, because we exit the kernel afterwards anyway
     let (sp, _) = unsafe { stack.initial_ptr() };
     let sp = sp as usize;
     eprintln!("stackpointer={:#X}", sp);
