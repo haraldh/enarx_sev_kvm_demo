@@ -1,28 +1,9 @@
 use super::gdt;
 use core::hint::unreachable_unchecked;
 use x86_64::registers::control::EferFlags;
-use x86_64::registers::model_specific::{Efer, KernelGsBase, Msr};
+use x86_64::registers::model_specific::{Efer, KernelGsBase, LStar, SFMask, Star};
+use x86_64::registers::rflags::RFlags;
 use x86_64::VirtAddr;
-
-/// KernelGsBase Model Specific Register.
-#[derive(Debug)]
-pub struct Star;
-impl Star {
-    /// The underlying model specific register.
-    pub const MSR: Msr = Msr::new(0xc000_0081);
-}
-
-pub struct LStar;
-impl LStar {
-    /// The underlying model specific register.
-    pub const MSR: Msr = Msr::new(0xc000_0082);
-}
-
-pub struct FMask;
-impl FMask {
-    /// The underlying model specific register.
-    pub const MSR: Msr = Msr::new(0xc000_0084);
-}
 
 extern "C" {
     fn syscall_instruction() -> !;
@@ -35,8 +16,10 @@ pub unsafe fn init() {
             | ((((gdt::GDT.as_ref().unwrap().1.user_data_selector.index() as u64 - 1) << 3) | 3)
                 << 48),
     );
-    LStar::MSR.write(syscall_instruction as usize as u64);
-    FMask::MSR.write(0x300); // Clear trap flag and interrupt enable
+    LStar::write(VirtAddr::new(syscall_instruction as usize as u64));
+    // Clear trap flag and interrupt enable
+    SFMask::write(RFlags::INTERRUPT_FLAG | RFlags::TRAP_FLAG);
+
     KernelGsBase::write(VirtAddr::new(gdt::TSS.as_ref().unwrap() as *const _ as u64));
     Efer::update(|f| {
         f.insert(
