@@ -18,7 +18,7 @@ vmbootspec = {version = "0", path = "./vmbootspec"}
 vmsyscall = { version = "0.1", git = "https://github.com/enarx/enarx"}
 linux-syscall = { version="0.1", git = "https://github.com/enarx/enarx" }
 linux-errno = { version="0.1", git = "https://github.com/enarx/enarx" }
-crt0stack = { version = "0.5", git="https://github.com/haraldh/crt0stack" }
+crt0stack = { version = "0.6", git="https://github.com/haraldh/crt0stack", rev="dd2dfb680a787911aa05464f687b121f93a8ec6f"}
 
 xmas-elf = "0.7.0"
 spin = "0.5.2"

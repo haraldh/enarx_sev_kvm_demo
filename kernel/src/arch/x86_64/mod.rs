@@ -17,8 +17,7 @@ use crate::arch::x86_64::structures::paging::{
 
 pub use x86_64::{PhysAddr, VirtAddr};
 
-use core::pin::Pin;
-use crt0stack::{self, AuxvEntry};
+use crt0stack::{self, Builder, Entry};
 use x86_64::instructions::random::RdRand;
 use x86_64::structures::paging::FrameDeallocator;
 use xmas_elf::program::{self, ProgramHeader64};
@@ -401,37 +400,37 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
     ra[0..8].copy_from_slice(r1u8);
     ra[8..16].copy_from_slice(r2u8);
 
-    let sp_slice =
+    let mut sp_slice =
         unsafe { core::slice::from_raw_parts_mut((USER_STACK_OFFSET) as *mut u8, USER_STACK_SIZE) };
 
-    let sp_slice = Pin::new(sp_slice);
-    let stack = crt0stack::serialize(
-        sp_slice,
-        &["/init"],
-        &["LANG=C"],
-        &[
-            AuxvEntry::ExecFilename("/init"),
-            AuxvEntry::Platform("x86_64"),
-            AuxvEntry::Uid(1000),
-            AuxvEntry::EUid(1000),
-            AuxvEntry::Gid(1000),
-            AuxvEntry::EGid(1000),
-            AuxvEntry::Pagesize(4096),
-            AuxvEntry::Secure(false),
-            AuxvEntry::ClockTick(100),
-            AuxvEntry::Flags(0),
-            AuxvEntry::PHdr((load_addr.unwrap().as_u64() + ELF64_HDR_SIZE) as _),
-            AuxvEntry::PHent(ELF64_PHDR_SIZE as _),
-            AuxvEntry::PHnum(elf_file.program_iter().count()),
-            AuxvEntry::HWCap(hwcap as _),
-            AuxvEntry::HWCap2(0),
-            AuxvEntry::Random(ra),
-        ],
-    )
-    .unwrap();
+    let mut builder = Builder::new(&mut sp_slice);
+    builder.push("/init").unwrap();
+    let mut builder = builder.next().unwrap();
+    builder.push("LANG=C").unwrap();
+    let mut builder = builder.next().unwrap();
+    for aux in &[
+        Entry::ExecFilename("/init"),
+        Entry::Platform("x86_64"),
+        Entry::Uid(1000),
+        Entry::EUid(1000),
+        Entry::Gid(1000),
+        Entry::EGid(1000),
+        Entry::Pagesize(4096),
+        Entry::Secure(false),
+        Entry::ClockTick(100),
+        Entry::Flags(0),
+        Entry::PHdr((load_addr.unwrap().as_u64() + ELF64_HDR_SIZE) as _),
+        Entry::PHent(ELF64_PHDR_SIZE as _),
+        Entry::PHnum(elf_file.program_iter().count()),
+        Entry::HWCap(hwcap as _),
+        Entry::HWCap2(0),
+        Entry::Random(ra),
+    ] {
+        builder.push(aux).unwrap();
+    }
+    let handle = builder.done().unwrap();
+    let sp = unsafe { handle.get_start_ptr() };
 
-    // Don't drop the returned ManuallyDrop object, because we exit the kernel afterwards anyway
-    let (sp, _) = unsafe { stack.initial_ptr() };
     let sp = sp as usize;
     eprintln!("stackpointer={:#X}", sp);
     eprintln!("USER_STACK_OFFSET={:#X}", USER_STACK_OFFSET);
