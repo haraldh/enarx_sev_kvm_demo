@@ -1,13 +1,12 @@
-// The x86-interrupt calling convention leads to the following LLVM error
-// when compiled for a Windows target: "offset is not a multiple of 16". This
-// happens for example when running `cargo test` on Windows. To avoid this
-// problem we skip compilation of this module on Windows.
-#![cfg(not(windows))]
-
 use super::gdt;
 use crate::{eprintln, exit_hypervisor, hlt_loop, HyperVisorExitCode};
+use lazy_static::lazy_static;
 use pic8259_simple::ChainedPics;
 use spin;
+use spin::Mutex;
+
+use x2apic::lapic::{LocalApic, LocalApicBuilder, TimerDivide, TimerMode};
+use x86_64::instructions::port::Port;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 
 pub const PIC_1_OFFSET: u8 = 32;
@@ -18,6 +17,9 @@ pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
 pub enum InterruptIndex {
     Timer = PIC_1_OFFSET,
     Keyboard,
+    LapicTimer = 100,
+    Error,
+    Spurious,
 }
 
 impl InterruptIndex {
@@ -32,6 +34,21 @@ impl InterruptIndex {
 
 pub static PICS: spin::Mutex<ChainedPics> =
     spin::Mutex::new(unsafe { ChainedPics::new(PIC_1_OFFSET, PIC_2_OFFSET) });
+
+lazy_static! {
+    pub static ref LAPIC: Mutex<Option<LocalApic>> = {
+        let lapic = LocalApicBuilder::new()
+            .timer_vector(InterruptIndex::LapicTimer.as_usize())
+            .timer_initial(0x100_0000)
+            .timer_divide(TimerDivide::Div256)
+            .timer_mode(TimerMode::Periodic)
+            .error_vector(InterruptIndex::Error.as_usize())
+            .spurious_vector(InterruptIndex::Spurious.as_usize())
+            .build();
+
+        Mutex::new(lapic.ok())
+    };
+}
 
 pub static mut IDT: Option<InterruptDescriptorTable> = None;
 
@@ -104,12 +121,37 @@ pub fn init() {
                 idt[i].set_handler_fn(unknown_interrupt_handler);
             }
             idt[InterruptIndex::Timer.as_usize()].set_handler_fn(timer_interrupt_handler);
+            idt[InterruptIndex::LapicTimer.as_usize()]
+                .set_handler_fn(lapic_timer_interrupt_handler);
+            idt[InterruptIndex::Error.as_usize()].set_handler_fn(error_interrupt_handler);
+            idt[InterruptIndex::Spurious.as_usize()].set_handler_fn(spurious_interrupt_handler);
             idt[InterruptIndex::Keyboard.as_usize()].set_handler_fn(keyboard_interrupt_handler);
             idt
         });
         IDT.as_ref().unwrap().load();
     }
-    unsafe { PICS.lock().initialize() };
+
+    if let Some(l) = LAPIC.lock().as_mut() {
+        unsafe {
+            l.enable();
+            l.enable_timer();
+        }
+    }
+
+    unsafe {
+        PICS.lock().initialize();
+        //PICS.lock().unmask();
+    };
+
+    let mut cp = Port::new(0x43);
+    unsafe {
+        cp.write(0b00110100_u8);
+    }
+    let mut p = Port::new(0x40);
+    unsafe {
+        p.write(0xFF_u8);
+        p.write(0xFF_u8);
+    }
     x86_64::instructions::interrupts::enable();
 }
 
@@ -285,6 +327,29 @@ extern "x86-interrupt" fn unknown_interrupt_handler(stack_frame: &mut InterruptS
     hlt_loop();
 }
 
+extern "x86-interrupt" fn spurious_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
+    eprintln!("EXCEPTION: spurious interrupt");
+    eprintln!("{:#?}", stack_frame);
+    exit_hypervisor(HyperVisorExitCode::Failed);
+    hlt_loop();
+}
+
+extern "x86-interrupt" fn error_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
+    eprintln!("EXCEPTION: error interrupt");
+    eprintln!("{:#?}", stack_frame);
+    exit_hypervisor(HyperVisorExitCode::Failed);
+    hlt_loop();
+}
+
+extern "x86-interrupt" fn lapic_timer_interrupt_handler(_stack_frame: &mut InterruptStackFrame) {
+    eprintln!("*");
+    unsafe {
+        if let Some(l) = LAPIC.lock().as_mut() {
+            l.end_of_interrupt();
+        }
+    }
+}
+
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: &mut InterruptStackFrame) {
     eprintln!(".");
     unsafe {
@@ -295,8 +360,6 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: &mut InterruptSt
 
 extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: &mut InterruptStackFrame) {
     //use pc_keyboard::{layouts, DecodedKey, Keyboard, ScancodeSet1};
-    use x86_64::instructions::port::Port;
-
     let mut port = Port::new(0x60);
 
     let scancode: u8 = unsafe { port.read() };

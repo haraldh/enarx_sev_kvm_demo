@@ -30,6 +30,7 @@ serde_cbor = { version = "0.11", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 cstrptr = { version = "0.1", default-features = false, features = ["alloc", "unstable"] }
 #safe-transmute = "0.10.1"
+x2apic = "0.1.0"
 
 lazy_static = { version="1.4.0", features = ["spin_no_std"] }
 
