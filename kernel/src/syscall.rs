@@ -15,6 +15,13 @@ impl NegAsUsize for Errno {
     }
 }
 
+#[inline(always)]
+pub fn read_rsp() -> u64 {
+    let val: u64;
+    unsafe { asm!("mov $0, rsp" : "=r"(val) ::: "intel", "volatile") }
+    val
+}
+
 #[allow(clippy::many_single_char_names)]
 pub extern "C" fn handle_syscall(
     a: usize,
@@ -25,12 +32,13 @@ pub extern "C" fn handle_syscall(
     f: usize,
     nr: usize,
 ) -> usize {
-    /*
-        eprintln!(
-            "SC> raw: syscall({}, {:#X}, {:#X}, {:#X}, {}, {}, {:#X})",
-            nr, a, b, c, d, e, f
-        );
-    */
+    /*eprintln!(
+        "SC> raw: syscall({}, {:#X}, {:#X}, {:#X}, {}, {}, {:#X})",
+        nr, a, b, c, d, e, f
+    );*/
+
+    //eprintln!("stackpointer: {:#X}", read_rsp());
+
     match (nr as u64).into() {
         SYSCALL_EXIT => {
             eprintln!("SC> exit({})", a);
