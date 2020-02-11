@@ -378,7 +378,14 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
     let hwcap = unsafe { core::arch::x86_64::__cpuid(1) }.edx;
     let rdrand = RdRand::new();
     let (r1, r2) = match rdrand {
-        None => panic!("No rdrand supported by CPU"),
+        None => {
+            if cfg!(debug_assertions) {
+                eprintln!("!!! No RDRAND. Using pseudo random numbers!!!");
+                (0xAFFEAFFEAFFEAFFEu64, 0xC0FFEEC0FFEEC0FFu64)
+            } else {
+                panic!("No rdrand supported by CPU")
+            }
+        }
         Some(rdrand) => (rdrand.get_u64().unwrap(), rdrand.get_u64().unwrap()),
     };
 
