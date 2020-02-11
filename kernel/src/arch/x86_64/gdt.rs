@@ -1,9 +1,11 @@
 //! Global Descriptor Table init
 
 use x86_64::instructions::segmentation::{load_ds, load_es, load_fs, load_gs, load_ss};
+use x86_64::instructions::tables::load_tss;
 use x86_64::registers::control::{Cr0, Cr0Flags, Cr4, Cr4Flags};
-use x86_64::structures::gdt::GlobalDescriptorTable;
-use x86_64::structures::gdt::{Descriptor, DescriptorFlags, SegmentSelector};
+use x86_64::structures::gdt::{
+    Descriptor, DescriptorFlags, GlobalDescriptorTable, SegmentSelector,
+};
 use x86_64::structures::tss::TaskStateSegment;
 use x86_64::VirtAddr;
 
@@ -94,14 +96,14 @@ pub fn init() {
                 //println!("double fault stack: {:#X}", stack_start.as_u64());
                 stack_start + STACK_SIZE
             };
-            tss.interrupt_stack_table[1usize] = {
+            tss.interrupt_stack_table[1_usize] = {
                 const STACK_SIZE: usize = 4096 * 5;
                 static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
 
                 let stack_start = VirtAddr::from_ptr(&STACK);
                 stack_start + STACK_SIZE
             };
-            tss.interrupt_stack_table[2usize] = {
+            tss.interrupt_stack_table[2_usize] = {
                 const STACK_SIZE: usize = 4096 * 5;
                 static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
 
@@ -154,10 +156,6 @@ pub fn init() {
     unsafe {
         set_cs(gdt.1.code_selector);
         load_ss(gdt.1.data_selector);
-
-        // Is done later with the real kernel stack
-        //use x86_64::instructions::tables::load_tss;
-        //load_tss(gdt.1.tss_selector);
-        // FIXME: general_protection_fault 48
+        load_tss(gdt.1.tss_selector);
     }
 }

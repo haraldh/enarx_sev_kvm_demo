@@ -122,12 +122,7 @@ pub fn init_stack(
         .flush();
 
     unsafe {
-        eprintln!("load_tss");
-        use x86_64::instructions::tables::load_tss;
-        gdt::GDT.as_ref().unwrap().0.load();
-        gdt::TSS.as_mut().unwrap().privilege_stack_table[0] = stack_end;
-        //println!("privilege_stack_table[0] = {:#X}", stack_end.as_u64());
-        load_tss(gdt::GDT.as_ref().unwrap().1.tss_selector);
+        gdt::TSS.as_mut().unwrap().privilege_stack_table[0] = stack_end.align_down(64u64);
     }
 
     Ok(())
