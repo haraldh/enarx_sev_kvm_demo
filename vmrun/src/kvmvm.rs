@@ -6,7 +6,10 @@ use crate::arch::x86_64::{
 };
 use crate::error::*;
 use crate::{context, map_context};
-use kvm_bindings::{kvm_mp_state, kvm_segment, kvm_userspace_memory_region, KVM_MAX_CPUID_ENTRIES};
+use kvm_bindings::{
+    kvm_mp_state, kvm_pit_config, kvm_segment, kvm_userspace_memory_region, KVM_MAX_CPUID_ENTRIES,
+    KVM_PIT_SPEAKER_DUMMY,
+};
 use kvm_ioctls::{Kvm, VcpuFd, VmFd};
 use linux_errno::*;
 use vmbootspec::{layout::*, BootInfo, FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
@@ -423,6 +426,11 @@ impl KvmVm {
 
         sregs.cr3 = PML4_START as _;
 
+        /*
+                sregs.cr8 = 0;
+                sregs.apic_base = 1 << 11;
+        */
+
         self.cpu_fd[vcpuid as usize]
             .set_sregs(&sregs)
             .map_err(|e| ErrorKind::from(&e))?;
@@ -465,6 +473,7 @@ impl KvmVm {
         regs.rflags |= 0x2;
         //dbg!(BOOT_STACK_POINTER, guest_code, boot_info_vaddr);
         regs.rsp = BOOT_STACK_POINTER;
+        regs.rbp = BOOT_STACK_POINTER;
         regs.rip = guest_code.as_u64();
         regs.rdi = boot_info_vaddr.as_u64();
 
@@ -560,6 +569,15 @@ impl KvmVm {
             .create_irq_chip()
             .map_err(|e| ErrorKind::from(&e))?;
         self.has_irqchip = true;
+
+        let mut pit_config = kvm_pit_config::default();
+        // We need to enable the emulation of a dummy speaker port stub so that writing to port 0x61
+        // (i.e. KVM_SPEAKER_BASE_ADDRESS) does not trigger an exit to user space.
+        pit_config.flags = KVM_PIT_SPEAKER_DUMMY;
+        self.kvm_fd
+            .create_pit2(pit_config)
+            .map_err(|e| ErrorKind::from(&e))?;
+
         Ok(())
     }
 
@@ -571,11 +589,11 @@ impl KvmVm {
         /* Create VM */
         let mut vm = KvmVm::vm_create((DEFAULT_GUEST_MEM / DEFAULT_GUEST_PAGE_SIZE as u64) as _)?;
 
-        /* Setup guest code */
-        let guest_code = vm.elf_load(program_invocation_name, entry_symbol)?;
-
         /* Setup IRQ Chip */
         vm.create_irqchip()?;
+
+        /* Setup guest code */
+        let guest_code = vm.elf_load(program_invocation_name, entry_symbol)?;
 
         /* Add the first vCPU. */
         vm.vcpu_add_default(vcpuid, guest_code)?;
