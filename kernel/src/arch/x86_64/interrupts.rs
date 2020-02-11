@@ -169,7 +169,7 @@ extern "x86-interrupt" fn general_protection_fault(
     stack_frame: &mut InterruptStackFrame,
     error_code: u64,
 ) {
-    eprintln!("general_protection_fault {}", error_code);
+    eprintln!("general_protection_fault {:#b}", error_code);
     eprintln!("{:#?}", stack_frame);
     exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
