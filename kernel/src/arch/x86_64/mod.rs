@@ -178,10 +178,10 @@ fn init_after_stack_swap() -> ! {
     entry_point(mapper, frame_allocator)
 }
 
-// TODO: muti-thread or syscall-proxy
+// TODO: multi-thread or syscall-proxy
 pub static mut NEXT_MMAP: u64 = 0;
 
-// TODO: muti-thread or syscall-proxy
+// TODO: multi-thread or syscall-proxy
 pub fn mmap_user(len: usize) -> *mut u8 {
     let virt_start_addr;
     unsafe {
