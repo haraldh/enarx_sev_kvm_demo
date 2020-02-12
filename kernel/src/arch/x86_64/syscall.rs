@@ -1,7 +1,6 @@
 use super::gdt;
 use core::hint::unreachable_unchecked;
-use x86_64::registers::control::EferFlags;
-use x86_64::registers::model_specific::{Efer, KernelGsBase, LStar, SFMask, Star};
+use x86_64::registers::model_specific::{KernelGsBase, LStar, SFMask, Star};
 use x86_64::registers::rflags::RFlags;
 use x86_64::VirtAddr;
 
@@ -21,14 +20,6 @@ pub unsafe fn init() {
     SFMask::write(RFlags::INTERRUPT_FLAG | RFlags::TRAP_FLAG);
 
     KernelGsBase::write(VirtAddr::new(gdt::TSS.as_ref().unwrap() as *const _ as u64));
-    Efer::update(|f| {
-        f.insert(
-            EferFlags::LONG_MODE_ACTIVE
-                | EferFlags::LONG_MODE_ENABLE
-                | EferFlags::NO_EXECUTE_ENABLE
-                | EferFlags::SYSTEM_CALL_EXTENSIONS,
-        )
-    });
 }
 
 #[allow(clippy::many_single_char_names)]

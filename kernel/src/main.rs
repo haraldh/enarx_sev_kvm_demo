@@ -5,6 +5,7 @@
 #![test_runner(kernel::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 #![allow(clippy::empty_loop)]
+#![feature(lang_items)]
 
 use core::panic::PanicInfo;
 use kernel::arch::OffsetPageTable;
@@ -13,6 +14,9 @@ use kernel::{entry_point, exit_hypervisor, println, HyperVisorExitCode};
 use vmbootspec::BootInfo;
 
 entry_point!(kernel_main);
+
+#[lang = "eh_personality"]
+extern "C" fn eh_personality() {}
 
 #[cfg(not(test))]
 fn kernel_main(boot_info: &'static mut BootInfo) -> ! {

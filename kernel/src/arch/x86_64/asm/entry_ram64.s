@@ -1,15 +1,18 @@
 .section .entry64, "ax"
-.global _pto_start
+.global _start
 .code64
 
-_pto_start:
-    movabs $_start,%rax
+_start:
     # Indicate (via serial) that we are in long/64-bit mode
-    #movw $0x2f8, %dx
-    #movb $'L', %al
-    #outb %al, %dx
-    #movb $'\n', %al
-    #outb %al, %dx
+    /*
+    movw $0x2f8, %dx
+    movb $'L', %al
+    outb %al, %dx
+    movb $'\n', %al
+    outb %al, %dx
+    */
+
+    movabs $_start_main,%rax
 
 
 # %rax  = jmp to start function
@@ -17,6 +20,56 @@ _pto_start:
 _setup_pto:
     mov    %rdi, %r11
     mov    %rax, %r12
+
+/*
+        Cr4::update(|f| {
+            f.insert(
+                Cr4Flags::FSGSBASE
+                    | Cr4Flags::PHYSICAL_ADDRESS_EXTENSION
+                    | Cr4Flags::OSFXSR
+                    | Cr4Flags::OSXMMEXCPT_ENABLE
+                    | Cr4Flags::OSXSAVE,
+            )
+        });
+        Cr0::update(|cr0| {
+            cr0.insert(
+                Cr0Flags::PROTECTED_MODE_ENABLE | Cr0Flags::NUMERIC_ERROR | Cr0Flags::PAGING,
+            );
+            cr0.remove(Cr0Flags::EMULATE_COPROCESSOR | Cr0Flags::MONITOR_COPROCESSOR)
+        });
+
+        Efer::update(|efer| {
+            efer.insert(
+                EferFlags::LONG_MODE_ACTIVE
+                    | EferFlags::LONG_MODE_ENABLE
+                    | EferFlags::NO_EXECUTE_ENABLE
+                    | EferFlags::SYSTEM_CALL_EXTENSIONS,
+            )
+        });
+*/
+    mov    %cr4,%rax
+    or     $0x50620,%rax
+    mov    %rax,%cr4
+
+    mov    %cr0,%rax
+    and    $0x60050008,%eax
+    mov    $0x80000021,%ecx
+    or     %rax,%rcx
+    mov    %rcx,%cr0
+
+    mov    $0xc0000080,%ecx
+    rdmsr
+    or     $0xd01,%eax
+    mov    $0xc0000080,%ecx
+    wrmsr
+
+/*
+    xor    %ecx,%ecx
+    xgetbv
+    or     $0x3,%eax
+    xor    %ecx,%ecx
+    xsetbv
+*/
 
     # setup physical offset page table
     movl $pml3to, %eax
@@ -44,8 +97,21 @@ _setup_pto:
     cmp    $0x203,%rsi
     jne    .L2
 
+_before_jump:
     mov    %r11, %rdi
     mov    %r12, %rax
+
+    # align stack
+    addq   $8, %rsp
+    andq   $0xFFFFFFFFFFFFFFC0, %rsp
+    subq   $8, %rsp
+    # align rbp
+    addq   $8, %rbp
+    andq   $0xFFFFFFFFFFFFFFC0, %rbp
+    subq   $8, %rbp
+
+
+    # jump into kernel space
     jmpq *%rax
 
 .pto_halt_loop:

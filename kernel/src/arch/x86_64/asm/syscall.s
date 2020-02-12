@@ -2,6 +2,8 @@
 .global syscall_instruction
 .code64
 
+XSAVE_STACK_OFFSET = (16*64 + 3 * 8)
+
 syscall_instruction:
     cli
     swapgs                 // Set gs segment to TSS
@@ -14,26 +16,69 @@ syscall_instruction:
     pushq  $0x23           // Push userspace code segment  ((gdt::USER_CODE_SEG << 3) | 3)
     push   %rcx            // Push userspace return pointer
     swapgs                 // Restore gs
+
+    // xsave
+    movq   %rax, %r11
+    movq   %rdx, %rcx
+
+    subq   $XSAVE_STACK_OFFSET, %rsp
+
+    // memzero xsave array
+	xorq	%rax, %rax
+.L2C:
+	movq	$0, (%rsp,%rax,8)
+	addl	$1, %eax
+	cmpl	$(XSAVE_STACK_OFFSET/8), %eax
+	jne	.L2C
+
+    movl   $-1, %edx
+    movl   $-1, %eax
+    xsaveopt  (%rsp)
+
+    movq   %r11, %rax
+    movq   %rcx, %rdx
+    // xsave end
+
     sti
 
     // SYSV:    rdi, rsi, rdx, rcx, r8, r9
     // SYSCALL: rdi, rsi, rdx, r10, r8, r9
     mov    %r10, %rcx
-    push   %rdi
-    push   %rsi
-    push   %rdx
-    push   %r10
-    push   %r8
-    push   %r9
-    push   %rax
+
+    pushq   %rdi
+    pushq   %rdi
+    pushq   %rsi
+    pushq   %rdx
+    pushq   %r10
+    pushq   %r8
+    pushq   %r9
+    pushq   %rax
+
     callq  syscall_rust
-    pop    %rcx
-    pop    %r9
-    pop    %r8
-    pop    %r10
-    pop    %rdx
-    pop    %rsi
-    pop    %rdi
+
+    popq    %rcx
+    popq    %r9
+    popq    %r8
+    popq    %r10
+    popq    %rdx
+    popq    %rsi
+    popq    %rdi
+    popq    %rdi
+
+    cli
+
+    // xrstor
+    movq   %rax, %r11
+    movq   %rdx, %rcx
+
+    movl   $-1, %edx
+    movl   $-1, %eax
+    xrstor (%rsp)
+    addq   $XSAVE_STACK_OFFSET, %rsp
+
+    movq   %r11, %rax
+    movq   %rcx, %rdx
+    // xrstor end
 
     // FIXME: want to protect the kernel against userspace?
     // https://www.kernel.org/doc/Documentation/x86/entry_64.txt

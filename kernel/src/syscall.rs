@@ -38,6 +38,7 @@ pub extern "C" fn handle_syscall(
     );*/
 
     //eprintln!("stackpointer: {:#X}", read_rsp());
+    //eprintln!("stackpointer initial: {:#X}", f);
 
     match (nr as u64).into() {
         SYSCALL_EXIT => {

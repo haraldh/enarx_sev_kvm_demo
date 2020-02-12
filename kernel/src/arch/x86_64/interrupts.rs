@@ -53,7 +53,9 @@ lazy_static! {
 pub static mut IDT: Option<InterruptDescriptorTable> = None;
 
 pub fn init() {
+    #[cfg(debug_assertions)]
     eprintln!("interrupts::init");
+
     unsafe {
         IDT.replace({
             let mut idt = InterruptDescriptorTable::new();
@@ -342,6 +344,7 @@ extern "x86-interrupt" fn error_interrupt_handler(stack_frame: &mut InterruptSta
 }
 
 extern "x86-interrupt" fn lapic_timer_interrupt_handler(_stack_frame: &mut InterruptStackFrame) {
+    #[cfg(debug_assertions)]
     eprintln!("*");
     unsafe {
         if let Some(l) = LAPIC.lock().as_mut() {
@@ -351,6 +354,7 @@ extern "x86-interrupt" fn lapic_timer_interrupt_handler(_stack_frame: &mut Inter
 }
 
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: &mut InterruptStackFrame) {
+    #[cfg(debug_assertions)]
     eprintln!(".");
     unsafe {
         PICS.lock()

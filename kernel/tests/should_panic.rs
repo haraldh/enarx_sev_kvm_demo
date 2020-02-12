@@ -5,7 +5,7 @@ use core::panic::PanicInfo;
 use kernel::{exit_hypervisor, serial_print, serial_println, HyperVisorExitCode};
 
 #[no_mangle]
-pub extern "C" fn _start() -> ! {
+pub extern "C" fn _start_main() -> ! {
     should_fail();
     serial_println!("[test did not panic]");
     exit_hypervisor(HyperVisorExitCode::Failed);

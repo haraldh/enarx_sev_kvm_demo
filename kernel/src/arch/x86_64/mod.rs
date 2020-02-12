@@ -6,10 +6,12 @@ pub mod interrupts;
 mod start_e820;
 pub mod structures;
 pub mod syscall;
+mod xcr0;
 
 use crate::memory::BootInfoFrameAllocator;
 use vmbootspec::layout::{PHYSICAL_MEMORY_OFFSET, USER_STACK_OFFSET, USER_STACK_SIZE};
 use vmbootspec::BootInfo;
+use xcr0::{XCr0, XCr0Flags};
 
 use crate::arch::x86_64::structures::paging::{
     mapper::MapToError, FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags, Size4KiB,
@@ -32,7 +34,7 @@ use xmas_elf::program::{self, ProgramHeader64};
 #[macro_export]
 macro_rules! entry_point {
     ($path:path) => {
-        #[export_name = "_start"]
+        #[export_name = "_start_main"]
         pub extern "C" fn __impl_start(boot_info: &'static mut vmbootspec::BootInfo) -> ! {
             // validate the signature of the program entry point
             let f: fn(&'static mut vmbootspec::BootInfo) -> ! = $path;
@@ -54,6 +56,65 @@ pub const STACK_SIZE: usize = 1024 * 1024; // 1MiB
 extern "C" {
     static _app_start_addr: usize;
     static _app_size: usize;
+}
+
+static mut ENTRY_POINT: Option<
+    fn(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFrameAllocator) -> !,
+> = None;
+static mut FRAME_ALLOCATOR: Option<BootInfoFrameAllocator> = None;
+static mut MAPPER: Option<OffsetPageTable> = None;
+
+pub fn init(
+    boot_info: &'static mut BootInfo,
+    entry_point: fn(
+        mapper: &mut OffsetPageTable,
+        frame_allocator: &mut BootInfoFrameAllocator,
+    ) -> !,
+) -> ! {
+    //eprintln!("{}:{}", file!(), line!());
+    unsafe {
+        let xsave_supported = (core::arch::x86_64::__cpuid(0x1).ecx & (1 << 26)) != 0;
+        assert!(xsave_supported);
+
+        let xsaveopt_supported = (core::arch::x86_64::__cpuid_count(0xD, 1).eax & 1) == 1;
+        assert!(xsaveopt_supported);
+
+        let sse_extended_supported =
+            (core::arch::x86_64::__cpuid_count(0xd, 0).eax & 0b111) == 0b111;
+        if sse_extended_supported {
+            XCr0::update(|xcr0| xcr0.insert(XCr0Flags::YMM));
+        } else {
+            XCr0::update(|xcr0| xcr0.insert(XCr0Flags::SSE));
+        }
+
+        let xsave_size = core::arch::x86_64::__cpuid(0xD).ebx;
+        assert!(xsave_size < (16 * 64 - 64));
+    }
+    //eprintln!("{}:{}", file!(), line!());
+    gdt::init();
+    unsafe { syscall::init() };
+    interrupts::init();
+
+    //eprintln!("{:#?}", boot_info);
+
+    let phys_mem_offset = VirtAddr::new(PHYSICAL_MEMORY_OFFSET);
+
+    unsafe { MAPPER.replace(crate::memory::init(phys_mem_offset)) };
+
+    let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&mut boot_info.memory_map) };
+
+    init_heap(unsafe { MAPPER.as_mut().unwrap() }, &mut frame_allocator)
+        .expect("heap initialization failed");
+
+    init_stack(unsafe { MAPPER.as_mut().unwrap() }, &mut frame_allocator)
+        .expect("stack initialization failed");
+
+    unsafe {
+        FRAME_ALLOCATOR.replace(frame_allocator);
+        ENTRY_POINT.replace(entry_point);
+    }
+
+    unsafe { crate::context_switch(init_after_stack_swap, STACK_START + STACK_SIZE) }
 }
 
 pub fn init_heap(
@@ -126,45 +187,6 @@ pub fn init_stack(
     }
 
     Ok(())
-}
-
-static mut ENTRY_POINT: Option<
-    fn(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFrameAllocator) -> !,
-> = None;
-static mut FRAME_ALLOCATOR: Option<BootInfoFrameAllocator> = None;
-static mut MAPPER: Option<OffsetPageTable> = None;
-
-pub fn init(
-    boot_info: &'static mut BootInfo,
-    entry_point: fn(
-        mapper: &mut OffsetPageTable,
-        frame_allocator: &mut BootInfoFrameAllocator,
-    ) -> !,
-) -> ! {
-    gdt::init();
-    unsafe { syscall::init() };
-    interrupts::init();
-
-    //eprintln!("{:#?}", boot_info);
-
-    let phys_mem_offset = VirtAddr::new(PHYSICAL_MEMORY_OFFSET);
-
-    unsafe { MAPPER.replace(crate::memory::init(phys_mem_offset)) };
-
-    let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&mut boot_info.memory_map) };
-
-    init_heap(unsafe { MAPPER.as_mut().unwrap() }, &mut frame_allocator)
-        .expect("heap initialization failed");
-
-    init_stack(unsafe { MAPPER.as_mut().unwrap() }, &mut frame_allocator)
-        .expect("stack initialization failed");
-
-    unsafe {
-        FRAME_ALLOCATOR.replace(frame_allocator);
-        ENTRY_POINT.replace(entry_point);
-    }
-
-    unsafe { crate::context_switch(init_after_stack_swap, STACK_START + STACK_SIZE) }
 }
 
 fn init_after_stack_swap() -> ! {
@@ -328,6 +350,7 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
     // Extract required information from the ELF file.
     let entry_point;
     let app_start_ptr = unsafe { &_app_start_addr as *const _ as u64 };
+    #[cfg(debug_assertions)]
     unsafe {
         eprintln!("app start {:#X}", app_start_ptr);
         eprintln!("app size {:#X}", &_app_size as *const _ as u64);
@@ -365,6 +388,7 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
         }
     }
 
+    #[cfg(debug_assertions)]
     eprintln!("app_entry_point={:#X}", entry_point);
     //println!("{}:{}", file!(), line!());
 
@@ -427,9 +451,12 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
     let sp = unsafe { handle.get_start_ptr() };
 
     let sp = sp as usize;
-    eprintln!("stackpointer={:#X}", sp);
-    eprintln!("USER_STACK_OFFSET={:#X}", USER_STACK_OFFSET);
-    eprintln!("\n========= APP START =============\n");
+    #[cfg(debug_assertions)]
+    {
+        eprintln!("stackpointer={:#X}", sp);
+        eprintln!("USER_STACK_OFFSET={:#X}", USER_STACK_OFFSET);
+        eprintln!("\n========= APP START =============\n");
+    }
     unsafe {
         syscall::usermode(entry_point as usize, sp, 0);
     }
@@ -458,6 +485,7 @@ pub(crate) fn map_user_segment<T: FrameAllocator<Size4KiB> + FrameDeallocator<Si
             unsafe {
                 if NEXT_MMAP < virt_end_addr.as_u64() {
                     NEXT_MMAP = virt_end_addr.as_u64();
+                    #[cfg(debug_assertions)]
                     eprintln!("NEXT_MMAP = {:#X}", NEXT_MMAP);
                 }
             }

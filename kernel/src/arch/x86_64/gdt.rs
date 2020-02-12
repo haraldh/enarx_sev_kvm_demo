@@ -2,7 +2,6 @@
 
 use x86_64::instructions::segmentation::{load_ds, load_es, load_fs, load_gs, load_ss};
 use x86_64::instructions::tables::load_tss;
-use x86_64::registers::control::{Cr0, Cr0Flags, Cr4, Cr4Flags};
 use x86_64::structures::gdt::{
     Descriptor, DescriptorFlags, GlobalDescriptorTable, SegmentSelector,
 };
@@ -66,18 +65,12 @@ pub struct Selectors {
 }
 
 pub fn init() {
+    #[cfg(debug_assertions)]
     eprintln!("init_gdt");
 
     use x86_64::instructions::segmentation::set_cs;
 
     unsafe {
-        Cr4::update(|f| {
-            f.insert(Cr4Flags::FSGSBASE | Cr4Flags::PHYSICAL_ADDRESS_EXTENSION | Cr4Flags::OSFXSR)
-        });
-        Cr0::update(|f| {
-            f.insert(Cr0Flags::PROTECTED_MODE_ENABLE | Cr0Flags::NUMERIC_ERROR | Cr0Flags::PAGING)
-        });
-
         TSS = Some({
             let mut tss = TaskStateSegment::new();
 

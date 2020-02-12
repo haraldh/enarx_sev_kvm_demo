@@ -6,7 +6,7 @@ use vmbootspec::{BootInfo, FrameRange, MemoryMap, MemoryRegion, MemoryRegionType
 use x86_64::PhysAddr;
 
 extern "C" {
-    fn _start(bootinfo: *mut BootInfo) -> !;
+    fn _start_main(bootinfo: *mut BootInfo) -> !;
 }
 
 #[repr(C, packed)]
@@ -174,5 +174,5 @@ pub unsafe extern "C" fn rust_start_820(hvm_start_info: *const HvmStartInfo) -> 
         region_type: MemoryRegionType::App,
     });
 
-    _start(boot_info)
+    _start_main(boot_info)
 }
