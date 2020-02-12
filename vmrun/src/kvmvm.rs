@@ -420,15 +420,16 @@ impl KvmVm {
 
         sregs.tr = tss_seg;
 
-        sregs.cr0 = (X86_CR0_PE | X86_CR0_NE | X86_CR0_PG) as u64;
-        sregs.cr4 |= (X86_CR4_PAE | X86_CR4_OSFXSR) as u64;
-        sregs.efer |= (EFER_LME | EFER_LMA | EFER_NX) as u64;
+        sregs.cr0 = (X86_CR0_PE | X86_CR0_NE | X86_CR0_PG | X86_CR0_ET | X86_CR0_MP) as u64;
+        //sregs.cr0 &= !(X86_CR0_EM as u64);
+        sregs.cr4 = (X86_CR4_PAE | X86_CR4_OSFXSR | X86_CR4_OSXMMEXCPT) as u64;
+        sregs.efer = (EFER_LME | EFER_LMA) as u64;
 
         sregs.cr3 = PML4_START as _;
 
         /*
-                sregs.cr8 = 0;
-                sregs.apic_base = 1 << 11;
+        sregs.cr8 = 0;
+        sregs.apic_base = 1 << 11;
         */
 
         self.cpu_fd[vcpuid as usize]
