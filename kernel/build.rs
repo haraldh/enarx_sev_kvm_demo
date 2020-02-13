@@ -13,28 +13,38 @@
 // limitations under the License.
 
 extern crate cc;
+use std::ffi::OsString;
 use std::{
-    env,
+    env, fs,
     path::PathBuf,
     process::{self, Command},
 };
 
 fn main() {
-    /*
-        if env::var_os("CC").is_none() {
-            env::set_var("CC", "clang");
-        }
+    if env::var_os("CC").is_none() {
+        env::set_var("CC", "clang");
+    }
+    let entries = fs::read_dir("src/arch/x86_64/asm")
+        .unwrap()
+        .filter_map(|f| {
+            f.ok().and_then(|e| {
+                let path = e.path();
+                match path.extension() {
+                    Some(ext) if ext.eq(&OsString::from("s")) => Some(path),
+                    _ => None,
+                }
+            })
+        })
+        .collect::<Vec<_>>();
 
-        cc::Build::new()
-            .no_default_flags(true)
-            .file("src/arch/x86_64/asm/notes.s")
-            .file("src/arch/x86_64/asm/ram64.s")
-            .file("src/arch/x86_64/asm/ram32.s")
-            .file("src/arch/x86_64/asm/rom.s")
-            .static_flag(false)
-            .shared_flag(true)
-            .compile("asm");
-    */
+    cc::Build::new()
+        .no_default_flags(true)
+        .files(&entries)
+        .pic(true)
+        .static_flag(true)
+        .shared_flag(false)
+        .compile("asm");
+
     let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR not set"));
 
     // get access to llvm tools shipped in the llvm-tools-preview rustup component
@@ -70,16 +80,9 @@ fn main() {
     let env_name = "APP";
     let section_name = "app";
 
-    let mut elf_path = PathBuf::from(match env::var(env_name) {
-        Ok(elf_path) => elf_path,
-        Err(_) => {
-            eprintln!(
-                "The {} environment variable must be set for building the kernel.\n",
-                env_name
-            );
-            process::exit(1);
-        }
-    });
+    let mut elf_path = PathBuf::from(
+        env::var(env_name).unwrap_or("target/x86_64-unknown-linux-musl/debug/app".into()),
+    );
 
     if elf_path.is_relative() {
         let mut pwd = PathBuf::from(env::var("PWD").unwrap());
@@ -180,7 +183,10 @@ fn main() {
         "cargo:rerun-if-changed={}",
         elf_path.as_os_str().to_string_lossy()
     );
-    println!("cargo:rerun-if-changed=src/asm.s");
+
+    for e in entries {
+        println!("cargo:rerun-if-changed={}", e.to_str().unwrap());
+    }
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=layout.ld");
 }

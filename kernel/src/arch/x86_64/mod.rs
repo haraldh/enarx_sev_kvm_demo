@@ -1,6 +1,5 @@
 #[macro_use]
 pub mod serial;
-pub mod asm;
 pub mod gdt;
 pub mod interrupts;
 mod start_e820;

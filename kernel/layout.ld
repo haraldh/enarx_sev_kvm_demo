@@ -1,6 +1,8 @@
 OUTPUT_FORMAT(elf64-x86-64)
 
 ENTRY(_start)
+EXTERN(_elf_note)
+EXTERN(ram32_start)
 
 PHDRS
 {
@@ -37,7 +39,7 @@ MEMORY {
 SECTIONS
 {
     . = 1M;
-    .pvh_notes  : { KEEP(*(.note .note.* .notes)) } >rom :pvh_notes
+    .pvh_notes  : { KEEP(*(.notes .notes.* .notes)) } >rom :pvh_notes :pvh_text
     .pvh_text   : { KEEP(*(.ram64 .ram32))
                     KEEP(*(.entry64))             } >rom :pvh_text
     .pvh_bss    : { KEEP(*(.bss.stack))           } >rom :pvh_bss
@@ -63,5 +65,8 @@ SECTIONS
         *(.hash .gnu.hash)
         *(.comment)
         *(COMMON)
+        *(.gcc_except_table)
+        *(.rela.dyn)
+        *(.note.gnu.build-id)
     }
 }

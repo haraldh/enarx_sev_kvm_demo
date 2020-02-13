@@ -1,4 +1,5 @@
 .section .ram32, "ax"
+.global ram32_start
 .code32
 /*
 * Entry point for PVH guests.

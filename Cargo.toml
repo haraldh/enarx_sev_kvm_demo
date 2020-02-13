@@ -9,11 +9,11 @@ members = [
 default-members = [
     "kernel/vmbootspec",
     "vmrun",
+    "app",
 ]
 
-# would want
-# [profile.dev.package.kernel]
-# but that requires nightly
 [profile.dev]
-opt-level = 1
-debug-assertions = true
+panic = "abort"
+
+[profile.release]
+panic = "abort"

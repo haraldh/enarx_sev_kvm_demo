@@ -1,5 +1,11 @@
 [build]
-target = "x86_64-kernel.json"
+target = "x86_64-unknown-linux-musl"
 
-[target.'cfg(target_os = "enarx")']
-runner = "../target/debug/vmrun --fallback-qemu"
+[target.x86_64-unknown-linux-musl]
+runner = "../target/x86_64-unknown-linux-musl/debug/vmrun --fallback-qemu"
+rustflags = [
+    "-C", "linker=./cc",
+#    "-C", "code-model=kernel",
+#    "-C", "no-redzone=on",
+#    "-C", "target-feature=-mmx,-sse,-sse2,-sse3,-ssse3,-sse4.1,-sse4.2,-3dnow,-3dnowa,-avx,-avx2,+soft-float",
+]

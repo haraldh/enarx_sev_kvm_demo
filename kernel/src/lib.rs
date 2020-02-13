@@ -11,6 +11,7 @@
 #![feature(naked_functions)]
 #![feature(thread_local)]
 #![allow(clippy::empty_loop)]
+#![feature(lang_items)]
 
 extern crate alloc;
 
@@ -22,6 +23,16 @@ pub mod arch;
 pub mod memory;
 pub mod strlen;
 pub mod syscall;
+
+#[lang = "eh_personality"]
+extern "C" fn eh_personality() {
+    exit_hypervisor(HyperVisorExitCode::Failed);
+}
+
+#[no_mangle]
+extern "C" fn _Unwind_Resume() {
+    exit_hypervisor(HyperVisorExitCode::Failed);
+}
 
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();

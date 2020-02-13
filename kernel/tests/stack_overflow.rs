@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 #![feature(abi_x86_interrupt)]
+#![feature(asm)]
 
 use core::panic::PanicInfo;
 use kernel::arch::OffsetPageTable;
@@ -14,6 +15,7 @@ entry_point!(main);
 fn main(boot_info: &'static mut BootInfo) -> ! {
     fn inner(_mapper: &mut OffsetPageTable, _frame_allocator: &mut BootInfoFrameAllocator) -> ! // trigger a stack overflow
     {
+        serial_println!("check stack_overflow");
         init_test_idt();
         stack_overflow();
 
@@ -23,8 +25,16 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
     kernel::arch::init(boot_info, inner)
 }
 
+#[inline(always)]
+pub fn read_rsp() -> u64 {
+    let val: u64;
+    unsafe { asm!("mov $0, rsp" : "=r"(val) ::: "intel", "volatile") }
+    val
+}
+
 #[allow(unconditional_recursion)]
 fn stack_overflow() {
+    //serial_println!("stackpointer: {:#X}", read_rsp());
     stack_overflow(); // for each recursion, the return address is pushed
 }
 
@@ -47,7 +57,7 @@ extern "x86-interrupt" fn test_double_fault_handler(
     _stack_frame: &mut InterruptStackFrame,
     _error_code: u64,
 ) -> ! {
-    serial_println!("[ok]");
+    //serial_println!("[ok]");
     exit_hypervisor(HyperVisorExitCode::Success);
     loop {}
 }

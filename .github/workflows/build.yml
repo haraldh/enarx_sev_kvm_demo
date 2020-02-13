@@ -48,20 +48,11 @@ jobs:
     - name: "Run cargo test"
       run: cargo test
 
-    - name: 'Build App'
-      run: cargo +nightly build --package app --target x86_64-unknown-linux-musl
-
     - name: "Build Kernel"
-      run: cargo +nightly xbuild --package kernel --target kernel/x86_64-kernel.json
-      env:
-        APP: target/x86_64-unknown-linux-musl/debug/app
+      run: (cd kernel; cargo build)
 
     - name: "Run Kernel Test Framework"
-      run: cargo +nightly xtest --package kernel --target kernel/x86_64-kernel.json
-      env:
-        APP: target/x86_64-unknown-linux-musl/debug/app
+      run: (cd kernel; cargo test)
 
     - name: "Run App in Kernel"
-      run: cargo +nightly xrun --package kernel --target kernel/x86_64-kernel.json
-      env:
-        APP: target/x86_64-unknown-linux-musl/debug/app
+      run: (cd kernel; cargo run)

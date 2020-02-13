@@ -1,5 +1,6 @@
 .section .entry64, "ax"
 .global _start
+.global _setup_pto
 .code64
 
 _start:

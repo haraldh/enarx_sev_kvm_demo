@@ -36,13 +36,13 @@ fn main_qemu(kernel_blob: &str, extra_args: &[String]) -> ! {
         exit(1);
     }
 
+    let has_kvm = Kvm::new().is_ok();
+
     let start = Instant::now();
 
     eprintln!("Starting QEMU {}", kernel_blob);
     let mut cmd = Command::new("qemu-system-x86_64");
     let mut args = vec![
-        "-cpu",
-        "max",
         "-smp",
         "1",
         "-m",
@@ -61,11 +61,19 @@ fn main_qemu(kernel_blob: &str, extra_args: &[String]) -> ! {
         "chardev:char0",
         "-serial",
         "chardev:char0",
-        "-kernel",
     ];
+    if has_kvm {
+        args.push("-enable-kvm");
+        args.push("-cpu");
+        args.push("host");
+    } else {
+        args.push("-cpu");
+        args.push("max");
+    }
+    args.push("-kernel");
     args.push(kernel_blob);
     if !extra_args.is_empty() {
-        eprintln!("Extra args!");
+        eprintln!("Extra args! {:#?}", extra_args);
         args.extend(extra_args.iter().map(String::as_str));
     }
     cmd.args(args);

@@ -16,7 +16,9 @@ XEN_ELFNOTE_PHYS32_ENTRY   = 18
 .endm
 
 .section .notes, "a"
+.global _elf_note
 
+_elf_note:
 ELFNOTE XEN_ELFNOTE_VIRT_BASE 0x100000
 ELFNOTE XEN_ELFNOTE_ENTRY ram32_start
 ELFNOTE XEN_ELFNOTE_PHYS32_ENTRY ram32_start
