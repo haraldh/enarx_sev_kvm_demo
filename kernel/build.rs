@@ -81,7 +81,7 @@ fn main() {
     let section_name = "app";
 
     let mut elf_path = PathBuf::from(
-        env::var(env_name).unwrap_or("target/x86_64-unknown-linux-musl/debug/app".into()),
+        env::var(env_name).unwrap_or("../target/x86_64-unknown-linux-musl/debug/app".into()),
     );
 
     if elf_path.is_relative() {

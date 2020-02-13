@@ -6,6 +6,7 @@ import shutil
 import pprint
 import sys
 import os
+import glob
 
 spec = {
     # This crate should produce a relocatable, self-contained binary
@@ -14,7 +15,6 @@ spec = {
         "remove": [ "-Wl,-Bdynamic" ],
         "remove_endswith": [ "/crtn.o", "/crt1.o", "/crti.o" ],
         "insert": [ "-nostartfiles",
-                    "/home/harald/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-musl/lib/liblibc-b1733b99f755c896.rlib",
                     "-Wl,-Tkernel/layout.ld",
                     "-Wl,-as-needed",
                     "-fuse-ld=lld",
@@ -45,8 +45,12 @@ if data and not build:
     argv = list(filter(lambda x: not is_in_endswith(x, data.get("remove_endswith", [])), argv))
     for flag in data.get("insert", []):
         argv.append(flag)
+    liballoc = list(filter(lambda x: x.find("liballoc") != -1 and x.endswith(".rlib"), argv))[0]
+    liblibc = glob.glob(os.path.dirname(liballoc) + "/liblibc*.rlib")[0]
+    argv.append("-Wl,-Bstatic")
+    argv.append(liblibc)
 
-#with open("/dev/stderr", "w") as f:
+#with open("/dev/tty", "w") as f:
 #    pprint.pprint(os.getcwd(), f)
 #    pprint.pprint(dict(os.environ), f)
 #    pprint.pprint(argv, f)
