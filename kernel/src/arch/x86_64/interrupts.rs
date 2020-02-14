@@ -2,7 +2,6 @@ use super::gdt;
 use crate::{eprintln, exit_hypervisor, hlt_loop, HyperVisorExitCode};
 use lazy_static::lazy_static;
 use pic8259_simple::ChainedPics;
-use spin;
 use spin::Mutex;
 
 use x2apic::lapic::{LocalApic, LocalApicBuilder, TimerDivide, TimerMode};
@@ -133,27 +132,29 @@ pub fn init() {
         IDT.as_ref().unwrap().load();
     }
 
-    if let Some(l) = LAPIC.lock().as_mut() {
-        unsafe {
-            l.enable();
-            l.enable_timer();
+    /*
+        if let Some(l) = LAPIC.lock().as_mut() {
+            unsafe {
+                l.enable();
+                l.enable_timer();
+            }
         }
-    }
-
+    */
     unsafe {
         PICS.lock().initialize();
         //PICS.lock().unmask();
     };
-
-    let mut cp = Port::new(0x43);
-    unsafe {
-        cp.write(0b00110100_u8);
-    }
-    let mut p = Port::new(0x40);
-    unsafe {
-        p.write(0xFF_u8);
-        p.write(0xFF_u8);
-    }
+    /*
+        let mut cp = Port::new(0x43);
+        unsafe {
+            cp.write(0b00110100_u8);
+        }
+        let mut p = Port::new(0x40);
+        unsafe {
+            p.write(0xFF_u8);
+            p.write(0xFF_u8);
+        }
+    */
     x86_64::instructions::interrupts::enable();
 }
 
