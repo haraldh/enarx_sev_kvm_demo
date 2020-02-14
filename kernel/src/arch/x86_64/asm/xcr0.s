@@ -3,11 +3,11 @@
 .type _read_xcr0, @function
 _read_xcr0:
     xor    %ecx,%ecx
-    xgetbv 
+    xgetbv
     shl    $0x20,%rdx
     mov    %eax,%eax
     or     %rdx,%rax
-    retq   
+    retq
 
 .section .text, "ax"
 .global _write_xcr0
