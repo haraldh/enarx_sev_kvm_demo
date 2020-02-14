@@ -1,4 +1,4 @@
-// Copyright 2019 Red Hat
+// Copyright 2020 Red Hat
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -81,7 +81,8 @@ fn main() {
     let section_name = "app";
 
     let mut elf_path = PathBuf::from(
-        env::var(env_name).unwrap_or("../target/x86_64-unknown-linux-musl/debug/app".into()),
+        env::var(env_name)
+            .unwrap_or_else(|_| "../target/x86_64-unknown-linux-musl/debug/app".into()),
     );
 
     if elf_path.is_relative() {
@@ -92,9 +93,9 @@ fn main() {
 
     let elf_file_name = elf_path
         .file_name()
-        .expect(format!("{} has no valid file name", env_name).as_str())
+        .unwrap_or_else(|| panic!("{} has no valid file name", env_name))
         .to_str()
-        .expect(format!("{} file name not valid utf8", section_name).as_str());
+        .unwrap_or_else(|| panic!("{} file name not valid utf8", section_name));
 
     // check that the file exists
     assert!(
@@ -106,7 +107,7 @@ fn main() {
     cmd.arg(&elf_path);
     let output = cmd.output().expect("failed to run llvm-size");
     let output_str = String::from_utf8_lossy(&output.stdout);
-    let second_line_opt = output_str.lines().skip(1).next();
+    let second_line_opt = output_str.lines().nth(1);
     let second_line = second_line_opt.expect("unexpected llvm-size line output");
     let text_size_opt = second_line.split_ascii_whitespace().next();
     let text_size = text_size_opt.expect("unexpected llvm-size output");

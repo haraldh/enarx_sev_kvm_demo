@@ -306,18 +306,18 @@ pub extern "C" fn handle_syscall(
                 let p: &mut Stat = &mut unsafe { *(c as *mut Stat) };
                 p.st_dev = makedev(0, 0x17);
                 p.st_ino = 3;
-                p.st_mode = 0o020000 | 0o620; // S_IFCHR
+                p.st_mode = 0o020_000 | 0o620; // S_IFCHR
                 p.st_nlink = 1;
                 p.st_uid = 1000;
                 p.st_gid = 5;
                 p.st_blksize = 1024;
                 p.st_blocks = 0;
                 p.st_rdev = makedev(0x88, 0);
-                p.st_atime.tv_sec=1579603508 /* 2020-01-21T11:45:08.467721685+0100 */;
+                p.st_atime.tv_sec=1_579_507_218 /* 2020-01-21T11:45:08.467721685+0100 */;
                 p.st_atime.tv_nsec = 0;
-                p.st_mtime.tv_sec=1579603507 /* 2020-01-21T11:45:07.467721685+0100 */;
+                p.st_mtime.tv_sec=1_579_507_218 /* 2020-01-21T11:45:07.467721685+0100 */;
                 p.st_mtime.tv_nsec = 0;
-                p.st_ctime.tv_sec=1579507218 /* 2020-01-20T09:00:18.467721685+0100 */;
+                p.st_ctime.tv_sec=1_579_507_218 /* 2020-01-20T09:00:18.467721685+0100 */;
                 p.st_ctime.tv_nsec = 0;
                 0
             }

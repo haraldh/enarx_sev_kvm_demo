@@ -3,6 +3,7 @@
 //! copied from
 //! https://github.com/rust-osdev/bootloader/blob/90f5b8910d146d6d489b70a6341d778253663cfa/src/bootinfo/memory_map.rs
 
+use core::cmp::Ordering;
 use core::fmt;
 use core::ops::{Deref, DerefMut};
 
@@ -62,7 +63,7 @@ impl MemoryMap {
     }
 
     pub fn mark_allocated_region(&mut self, region: MemoryRegion) {
-        let mut region = region.clone();
+        let mut region = region;
         for r in self.iter_mut() {
             // New region inside region of same type
             if r.region_type == region.region_type
@@ -95,44 +96,53 @@ impl MemoryMap {
                 );
             }
 
-            if region.range.start_frame_number == r.range.start_frame_number {
-                if region.range.end_frame_number < r.range.end_frame_number {
+            match region
+                .range
+                .start_frame_number
+                .cmp(&r.range.start_frame_number)
+            {
+                Ordering::Equal => {
+                    if region.range.end_frame_number < r.range.end_frame_number {
+                        // Case: (r = `r`, R = `region`)
+                        // ----rrrrrrrrrrr----
+                        // ----RRRR-----------
+                        r.range.start_frame_number = region.range.end_frame_number;
+                        self.add_region(region);
+                    } else {
+                        // Case: (r = `r`, R = `region`)
+                        // ----rrrrrrrrrrr----
+                        // ----RRRRRRRRRRRRRR-
+                        *r = region;
+                    }
+                }
+                Ordering::Greater => {
+                    if region.range.end_frame_number < r.range.end_frame_number {
+                        // Case: (r = `r`, R = `region`)
+                        // ----rrrrrrrrrrr----
+                        // ------RRRR---------
+                        let mut behind_r = *r;
+                        behind_r.range.start_frame_number = region.range.end_frame_number;
+                        r.range.end_frame_number = region.range.start_frame_number;
+                        self.add_region(behind_r);
+                        self.add_region(region);
+                    } else {
+                        // Case: (r = `r`, R = `region`)
+                        // ----rrrrrrrrrrr----
+                        // -----------RRRR---- or
+                        // -------------RRRR--
+                        r.range.end_frame_number = region.range.start_frame_number;
+                        self.add_region(region);
+                    }
+                }
+                _ => {
                     // Case: (r = `r`, R = `region`)
                     // ----rrrrrrrrrrr----
-                    // ----RRRR-----------
+                    // --RRRR-------------
                     r.range.start_frame_number = region.range.end_frame_number;
                     self.add_region(region);
-                } else {
-                    // Case: (r = `r`, R = `region`)
-                    // ----rrrrrrrrrrr----
-                    // ----RRRRRRRRRRRRRR-
-                    *r = region;
                 }
-            } else if region.range.start_frame_number > r.range.start_frame_number {
-                if region.range.end_frame_number < r.range.end_frame_number {
-                    // Case: (r = `r`, R = `region`)
-                    // ----rrrrrrrrrrr----
-                    // ------RRRR---------
-                    let mut behind_r = *r;
-                    behind_r.range.start_frame_number = region.range.end_frame_number;
-                    r.range.end_frame_number = region.range.start_frame_number;
-                    self.add_region(behind_r);
-                    self.add_region(region);
-                } else {
-                    // Case: (r = `r`, R = `region`)
-                    // ----rrrrrrrrrrr----
-                    // -----------RRRR---- or
-                    // -------------RRRR--
-                    r.range.end_frame_number = region.range.start_frame_number;
-                    self.add_region(region);
-                }
-            } else {
-                // Case: (r = `r`, R = `region`)
-                // ----rrrrrrrrrrr----
-                // --RRRR-------------
-                r.range.start_frame_number = region.range.end_frame_number;
-                self.add_region(region);
             }
+
             return;
         }
         panic!(
@@ -142,8 +152,6 @@ impl MemoryMap {
     }
 
     pub fn sort(&mut self) {
-        use core::cmp::Ordering;
-
         self.entries.sort_unstable_by(|r1, r2| {
             if r1.range.is_empty() {
                 Ordering::Greater

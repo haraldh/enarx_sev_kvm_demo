@@ -124,6 +124,7 @@ pub unsafe extern "C" fn rust_start_820(hvm_start_info: *const HvmStartInfo) -> 
     for entry in e820_table {
         let end = entry.addr + entry.size;
         let start = entry.addr;
+        #[allow(clippy::single_match)]
         match entry.get_type() {
             HvmMemmapTableEntryType::RAM => {
                 (*boot_info).memory_map.add_region(MemoryRegion {

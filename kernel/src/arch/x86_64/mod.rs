@@ -404,7 +404,7 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
         None => {
             if cfg!(debug_assertions) {
                 eprintln!("!!! No RDRAND. Using pseudo random numbers!!!");
-                (0xAFFEAFFEAFFEAFFEu64, 0xC0FFEEC0FFEEC0FFu64)
+                (0xAFFE_AFFE_AFFE_AFFE_u64, 0xC0FF_EEC0_FFEE_C0FF_u64)
             } else {
                 panic!("No rdrand supported by CPU")
             }
