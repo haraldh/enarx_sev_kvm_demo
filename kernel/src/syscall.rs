@@ -15,14 +15,22 @@ impl NegAsUsize for Errno {
     }
 }
 
+extern "C" {
+    fn _read_rsp() -> u64;
+}
+
 #[inline(always)]
 pub fn read_rsp() -> u64 {
-    let val: u64;
-    unsafe { asm!("mov $0, rsp" : "=r"(val) ::: "intel", "volatile") }
-    val
+    unsafe { _read_rsp() }
+}
+
+extern "C" {
+    fn _rdfsbase() -> u64;
+    fn _wrfsbase(val: u64);
 }
 
 #[allow(clippy::many_single_char_names)]
+#[inline(always)]
 pub extern "C" fn handle_syscall(
     a: usize,
     b: usize,
@@ -134,7 +142,7 @@ pub extern "C" fn handle_syscall(
                     eprintln!("SC> arch_prctl(ARCH_SET_FS, {:#X}) = 0", b);
                     let value: u64 = b as _;
                     unsafe {
-                        asm!("wrfsbase $0" :: "r" (value) );
+                        _wrfsbase(value);
                     }
                     0
                 }

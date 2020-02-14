@@ -1,10 +1,11 @@
 .section .text, "ax"
-.global syscall_instruction
+.global _syscall_enter
+.type _syscall_enter, @function
 .code64
 
 XSAVE_STACK_OFFSET = (16*64 + 3 * 8)
 
-syscall_instruction:
+_syscall_enter:
     cli
     swapgs                 // Set gs segment to TSS
     mov    %rsp,%gs:0x1c   // Save userspace rsp

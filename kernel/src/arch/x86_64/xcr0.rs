@@ -8,6 +8,7 @@ bitflags! {
     /// Configuration flags of the XCr0 register XFEATURE_ENABLED_MASK.
     pub struct XCr0Flags: u64 {
         /// x87 FPU state management is supported by XSAVE/XRSTOR. Must be set to 1.
+        #[allow(clippy::identity_op)]
         const X87 = 1 << 0;
 
         /// When set, 128-bit SSE state management is supported by
@@ -22,6 +23,11 @@ bitflags! {
     }
 }
 
+extern "C" {
+    fn _read_xcr0() -> u64;
+    fn _write_xcr0(val: u64);
+}
+
 impl XCr0 {
     /// Read the current set of CR0 flags.
     pub fn read() -> XCr0Flags {
@@ -29,12 +35,9 @@ impl XCr0 {
     }
 
     /// Read the current raw CR0 value.
+    #[inline(always)]
     pub fn read_raw() -> u64 {
-        let (high, low): (u32, u32);
-        unsafe {
-            asm!("xgetbv" : "={eax}" (low), "={edx}" (high) : "{ecx}" (0) : "memory" : "volatile");
-        }
-        ((high as u64) << 32) | (low as u64)
+        unsafe { _read_xcr0() }
     }
 
     /// Write XCR0 flags.
@@ -60,10 +63,9 @@ impl XCr0 {
     ///
     /// Does _not_ preserve any values, including reserved fields. Unsafe because it's possible to
     /// set/unset required bits.
+    #[inline(always)]
     pub unsafe fn write_raw(value: u64) {
-        let low = value as u32;
-        let high = (value >> 32) as u32;
-        asm!("xsetbv" :: "{ecx}" (0), "{eax}" (low), "{edx}" (high) : "memory" : "volatile" );
+        _write_xcr0(value)
     }
 
     /// Updates XCR0 flags.

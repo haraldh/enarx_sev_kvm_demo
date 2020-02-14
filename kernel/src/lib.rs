@@ -6,10 +6,6 @@
 #![feature(allocator_api)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
-#![feature(asm)]
-#![feature(global_asm)]
-#![feature(naked_functions)]
-#![feature(thread_local)]
 #![allow(clippy::empty_loop)]
 #![feature(lang_items)]
 
@@ -37,10 +33,8 @@ extern "C" fn _Unwind_Resume() {
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
-pub unsafe fn context_switch(entry_point: fn() -> !, stack_pointer: usize) -> ! {
-    asm!("call $1; ${:private}.spin.${:uid}: jmp ${:private}.spin.${:uid}" ::
-         "{rsp}"(stack_pointer), "r"(entry_point) :: "intel");
-    ::core::hint::unreachable_unchecked()
+extern "C" {
+    fn _context_switch(entry_point: extern "C" fn() -> !, stack_pointer: usize) -> !;
 }
 
 pub fn test_runner(tests: &[&dyn Fn()]) {

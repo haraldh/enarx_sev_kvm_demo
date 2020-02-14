@@ -1,7 +1,6 @@
 #![no_std]
 #![no_main]
 #![feature(abi_x86_interrupt)]
-#![feature(asm)]
 
 use core::panic::PanicInfo;
 use kernel::arch::OffsetPageTable;
@@ -25,16 +24,8 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
     kernel::arch::init(boot_info, inner)
 }
 
-#[inline(always)]
-pub fn read_rsp() -> u64 {
-    let val: u64;
-    unsafe { asm!("mov $0, rsp" : "=r"(val) ::: "intel", "volatile") }
-    val
-}
-
 #[allow(unconditional_recursion)]
 fn stack_overflow() {
-    //serial_println!("stackpointer: {:#X}", read_rsp());
     stack_overflow(); // for each recursion, the return address is pushed
 }
 

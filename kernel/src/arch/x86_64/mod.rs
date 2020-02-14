@@ -72,7 +72,7 @@ pub fn init(
 ) -> ! {
     //eprintln!("{}:{}", file!(), line!());
     unsafe {
-        let xsave_supported = (core::arch::x86_64::__cpuid(0x1).ecx & (1 << 26)) != 0;
+        let xsave_supported = (core::arch::x86_64::__cpuid(1).ecx & (1 << 26)) != 0;
         assert!(xsave_supported);
 
         let xsaveopt_supported = (core::arch::x86_64::__cpuid_count(0xD, 1).eax & 1) == 1;
@@ -113,7 +113,7 @@ pub fn init(
         ENTRY_POINT.replace(entry_point);
     }
 
-    unsafe { crate::context_switch(init_after_stack_swap, STACK_START + STACK_SIZE) }
+    unsafe { crate::_context_switch(init_after_stack_swap, STACK_START + STACK_SIZE) }
 }
 
 pub fn init_heap(
@@ -188,7 +188,7 @@ pub fn init_stack(
     Ok(())
 }
 
-fn init_after_stack_swap() -> ! {
+extern "C" fn init_after_stack_swap() -> ! {
     let frame_allocator = unsafe { FRAME_ALLOCATOR.as_mut().unwrap() };
     let mapper = unsafe { MAPPER.as_mut().unwrap() };
     let entry_point = unsafe { ENTRY_POINT.take().unwrap() };
