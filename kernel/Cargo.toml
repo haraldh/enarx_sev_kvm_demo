@@ -23,7 +23,8 @@ crt0stack = { version = "0.6", git="https://github.com/haraldh/crt0stack", rev="
 xmas-elf = "0.7.0"
 spin = "0.5.2"
 x86_64 = "0.9.2"
-pic8259_simple = "0.1.1"
+pic8259_simple = {version = "0.1.1", optional = true }
+x2apic = {version = "0.1.0", optional = true }
 uart_16550 = "0.2.1"
 linked_list_allocator = "0.6.6"
 bitflags = "1.0.4"
@@ -31,9 +32,12 @@ serde_cbor = { version = "0.11", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 cstrptr = { version = "0.1", default-features = false, features = ["alloc", "unstable"] }
 #safe-transmute = "0.10.1"
-x2apic = "0.1.0"
 lazy_static = { version="1.4.0", features = ["spin_no_std"] }
 
 [build-dependencies]
 cc = "1.0.37"
 llvm-tools = "0.1.1"
+
+[features]
+nightly = []
+timer = ["x2apic", "pic8259_simple"]

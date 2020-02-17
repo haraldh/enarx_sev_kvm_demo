@@ -5,6 +5,10 @@ pub mod interrupts;
 mod start_e820;
 pub mod structures;
 pub mod syscall;
+
+#[cfg(feature = "timer")]
+pub mod timer;
+
 mod xcr0;
 
 use crate::memory::BootInfoFrameAllocator;
