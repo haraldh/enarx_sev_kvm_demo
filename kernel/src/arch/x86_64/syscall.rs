@@ -9,13 +9,17 @@ extern "C" {
 }
 
 pub unsafe fn init() {
-    Star::MSR.write(
-        (((gdt::GDT.as_ref().unwrap().1.code_selector.index() as u64) << 3) << 32)
-            // FIXME: might (not) want to use sysret someday for performance
-            | ((((gdt::GDT.as_ref().unwrap().1.user_data_selector.index() as u64 - 1) << 3) | 3)
-                << 48),
-    );
+    // FIXME: might (not) want to use sysret someday for performance
+    Star::write(
+        gdt::GDT.as_ref().unwrap().1.user_code_selector,
+        gdt::GDT.as_ref().unwrap().1.user_data_selector,
+        gdt::GDT.as_ref().unwrap().1.code_selector,
+        gdt::GDT.as_ref().unwrap().1.data_selector,
+    )
+    .unwrap();
+
     LStar::write(VirtAddr::new(_syscall_enter as usize as u64));
+
     // Clear trap flag and interrupt enable
     SFMask::write(RFlags::INTERRUPT_FLAG | RFlags::TRAP_FLAG);
 
