@@ -6,7 +6,7 @@ use x86_64::structures::gdt::{
     Descriptor, DescriptorFlags, GlobalDescriptorTable, SegmentSelector,
 };
 use x86_64::structures::tss::TaskStateSegment;
-use x86_64::VirtAddr;
+use x86_64::{PrivilegeLevel, VirtAddr};
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 
@@ -119,8 +119,10 @@ pub fn init() {
                     .bits(),
             ));
 
-            let user_data_selector = gdt.add_entry(Descriptor::user_data_segment());
-            let user_code_selector = gdt.add_entry(Descriptor::user_code_segment());
+            let mut user_data_selector = gdt.add_entry(Descriptor::user_data_segment());
+            user_data_selector.set_rpl(PrivilegeLevel::Ring3);
+            let mut user_code_selector = gdt.add_entry(Descriptor::user_code_segment());
+            user_code_selector.set_rpl(PrivilegeLevel::Ring3);
             let tss_selector = gdt.add_entry(Descriptor::tss_segment(TSS.as_ref().unwrap()));
             (
                 gdt,
