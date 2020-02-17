@@ -64,14 +64,6 @@ _setup_pto:
     mov    $0xc0000080,%ecx
     wrmsr
 
-/*
-    xor    %ecx,%ecx
-    xgetbv
-    or     $0x3,%eax
-    xor    %ecx,%ecx
-    xsetbv
-*/
-
     # setup physical offset page table
     movl $pml3to, %eax
     orb  $0b00000011, %al # writable (bit 1), present (bit 0)
@@ -112,7 +104,7 @@ _before_jump:
     subq   $8, %rbp
 
 
-    # jump into kernel space
+    # jump into kernel address space
     jmpq *%rax
 
 .pto_halt_loop:
