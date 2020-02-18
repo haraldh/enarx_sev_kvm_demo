@@ -25,12 +25,12 @@ _syscall_enter:
     subq   $XSAVE_STACK_OFFSET, %rsp
 
     // memzero xsave array
-	xorq	%rax, %rax
+    xorq    %rax, %rax
 .L2C:
-	movq	$0, (%rsp,%rax,8)
-	addl	$1, %eax
-	cmpl	$(XSAVE_STACK_OFFSET/8), %eax
-	jne	.L2C
+    movq    $0, (%rsp,%rax,8)
+    addl    $1, %eax
+    cmpl    $(XSAVE_STACK_OFFSET/8), %eax
+    jne     .L2C
 
     movl   $-1, %edx
     movl   $-1, %eax
