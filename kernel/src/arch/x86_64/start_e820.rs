@@ -1,6 +1,4 @@
 use crate::arch::x86_64::PAGESIZE;
-use serde::export::fmt::Error;
-use serde::export::Formatter;
 use vmbootspec::layout::{BOOTINFO_PHYS_ADDR, PHYSICAL_MEMORY_OFFSET, SYSCALL_PHYS_ADDR};
 use vmbootspec::{BootInfo, FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
 use x86_64::PhysAddr;
@@ -62,8 +60,9 @@ impl HvmMemmapTableEntry {
     }
 }
 
+#[cfg(feature = "nightly")]
 impl alloc::fmt::Debug for HvmMemmapTableEntry {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+    fn fmt(&self, f: &mut alloc::fmt::Formatter<'_>) -> Result<(), alloc::fmt::Error> {
         unsafe {
             write!(
                 f,
