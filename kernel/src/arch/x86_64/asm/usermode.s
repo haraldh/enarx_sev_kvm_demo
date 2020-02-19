@@ -3,6 +3,7 @@
 .type _usermode, @function
 .code64
 
+.p2align 4
 _usermode:
     movq    $0x1b,%r10     // ((gdt::USER_DATA_SEG << 3) | 3), // Data segment
     movq    %rsi,%r11      // stack pointer

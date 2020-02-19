@@ -3,6 +3,7 @@
 .global _setup_pto
 .code64
 
+.p2align 4
 _start:
     # Indicate (via serial) that we are in long/64-bit mode
     /*
@@ -18,6 +19,7 @@ _start:
 
 # %rax  = jmp to start function
 # %rdi  = first parameter for start function
+.p2align 4
 _setup_pto:
     mov    %rdi, %r11
     mov    %rax, %r12

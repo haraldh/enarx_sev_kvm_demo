@@ -1,6 +1,7 @@
 .section .text, "ax"
 .global _read_xcr0
 .type _read_xcr0, @function
+.p2align 4
 _read_xcr0:
     xor    %ecx,%ecx
     xgetbv
@@ -13,6 +14,7 @@ _read_xcr0:
 .global _write_xcr0
 .type _writex_cr0, @function
 .code64
+.p2align 4
 _write_xcr0:
     mov    %rdi,%rax
     mov    %rdi,%rdx

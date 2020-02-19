@@ -5,6 +5,7 @@
 
 XSAVE_STACK_OFFSET = (16*64 + 3 * 8)
 
+.p2align 4
 _syscall_enter:
     cli
     swapgs                 // Set gs segment to TSS
