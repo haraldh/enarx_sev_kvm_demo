@@ -1,9 +1,9 @@
 #![no_std]
 #![no_main]
 #![warn(dead_code)]
-#![cfg_attr(feature = "unstable", feature(custom_test_frameworks))]
-#![cfg_attr(feature = "unstable", test_runner(kernel::test_runner))]
-#![cfg_attr(feature = "unstable", reexport_test_harness_main = "test_main")]
+#![cfg_attr(feature = "nightly", feature(custom_test_frameworks))]
+#![cfg_attr(feature = "nightly", test_runner(kernel::test_runner))]
+#![cfg_attr(feature = "nightly", reexport_test_harness_main = "test_main")]
 #![allow(clippy::empty_loop)]
 
 use core::panic::PanicInfo;

@@ -5,7 +5,7 @@
 #![cfg_attr(feature = "nightly", feature(alloc_error_handler))]
 #![cfg_attr(feature = "nightly", test_runner(crate::test_runner))]
 #![cfg_attr(feature = "nightly", feature(lang_items))]
-#![reexport_test_harness_main = "test_main"]
+#![cfg_attr(feature = "nightly", reexport_test_harness_main = "test_main")]
 #![allow(clippy::empty_loop)]
 
 #[cfg(not(feature = "nightly"))]
@@ -17,11 +17,6 @@ fn foo() {
 extern crate alloc;
 
 use core::panic::PanicInfo;
-
-/*
-#[cfg(not(feature = "nightly"))]
-use core::alloc::{GlobalAlloc, Layout};
-*/
 
 #[cfg(feature = "nightly")]
 use linked_list_allocator::LockedHeap;
