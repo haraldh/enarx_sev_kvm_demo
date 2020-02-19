@@ -54,7 +54,7 @@ llvm-tools = "0.1.1"
 version_check = "0.9.1"
 
 [features]
-default = [ "nightly" ]
+default = [ "nightly", "timer" ]
 nightly = [ "cstrptr/unstable", "linked_list_allocator" ]
 #nightly = [ "cstrptr/unstable", "linked_list_allocator", "x86_64/nightly", "uart_16550/nightly"]
 timer = ["x2apic", "pic8259_simple"]
