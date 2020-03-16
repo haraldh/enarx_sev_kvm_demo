@@ -24,7 +24,16 @@ fn main() {
     if env::var_os("CC").is_none() {
         env::set_var("CC", "clang");
     }
-    let entries = fs::read_dir("src/arch/x86_64/asm")
+
+    let manifest_dir = env::var_os("CARGO_MANIFEST_DIR").unwrap();
+    let manifest_dir = manifest_dir.to_string_lossy();
+
+    for (k, v) in env::vars_os() {
+        eprintln!("{:#?}={:#?}", k, v);
+    }
+    let mut asm_dir = PathBuf::from(manifest_dir.as_ref());
+    asm_dir.push("src/arch/x86_64/asm");
+    let entries = fs::read_dir(asm_dir)
         .unwrap()
         .filter_map(|f| {
             f.ok().and_then(|e| {
@@ -80,10 +89,14 @@ fn main() {
     let env_name = "APP";
     let section_name = "app";
 
-    let mut elf_path = PathBuf::from(
-        env::var(env_name)
-            .unwrap_or_else(|_| "../target/x86_64-unknown-linux-musl/debug/app".into()),
-    );
+    let mut default_app = PathBuf::from(manifest_dir.as_ref());
+    default_app.push("../target/x86_64-unknown-linux-musl/debug/app");
+
+    let mut elf_path = if let Ok(app_env) = env::var(env_name) {
+        PathBuf::from(app_env)
+    } else {
+        default_app
+    };
 
     if elf_path.is_relative() {
         let mut pwd = PathBuf::from(env::var("PWD").unwrap());

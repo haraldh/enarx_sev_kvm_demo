@@ -1,6 +1,8 @@
 #[macro_use]
 pub mod serial;
 pub mod gdt;
+
+#[cfg(feature = "nightly")]
 pub mod interrupts;
 mod start_e820;
 pub mod structures;
@@ -96,6 +98,7 @@ pub fn init(
     //eprintln!("{}:{}", file!(), line!());
     gdt::init();
     unsafe { syscall::init() };
+    #[cfg(feature = "nightly")]
     interrupts::init();
 
     //eprintln!("{:#?}", boot_info);
@@ -142,6 +145,7 @@ pub fn init_heap(
             .flush();
     }
 
+    #[cfg(feature = "nightly")]
     unsafe {
         crate::ALLOCATOR.lock().init(HEAP_START, HEAP_SIZE);
     }
@@ -427,9 +431,9 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
 
     let mut builder = Builder::new(&mut sp_slice);
     builder.push("/init").unwrap();
-    let mut builder = builder.next().unwrap();
+    let mut builder = builder.done().unwrap();
     builder.push("LANG=C").unwrap();
-    let mut builder = builder.next().unwrap();
+    let mut builder = builder.done().unwrap();
     for aux in &[
         Entry::ExecFilename("/init"),
         Entry::Platform("x86_64"),
@@ -437,23 +441,22 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
         Entry::EUid(1000),
         Entry::Gid(1000),
         Entry::EGid(1000),
-        Entry::Pagesize(4096),
+        Entry::PageSize(4096),
         Entry::Secure(false),
         Entry::ClockTick(100),
         Entry::Flags(0),
         Entry::PHdr((load_addr.unwrap().as_u64() + ELF64_HDR_SIZE) as _),
         Entry::PHent(ELF64_PHDR_SIZE as _),
         Entry::PHnum(elf_file.program_iter().count()),
-        Entry::HWCap(hwcap as _),
-        Entry::HWCap2(0),
+        Entry::HwCap(hwcap as _),
+        Entry::HwCap2(0),
         Entry::Random(ra),
     ] {
         builder.push(aux).unwrap();
     }
     let handle = builder.done().unwrap();
-    let sp = unsafe { handle.get_start_ptr() };
+    let sp = handle.start_ptr() as *const () as usize;
 
-    let sp = sp as usize;
     #[cfg(debug_assertions)]
     {
         eprintln!("stackpointer={:#X}", sp);
