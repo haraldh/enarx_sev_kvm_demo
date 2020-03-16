@@ -57,6 +57,8 @@ fn main_qemu(kernel_blob: &str, extra_args: &[String]) -> ! {
         "isa-debug-exit,iobase=0xf4,iosize=0x04",
         "-chardev",
         "stdio,mux=on,id=char0",
+        "-mon",
+        "chardev=char0,mode=readline",
         "-serial",
         "chardev:char0",
         "-serial",
