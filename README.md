@@ -30,80 +30,56 @@
 ## Requirements
 
 ```console
-$ rustup toolchain add nightly
-$ rustup toolchain add nightly-2020-02-13 --force
 $ rustup target add x86_64-unknown-linux-musl
-$ rustup target add x86_64-unknown-linux-musl --toolchain nightly
-$ rustup component add rust-src --toolchain nightly
-$ rustup component add rust-src --toolchain nightly-2020-02-13
-$ rustup component add llvm-tools-preview --toolchain nightly
-$ rustup component add llvm-tools-preview --toolchain nightly-2020-02-13
+$ rustup component add llvm-tools-preview
 ```
 
-*Note*: [`nightly-2020-02-13` has `clippy`](https://rust-lang.github.io/rustup-components-history/index.html)
+## Build
+
+```console
+$ cargo build --all
+```
+
 
 ## Run
 
-### vmrun
-
 ```console
-$ cargo build
+$ (cd kernel; cargo run)
 ```
 
-#### with stderr
+or:
 
 ```console
-$ (cd kernel; cargo run )
+$ cargo run --package vmrun -- target/x86_64-unknown-linux-musl/debug/kernel
 ```
 
-or directly:
+
+## Run with qemu
 
 ```console
-$ (cd kernel; cargo build )
-$ cargo +nightly-2020-02-13 clippy --target x86_64-unknown-linux-gnu --package kernel
+$ cargo build --all
 ```
 
-#### without stderr
-```bash
-$ (cd kernel; cargo run ) 2>/dev/null
-```
-
-### qemu
+Currently, we need nightly for timers and interrupts.
 
 ```console
-$ cargo build
-$ (cd kernel; cargo build )
-```
-
-#### with stderr
-```console
+$ (cd kernel; cargo +nightly build --features qemu)
 $ cargo run --package vmrun -- --force-qemu target/x86_64-unknown-linux-musl/debug/kernel
-```
-
-#### without stderr
-```console
-$ cargo run --package vmrun -- --force-qemu target/x86_64-unknown-linux-musl/debug/kernel 2>/dev/null
 ```
 
 ## Test
 
 ```console
-$ cargo build
-$ cargo test
-$ (cd kernel; cargo test)
-```
-
-## Clippy for the kernel
-
-```console
-$ cargo clean
-$ cargo clippy
-$ (cd kernel; cargo +nightly-2020-02-13 clippy --target x86_64-unknown-linux-gnu)
+$ cargo test -p vmrun
+$ (cd kernel; cargo +nightly test --features qemu)
 ```
 
 ## gdb debugging with the kernel
 
+Currently, we need nightly for timers and interrupts.
+
 ```console
+$ (cd kernel; cargo +nightly build --features qemu)
 $ cargo run --package vmrun -- --force-qemu \
     target/x86_64-unknown-linux-musl/debug/kernel \
     -S -s
@@ -118,7 +94,7 @@ $ gdb \
     -ex 'set arch i386:x86-64:intel' \
     -ex 'target remote localhost:1234' \
     -ex 'br _before_jump' -ex 'cont' \
-    -ex 'br usermode' \
+    -ex 'br _usermode' \
     -ex 'cont'
 ```
 
@@ -127,6 +103,7 @@ to debug the app, continue with:
 > next
 > next
 > file target/x86_64-unknown-linux-musl/debug/app
+> br _start
 > br app::main
 > cont
 ```

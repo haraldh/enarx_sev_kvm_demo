@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     container: quay.io/haraldh/rust-nightly-qemu-x86:latest
-    env: 
+    env:
       RUSTUP_HOME: /root/.rustup
       CARGO_HOME:  /root/.cargo
 
@@ -45,14 +45,14 @@ jobs:
     - name: "Run cargo build"
       run: cargo build
 
-    - name: "Run cargo test"
-      run: cargo test
+    - name: "Run Vmrun Test Framework"
+      run: cargo test -p vmrun
 
     - name: "Build Kernel"
       run: (cd kernel; cargo build)
 
     - name: "Run Kernel Test Framework"
-      run: (cd kernel; cargo test)
+      run: (cd kernel; cargo +nightly test --features qemu)
 
     - name: "Run App in Kernel"
-      run: (cd kernel; cargo run)
+      run: (cd kernel; cargo +nightly run --features qemu)

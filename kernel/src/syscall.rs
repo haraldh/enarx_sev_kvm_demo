@@ -207,6 +207,7 @@ pub extern "C" fn handle_syscall(
             }
             0
         }
+        #[cfg(feature = "allocator")]
         SYSCALL_READLINK => {
             use cstrptr::CStr;
             let pathname = unsafe { CStr::from_ptr(a as _) };

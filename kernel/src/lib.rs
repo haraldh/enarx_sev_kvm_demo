@@ -14,6 +14,7 @@ fn foo() {
     compile_error!("testing only on nightly");
 }
 
+#[cfg(feature = "nightly")]
 extern crate alloc;
 
 use core::panic::PanicInfo;

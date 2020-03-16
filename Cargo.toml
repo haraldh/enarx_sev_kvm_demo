@@ -6,12 +6,6 @@ members = [
     "kernel",
 ]
 
-default-members = [
-    "kernel/vmbootspec",
-    "vmrun",
-    "app",
-]
-
 [profile.dev]
 panic = "abort"
 

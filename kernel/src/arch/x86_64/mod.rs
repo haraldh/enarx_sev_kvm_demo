@@ -4,6 +4,7 @@ pub mod gdt;
 
 #[cfg(feature = "nightly")]
 pub mod interrupts;
+
 mod start_e820;
 pub mod structures;
 pub mod syscall;
@@ -76,7 +77,6 @@ pub fn init(
         frame_allocator: &mut BootInfoFrameAllocator,
     ) -> !,
 ) -> ! {
-    //eprintln!("{}:{}", file!(), line!());
     unsafe {
         let xsave_supported = (core::arch::x86_64::__cpuid(1).ecx & (1 << 26)) != 0;
         assert!(xsave_supported);
@@ -95,9 +95,9 @@ pub fn init(
         let xsave_size = core::arch::x86_64::__cpuid(0xD).ebx;
         assert!(xsave_size < (16 * 64 - 64));
     }
-    //eprintln!("{}:{}", file!(), line!());
     gdt::init();
     unsafe { syscall::init() };
+
     #[cfg(feature = "nightly")]
     interrupts::init();
 
