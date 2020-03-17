@@ -60,7 +60,7 @@ impl HvmMemmapTableEntry {
     }
 }
 
-#[cfg(feature = "nightly")]
+#[cfg(feature = "allocator")]
 impl alloc::fmt::Debug for HvmMemmapTableEntry {
     fn fmt(&self, f: &mut alloc::fmt::Formatter<'_>) -> Result<(), alloc::fmt::Error> {
         unsafe {

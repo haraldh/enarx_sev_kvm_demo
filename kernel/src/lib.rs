@@ -14,12 +14,12 @@ fn foo() {
     compile_error!("testing only on nightly");
 }
 
-#[cfg(feature = "nightly")]
+#[cfg(feature = "allocator")]
 extern crate alloc;
 
 use core::panic::PanicInfo;
 
-#[cfg(feature = "nightly")]
+#[cfg(feature = "allocator")]
 use linked_list_allocator::LockedHeap;
 
 pub mod arch;
@@ -45,7 +45,7 @@ extern "C" fn _Unwind_Resume() {
     exit_hypervisor(HyperVisorExitCode::Failed);
 }
 
-#[cfg(feature = "nightly")]
+#[cfg(feature = "allocator")]
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
@@ -115,7 +115,7 @@ fn panic(info: &PanicInfo) -> ! {
     test_panic_handler(info)
 }
 
-#[cfg(feature = "nightly")]
+#[cfg(feature = "allocator")]
 #[alloc_error_handler]
 fn alloc_error_handler(layout: alloc::alloc::Layout) -> ! {
     panic!("allocation error: {:?}", layout)

@@ -145,7 +145,7 @@ pub fn init_heap(
             .flush();
     }
 
-    #[cfg(feature = "nightly")]
+    #[cfg(feature = "allocator")]
     unsafe {
         crate::ALLOCATOR.lock().init(HEAP_START, HEAP_SIZE);
     }
@@ -461,6 +461,8 @@ pub fn exec_app(mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFram
     {
         eprintln!("stackpointer={:#X}", sp);
         eprintln!("USER_STACK_OFFSET={:#X}", USER_STACK_OFFSET);
+        eprintln!("load_addr={:#X}", load_addr.unwrap().as_u64());
+        eprintln!("phnum = {}", elf_file.program_iter().count());
         eprintln!("\n========= APP START =============\n");
     }
     unsafe {
