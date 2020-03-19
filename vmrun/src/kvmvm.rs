@@ -11,7 +11,7 @@ use kvm_bindings::{
     KVM_PIT_SPEAKER_DUMMY,
 };
 use kvm_ioctls::{Kvm, VcpuFd, VmFd};
-use linux_errno::*;
+use linux_errno::ErrNo;
 use std::io::Write;
 use vmbootspec::{layout::*, BootInfo, FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
 use vmsyscall::{VmSyscall, VmSyscallRet};
@@ -514,7 +514,7 @@ impl KvmVm {
                                 .map_err(|e| {
                                     vmsyscall::Error::Errno(
                                         e.raw_os_error()
-                                            .unwrap_or(Into::<i64>::into(EBADF) as _)
+                                            .unwrap_or(Into::<i64>::into(ErrNo::EBADF) as _)
                                             .into(),
                                     )
                                 }),
@@ -532,16 +532,16 @@ impl KvmVm {
                                 .map_err(|e| {
                                     vmsyscall::Error::Errno(
                                         e.raw_os_error()
-                                            .unwrap_or(Into::<i64>::into(EBADF) as _)
+                                            .unwrap_or(Into::<i64>::into(ErrNo::EBADF) as _)
                                             .into(),
                                     )
                                 }),
                         )
                     }
-                    _ => VmSyscallRet::Write(Err(vmsyscall::Error::Errno(EBADF.into()))),
+                    _ => VmSyscallRet::Write(Err(vmsyscall::Error::Errno(ErrNo::EBADF.into()))),
                 },
                 VmSyscall::Read { fd: _, count: _ } => {
-                    VmSyscallRet::Read(Err(vmsyscall::Error::Errno(EBADF.into())))
+                    VmSyscallRet::Read(Err(vmsyscall::Error::Errno(ErrNo::EBADF.into())))
                 }
                 VmSyscall::Mmap {
                     addr: _,
@@ -549,7 +549,7 @@ impl KvmVm {
                     prot: _,
                     flags: _,
                 } => {
-                    VmSyscallRet::Mmap(Err(vmsyscall::Error::Errno(ENOSYS.into())))
+                    VmSyscallRet::Mmap(Err(vmsyscall::Error::Errno(ErrNo::ENOSYS.into())))
                     /*
                     let ret = unsafe {
                         mmap(
@@ -597,21 +597,21 @@ impl KvmVm {
                     addr: _,
                     length: _,
                     advice: _,
-                } => VmSyscallRet::Madvise(Err(vmsyscall::Error::Errno(ENOSYS.into()))),
+                } => VmSyscallRet::Madvise(Err(vmsyscall::Error::Errno(ErrNo::ENOSYS.into()))),
                 VmSyscall::Mremap {
                     old_address: _,
                     old_size: _,
                     new_size: _,
                     flags: _,
-                } => VmSyscallRet::Mremap(Err(vmsyscall::Error::Errno(ENOSYS.into()))),
+                } => VmSyscallRet::Mremap(Err(vmsyscall::Error::Errno(ErrNo::ENOSYS.into()))),
                 VmSyscall::Munmap { addr: _, length: _ } => {
-                    VmSyscallRet::Munmap(Err(vmsyscall::Error::Errno(ENOSYS.into())))
+                    VmSyscallRet::Munmap(Err(vmsyscall::Error::Errno(ErrNo::ENOSYS.into())))
                 }
                 VmSyscall::Mprotect {
                     addr: _,
                     length: _,
                     prot: _,
-                } => VmSyscallRet::Mprotect(Err(vmsyscall::Error::Errno(ENOSYS.into()))),
+                } => VmSyscallRet::Mprotect(Err(vmsyscall::Error::Errno(ErrNo::ENOSYS.into()))),
             });
         }
         Ok(())
