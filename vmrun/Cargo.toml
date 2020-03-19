@@ -27,4 +27,4 @@ version = "0.1.3"
 
 [dependencies.vmsyscall]
 version = "0.2"
-path = "../../enarx/enarx/vmsyscall"
+path = "../vmsyscall"
