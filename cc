@@ -17,7 +17,7 @@ spec = {
         "insert": ["-nostartfiles",
                    "-Wl,-Tkernel/layout.ld",
                    "-Wl,-as-needed",
-                   "-fuse-ld=lld",
+                   "-Wl,--no-relax",
                    ],
         "insert-target-rlib": ["libc"]
     }
