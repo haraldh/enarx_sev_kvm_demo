@@ -50,9 +50,6 @@ jobs:
     - name: "Run Vmrun Test Framework"
       run: cargo test -p vmrun
 
-    - name: "Build Kernel"
-      run: (cd kernel; cargo build)
-
     - name: "Run Kernel Test Framework"
       run: (cd kernel; cargo +nightly test --features qemu)
 
