@@ -5,9 +5,9 @@
 _read_xcr0:
     xor    %ecx,%ecx
     xgetbv
-    shl    $0x20,%rdx   // shift edx to upper 32bit
-    mov    %eax,%eax    // clear upper 32bit of rax
-    or     %rdx,%rax    // or with rdx
+    shl    $0x20,%rdx   # shift edx to upper 32bit
+    mov    %eax,%eax    # clear upper 32bit of rax
+    or     %rdx,%rax    # or with rdx
     retq
 
 .section .text, "ax"
