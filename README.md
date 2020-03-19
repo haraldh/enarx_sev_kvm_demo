@@ -57,7 +57,7 @@ $ cargo run --package vmrun -- target/x86_64-unknown-linux-musl/debug/kernel
 ```
 
 
-## Run with qemu - **NOTE**: CURRENTLY BROKEN
+## Run with qemu
 
 ```console
 $ cargo build --all
@@ -77,7 +77,7 @@ $ cargo test -p vmrun
 $ (cd kernel; cargo +nightly test --features qemu)
 ```
 
-## gdb debugging with the kernel  - **NOTE**: CURRENTLY BROKEN
+## gdb debugging with the kernel
 
 Currently, we need nightly for timers and interrupts.
 
@@ -85,7 +85,7 @@ Currently, we need nightly for timers and interrupts.
 $ (cd kernel; cargo +nightly build --features qemu)
 $ cargo run --package vmrun -- --force-qemu \
     target/x86_64-unknown-linux-musl/debug/kernel \
-    -S -s
+    -- -S -s
 ```
 
 in another terminal:
@@ -97,12 +97,13 @@ $ gdb \
     -ex 'set arch i386:x86-64:intel' \
     -ex 'target remote localhost:1234' \
     -ex 'br _before_jump' -ex 'cont' \
-    -ex 'br _usermode' \
-    -ex 'cont'
+    -ex 'br exec_elf' -ex 'cont'
 ```
 
+### **NOTE**: CURRENTLY BROKEN:
 to debug the app, continue with:
 ```console
+> br _usermode
 > next
 > next
 > file target/x86_64-unknown-linux-musl/debug/app
