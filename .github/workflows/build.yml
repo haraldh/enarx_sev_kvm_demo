@@ -14,7 +14,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    container: quay.io/haraldh/rust-nightly-qemu-x86:latest
+    container:
+      image: quay.io/haraldh/rust-nightly-qemu-x86:latest
+      options: "--privileged"
     env:
       RUSTUP_HOME: /root/.rustup
       CARGO_HOME:  /root/.cargo
