@@ -71,7 +71,13 @@ ram32_start:
     # load a 64-bit code segment into our GDT.
     lgdtl .gdt64_ptr
     # Set CS to a 64-bit segment and jump to 64-bit code.
-    ljmpl $(.code64_desc - .gdt64_start), $ram64_start
+
+    #ljmpl $(.code64_desc - .gdt64_start), $ram64_start
+
+    push  $0x8
+    lea    ram64_start,%eax
+    push   %eax
+    lret
 
 .gdt64_ptr:
     .short .gdt64_end - .gdt64_start - 1 # GDT length is actually (length - 1)
