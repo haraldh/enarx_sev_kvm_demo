@@ -31,5 +31,5 @@ ram64_start:
 .section .bss.stack, "a"
 .global pvh_stack
 .align 4096
-	pvh_stack: .skip stack_size
-	pvh_stack_end: .skip 0
+pvh_stack: .skip stack_size
+pvh_stack_end:
