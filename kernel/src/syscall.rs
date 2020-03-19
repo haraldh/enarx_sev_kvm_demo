@@ -40,10 +40,11 @@ pub extern "C" fn handle_syscall(
     f: usize,
     nr: usize,
 ) -> usize {
-    /*eprintln!(
+    #[cfg(debug_assertions)]
+    eprintln!(
         "SC> raw: syscall({}, {:#X}, {:#X}, {:#X}, {}, {}, {:#X})",
         nr, a, b, c, d, e, f
-    );*/
+    );
 
     //eprintln!("stackpointer: {:#X}", read_rsp());
     //eprintln!("stackpointer initial: {:#X}", f);
@@ -183,6 +184,11 @@ pub extern "C" fn handle_syscall(
                 }
             }
         },
+        SYSCALL_MPROTECT => {
+            let ret = 0;
+            eprintln!("SC> mprotect({:#X}, {}, {}) = {:#?}", a, b, c, ret);
+            ret as _
+        }
         SYSCALL_UNAME => {
             eprintln!(
                 r##"SC> uname({{sysname="Linux", nodename="enarx", release="5.4.8", version="1", machine="x86_64", domainname="(none)"}}) = 0"##
@@ -207,22 +213,29 @@ pub extern "C" fn handle_syscall(
             }
             0
         }
-        #[cfg(feature = "allocator")]
         SYSCALL_READLINK => {
-            use cstrptr::CStr;
-            let pathname = unsafe { CStr::from_ptr(a as _) };
-            if !pathname.to_string_lossy().eq("/proc/self/exe") {
+            let pathname = unsafe {
+                let mut len = 0;
+                let ptr: *const u8 = a as _;
+                loop {
+                    if ptr.offset(len).read() == 0 {
+                        break;
+                    }
+                    len += 1;
+                }
+                core::str::from_utf8_unchecked(core::slice::from_raw_parts(a as _, len as _))
+            };
+
+            if !pathname.eq("/proc/self/exe") {
                 return ENOENT.neg_as_usize();
             }
+
             let outbuf = unsafe { core::slice::from_raw_parts_mut(b as _, c as _) };
             outbuf[..6].copy_from_slice(b"/init\0");
-            eprintln!(
-                "SC> readlink({:#?}, \"/init\", {}) = 5",
-                pathname.to_string_lossy(),
-                c
-            );
+            eprintln!("SC> readlink({:#?}, \"/init\", {}) = 5", pathname, c);
             5
         }
+
         SYSCALL_RT_SIGACTION => {
             eprintln!("SC> rt_sigaction(…) = 0");
             0
@@ -320,6 +333,8 @@ pub extern "C" fn handle_syscall(
                 p.st_mtime.tv_nsec = 0;
                 p.st_ctime.tv_sec=1_579_507_218 /* 2020-01-20T09:00:18.467721685+0100 */;
                 p.st_ctime.tv_nsec = 0;
+                eprintln!("SC> fstat(1, {{st_dev=makedev(0, 0x17), st_ino=3, st_mode=S_IFCHR|0620, st_nlink=1, st_uid=1000, st_gid=5, st_blksize=1024, st_blocks=0, st_rdev=makedev(0x88, 0), st_atime=1579507218 /* 2020-01-21T11:45:08.467721685+0100 */, st_atime_nsec=0, st_mtime=1579507218 /* 2020-01-21T11:45:08.467721685+0100 */, st_mtime_nsec=0, st_ctime=1579507218 /* 2020-01-21T11:45:08.467721685+0100 */, st_ctime_nsec=0}}) = 0
+ = 0");
                 0
             }
             _ => EBADF.neg_as_usize(),
