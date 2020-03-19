@@ -19,8 +19,17 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     fn with_stack_protection(
         mapper: &mut OffsetPageTable,
         frame_allocator: &mut BootInfoFrameAllocator,
+        app_entry_point: *const u8,
+        app_load_addr: *const u8,
+        app_phnum: usize,
     ) -> ! {
-        kernel::arch::exec_app(mapper, frame_allocator);
+        kernel::arch::exec_elf(
+            mapper,
+            frame_allocator,
+            app_entry_point,
+            app_load_addr,
+            app_phnum,
+        );
     }
 
     kernel::arch::init(boot_info, with_stack_protection)

@@ -239,9 +239,9 @@ extern "x86-interrupt" fn page_fault_handler(
     use x86_64::registers::control::Cr2;
 
     eprintln!("EXCEPTION: PAGE FAULT");
-    eprintln!("Accessed Address: {:?}", Cr2::read());
     eprintln!("Error Code: {:?}", error_code);
     eprintln!("{:#?}", stack_frame);
+    eprintln!("Accessed Address: {:?}", Cr2::read());
     exit_hypervisor(HyperVisorExitCode::Failed);
     hlt_loop();
 }

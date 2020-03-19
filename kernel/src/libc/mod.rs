@@ -1,7 +1,3 @@
-use serde::ser::Serialize;
-use serde_cbor;
-use serde_cbor::ser::SliceWrite;
-use serde_cbor::Serializer;
 use vmbootspec::layout::{SYSCALL_PHYS_ADDR, SYSCALL_TRIGGER_PORT};
 pub use vmsyscall::Error;
 use vmsyscall::{VmSyscall, VmSyscallRet};
@@ -14,35 +10,43 @@ pub use mmap::*;
 #[cfg(test)]
 mod test;
 
+#[inline(always)]
+pub fn write(fd: u32, bytes: &[u8]) -> Result<i32, Error> {
+    unsafe {
+        let syscall_page = VirtAddr::new(SYSCALL_PHYS_ADDR);
+        let request = syscall_page.as_u64() as *mut VmSyscall;
+        let mut data = [0u8; 4000];
+        data[..bytes.len()].copy_from_slice(bytes);
+
+        request.write_volatile(VmSyscall::Write {
+            fd,
+            count: bytes.len(),
+            data,
+        });
+
+        let mut port = Port::<u16>::new(SYSCALL_TRIGGER_PORT);
+        port.write(1 as u16);
+        let reply = syscall_page.as_u64() as *mut VmSyscallRet;
+
+        match reply.read_volatile() {
+            VmSyscallRet::Write(res) => res,
+            _ => panic!("Unknown KvmSyscallRet"),
+        }
+    }
+}
+
+#[inline(always)]
 pub fn vm_syscall(syscall: VmSyscall) -> Result<VmSyscallRet, Error> {
     let syscall_page = VirtAddr::new(SYSCALL_PHYS_ADDR);
-
-    let mut syscall_slice =
-        unsafe { core::slice::from_raw_parts_mut(syscall_page.as_u64() as *mut u8, 4096 as usize) };
-
-    syscall_slice.iter_mut().for_each(|d| *d = 0);
-
-    let writer = SliceWrite::new(&mut syscall_slice);
-    let mut ser = Serializer::new(writer);
-
-    syscall
-        .serialize(&mut ser)
-        .map_err(|_| Error::SerializeError)?;
-
-    let writer = ser.into_inner();
-    let mut size = writer.bytes_written();
+    let request = syscall_page.as_u64() as *mut VmSyscall;
+    let reply = syscall_page.as_u64() as *mut VmSyscallRet;
 
     unsafe {
+        request.write_volatile(syscall);
         let mut port = Port::<u16>::new(SYSCALL_TRIGGER_PORT);
-        port.write(size as u16);
-        size = port.read() as usize;
+        port.write(1 as u16);
+        Ok(reply.read_volatile())
     }
-
-    let mut syscall_slice =
-        unsafe { core::slice::from_raw_parts_mut(syscall_page.as_u64() as *mut u8, size) };
-
-    // FIXME: unwrap
-    serde_cbor::de::from_mut_slice(&mut syscall_slice).map_err(|_| Error::DeSerializeError)
 }
 
 #[allow(non_camel_case_types)]

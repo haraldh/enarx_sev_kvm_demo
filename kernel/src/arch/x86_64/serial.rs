@@ -1,48 +1,37 @@
 //! print to serial port
-use lazy_static::lazy_static;
-use spin::Mutex;
-use uart_16550::SerialPort;
+//use lazy_static::lazy_static;
+//use spin::Mutex;
+//use uart_16550::SerialPort;
 
-lazy_static! {
-    pub static ref SERIAL1: Mutex<SerialPort> = {
-        let serial_port = unsafe { SerialPort::new(0x3F8) };
-        //serial_port.init();
-        Mutex::new(serial_port)
-    };
-}
+pub struct DummySerialPort(u32);
 
-lazy_static! {
-    pub static ref SERIAL2: Mutex<SerialPort> = {
-        let serial_port = unsafe { SerialPort::new(0x2f8) };
-        //serial_port.init();
-        Mutex::new(serial_port)
-    };
+impl core::fmt::Write for DummySerialPort {
+    #[inline(always)]
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        for c in s.as_bytes().chunks(4000) {
+            crate::libc::write(self.0, c)
+                .map(|_| ())
+                .map_err(|_| core::fmt::Error)?;
+        }
+        Ok(())
+    }
 }
 
 #[doc(hidden)]
 pub fn _print(args: ::core::fmt::Arguments) {
     use core::fmt::Write;
-    use x86_64::instructions::interrupts;
 
-    interrupts::without_interrupts(|| {
-        SERIAL1
-            .lock()
-            .write_fmt(args)
-            .expect("Printing to serial failed");
-    });
+    DummySerialPort(1)
+        .write_fmt(args)
+        .expect("Printing to serial failed");
 }
 
 #[doc(hidden)]
 pub fn _eprint(args: ::core::fmt::Arguments) {
     use core::fmt::Write;
-    use x86_64::instructions::interrupts;
-
-    interrupts::without_interrupts(|| {
-        SERIAL2
-            .lock()
-            .write_fmt(args)
-            .expect("Printing to serial failed");
-    });
+    DummySerialPort(2)
+        .write_fmt(args)
+        .expect("Printing to serial failed");
 }
 
 /// Prints to the host through the serial interface.

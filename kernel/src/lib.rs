@@ -23,7 +23,7 @@ use core::panic::PanicInfo;
 use linked_list_allocator::LockedHeap;
 
 pub mod arch;
-//pub mod libc;
+pub mod libc;
 pub mod memory;
 pub mod strlen;
 pub mod syscall;

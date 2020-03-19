@@ -10,9 +10,6 @@ use std::fmt;
 use std::io::{self, stderr, stdout};
 use std::sync::{Arc, Mutex};
 
-use fc_devices as devices;
-use fc_utils::eventfd::EventFd;
-
 /// Errors corresponding to the `PortIODeviceManager`.
 #[derive(Debug)]
 pub enum Error {

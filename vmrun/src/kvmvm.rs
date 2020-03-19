@@ -12,10 +12,11 @@ use kvm_bindings::{
 };
 use kvm_ioctls::{Kvm, VcpuFd, VmFd};
 use linux_errno::*;
+use std::io::Write;
 use vmbootspec::{layout::*, BootInfo, FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
 use vmsyscall::{VmSyscall, VmSyscallRet};
 
-const DEFAULT_GUEST_MEM: u64 = 100 * 1024 * 1024;
+const DEFAULT_GUEST_MEM: u64 = 2 * 1024 * 1024 * 1024; // 2GiB
 const DEFAULT_GUEST_PAGE_SIZE: usize = 4096;
 
 struct UserspaceMemRegion {
@@ -217,10 +218,15 @@ impl KvmVm {
 
         // Entry covering VA [0..1GB)
         page_tables.pml3t_ident[0] = boot_pde_addr as u64 | 0x7;
-
+        /*
+                page_tables.pml3t_ident[1] = (0x1000 + boot_pde_addr as u64) | 0x7;
+                page_tables.pml3t_ident[2] = (0x2000 + boot_pde_addr as u64) | 0x7;
+                page_tables.pml3t_ident[3] = (0x3000 + boot_pde_addr as u64) | 0x7;
+        */
         // 512 2MB entries together covering VA [0..1GB). Note we are assuming
         // CPU supports 2MB pages (/proc/cpuinfo has 'pse'). All modern CPUs do.
-        page_tables.pml2t_ident[0] = 0x183u64;
+        (0..2).for_each(|i| page_tables.pml2t_ident[i] = (i << 21) as u64 + 0x183u64);
+        (2..512).for_each(|i| page_tables.pml2t_ident[i] = (i << 21) as u64 + 0x187u64);
 
         let guest_pg_addr: *mut PageTables = self
             .addr_gpa2hva(PhysAddr::new(PML4_START as _))?
@@ -237,13 +243,10 @@ impl KvmVm {
     pub fn elf_load(
         &mut self,
         program_invocation_name: &str,
-        start_symbol: Option<&str>,
-    ) -> Result<VirtAddr, Error> {
+    ) -> Result<(VirtAddr, VirtAddr, usize), Error> {
         use std::fs::File;
         use std::os::unix::io::AsRawFd;
         use xmas_elf::program::{self, ProgramHeader};
-        use xmas_elf::sections;
-        use xmas_elf::symbol_table::Entry;
         use xmas_elf::ElfFile;
 
         let file = File::open(program_invocation_name).map_err(map_context!())?;
@@ -263,37 +266,9 @@ impl KvmVm {
 
         xmas_elf::header::sanity_check(&elf_file).map_err(map_context!())?;
 
-        let mut guest_code: Option<VirtAddr> = None;
-
-        match start_symbol {
-            Some(start_symbol) => {
-                let mut sect_iter = elf_file.section_iter();
-                // Skip the first (dummy) section
-                sect_iter.next();
-                for sect in sect_iter {
-                    sections::sanity_check(sect, &elf_file).unwrap();
-
-                    if sect.get_type() == Ok(sections::ShType::SymTab) {
-                        if let Ok(sections::SectionData::SymbolTable64(data)) =
-                            sect.get_data(&elf_file)
-                        {
-                            for datum in data {
-                                if datum.get_name(&elf_file).unwrap().eq(start_symbol) {
-                                    guest_code = Some(VirtAddr::new(datum.value()));
-                                }
-                            }
-                        } else {
-                            unreachable!();
-                        }
-                    }
-                }
-
-                if guest_code.is_none() {
-                    return Err(context!(ErrorKind::GuestCodeNotFound));
-                }
-            }
-            None => guest_code = Some(VirtAddr::new(elf_file.header.pt2.entry_point())),
-        }
+        let guest_code: VirtAddr = VirtAddr::new(elf_file.header.pt2.entry_point());
+        let mut load_addr: Option<VirtAddr> = None;
+        let phnum: usize = elf_file.program_iter().count();
 
         for program_header in elf_file.program_iter() {
             match program_header {
@@ -301,8 +276,16 @@ impl KvmVm {
                     let segment = *header;
                     match segment.get_type().unwrap() {
                         program::Type::Load => {}
+                        program::Type::Interp => {
+                            return Err(ErrorKind::NotAStaticBinary.into());
+                        }
                         _ => continue,
                     }
+
+                    if load_addr.is_none() {
+                        load_addr.replace(VirtAddr::new(segment.virtual_addr) - segment.offset);
+                    }
+
                     //dbg!(segment);
                     let start_phys = PhysAddr::new(segment.physical_addr);
                     let start_frame: PhysFrame =
@@ -337,15 +320,21 @@ impl KvmVm {
                             ..(segment.offset + segment.file_size) as usize],
                     );
 
-                    host_slice[segment.file_size as _..]
-                        .iter_mut()
-                        .for_each(|i| *i = 0);
+                    unsafe {
+                        if segment.mem_size > segment.file_size {
+                            core::ptr::write_bytes(
+                                &mut host_slice[segment.file_size as usize] as *mut u8,
+                                0u8,
+                                segment.mem_size as usize - segment.file_size as usize,
+                            );
+                        }
+                    }
                 }
                 ProgramHeader::Ph32(_) => panic!("does not support 32 bit elf files"),
             }
         }
 
-        Ok(guest_code.unwrap())
+        Ok((guest_code, load_addr.unwrap(), phnum))
     }
 
     fn write_gdt_table(&self, table: &[u64]) -> Result<(), Error> {
@@ -450,13 +439,25 @@ impl KvmVm {
         Ok(())
     }
 
-    fn vcpu_add_default(&mut self, vcpuid: u8, guest_code: VirtAddr) -> Result<(), Error> {
+    fn vcpu_add_default(
+        &mut self,
+        vcpuid: u8,
+        guest_code: VirtAddr,
+        elf_code: VirtAddr,
+        elf_phdr: VirtAddr,
+        elf_phnum: usize,
+    ) -> Result<(), Error> {
         let boot_info_vaddr = PhysAddr::new(BOOTINFO_PHYS_ADDR);
         let syscall_vaddr = PhysAddr::new(SYSCALL_PHYS_ADDR);
 
         self.syscall_hostvaddr = Some(self.addr_gpa2hva(syscall_vaddr)?);
 
-        let mut boot_info = BootInfo::new(self.memory_map.clone());
+        let mut boot_info = BootInfo {
+            memory_map: self.memory_map.clone(),
+            entry_point: elf_code.as_ptr(),
+            load_addr: elf_phdr.as_ptr(),
+            elf_phnum: elf_phnum,
+        };
 
         boot_info.memory_map.sort();
         // Write boot info to boot info page.
@@ -491,78 +492,129 @@ impl KvmVm {
         Ok(())
     }
 
-    pub fn handle_syscall(&mut self, syscall: VmSyscall) -> VmSyscallRet {
-        match syscall {
-            VmSyscall::Mmap {
-                addr: _,
-                length: _,
-                prot: _,
-                flags: _,
-            } => {
-                return VmSyscallRet::Mmap(Err(vmsyscall::Error::Errno(ENOSYS.into())));
-                /*
-                let ret = unsafe {
-                    mmap(
-                        null_mut(),
-                        len,
-                        ProtFlags::from_bits_truncate(prot),
-                        MapFlags::from_bits_truncate(flags),
-                        -1,
-                        0,
-                    )
-                };
-                let mmap_start = match ret {
-                    Err(nix::Error::Sys(e)) if e == nix::errno::Errno::ENOMEM => {
-                        return KvmSyscallRet::Mmap(Err(vmsyscall::Error::ENOMEM))
+    pub fn handle_syscall(&mut self) -> Result<(), ()> {
+        unsafe {
+            let syscall_page = self.syscall_hostvaddr.unwrap();
+            let request: *mut VmSyscall = syscall_page.as_mut_ptr();
+            let reply: *mut VmSyscallRet = syscall_page.as_mut_ptr();
+
+            //eprintln!("vmsyscall in: {:#?}", &*request);
+
+            reply.write_volatile(match request.read_volatile() {
+                VmSyscall::Write { fd, count, data } => match fd {
+                    1 => {
+                        let mut count: usize = count;
+                        if count > 4000 {
+                            count = 4000;
+                        }
+                        VmSyscallRet::Write(
+                            std::io::stdout()
+                                .write_all(&data[..count])
+                                .map(|_| count as _)
+                                .map_err(|e| {
+                                    vmsyscall::Error::Errno(
+                                        e.raw_os_error()
+                                            .unwrap_or(Into::<i64>::into(EBADF) as _)
+                                            .into(),
+                                    )
+                                }),
+                        )
                     }
-                    Err(_) => return KvmSyscallRet::Mmap(Err(vmsyscall::Error::OTHERERROR)),
-                    Ok(v) => v,
-                };
-                let mut region = UserspaceMemRegion {
-                    region: Default::default(),
-                    used_phy_pages: Default::default(),
-                    host_mem: PhysAddr::new(mmap_start as u64),
-                    mmap_start: PhysAddr::new(mmap_start as u64),
-                    mmap_size: len as _,
-                };
+                    2 => {
+                        let mut count: usize = count;
+                        if count > 4000 {
+                            count = 4000;
+                        }
+                        VmSyscallRet::Write(
+                            std::io::stderr()
+                                .write_all(&data[..count])
+                                .map(|_| count as _)
+                                .map_err(|e| {
+                                    vmsyscall::Error::Errno(
+                                        e.raw_os_error()
+                                            .unwrap_or(Into::<i64>::into(EBADF) as _)
+                                            .into(),
+                                    )
+                                }),
+                        )
+                    }
+                    _ => VmSyscallRet::Write(Err(vmsyscall::Error::Errno(EBADF.into()))),
+                },
+                VmSyscall::Read { fd: _, count: _ } => {
+                    VmSyscallRet::Read(Err(vmsyscall::Error::Errno(EBADF.into())))
+                }
+                VmSyscall::Mmap {
+                    addr: _,
+                    length: _,
+                    prot: _,
+                    flags: _,
+                } => {
+                    VmSyscallRet::Mmap(Err(vmsyscall::Error::Errno(ENOSYS.into())))
+                    /*
+                    let ret = unsafe {
+                        mmap(
+                            null_mut(),
+                            len,
+                            ProtFlags::from_bits_truncate(prot),
+                            MapFlags::from_bits_truncate(flags),
+                            -1,
+                            0,
+                        )
+                    };
+                    let mmap_start = match ret {
+                        Err(nix::Error::Sys(e)) if e == nix::errno::Errno::ENOMEM => {
+                            return KvmSyscallRet::Mmap(Err(vmsyscall::Error::ENOMEM))
+                        }
+                        Err(_) => return KvmSyscallRet::Mmap(Err(vmsyscall::Error::OTHERERROR)),
+                        Ok(v) => v,
+                    };
+                    let mut region = UserspaceMemRegion {
+                        region: Default::default(),
+                        used_phy_pages: Default::default(),
+                        host_mem: PhysAddr::new(mmap_start as u64),
+                        mmap_start: PhysAddr::new(mmap_start as u64),
+                        mmap_size: len as _,
+                    };
 
-                region.region.slot = 0;
-                region.region.flags = flags as _;
-                region.region.guest_phys_addr = addr as _;
-                region.region.memory_size = len as _;
-                region.region.userspace_addr = region.host_mem.as_u64();
+                    region.region.slot = 0;
+                    region.region.flags = flags as _;
+                    region.region.guest_phys_addr = addr as _;
+                    region.region.memory_size = len as _;
+                    region.region.userspace_addr = region.host_mem.as_u64();
 
-                unsafe {
-                    self.kvm_fd
-                        .set_user_memory_region(region.region)
-                        .map_err(map_context!())?
-                };
+                    unsafe {
+                        self.kvm_fd
+                            .set_user_memory_region(region.region)
+                            .map_err(map_context!())?
+                    };
 
-                //self.userspace_mem_regions.push(region);
+                    //self.userspace_mem_regions.push(region);
 
-                KvmSyscallRet::Mmap(Ok(region.mmap_start.as_u64() as _))
-                */
-            }
-            VmSyscall::Madvise {
-                addr: _,
-                length: _,
-                advice: _,
-            } => VmSyscallRet::Madvise(Err(vmsyscall::Error::Errno(ENOSYS.into()))),
-            VmSyscall::Mremap {
-                old_address: _,
-                old_size: _,
-                new_size: _,
-                flags: _,
-            } => VmSyscallRet::Mremap(Err(vmsyscall::Error::Errno(ENOSYS.into()))),
-            VmSyscall::Munmap { addr: _, length: _ } => {
-                VmSyscallRet::Munmap(Err(vmsyscall::Error::Errno(ENOSYS.into())))
-            }
-            VmSyscall::Mprotect {
-                addr: _,
-                length: _,
-                prot: _,
-            } => VmSyscallRet::Mprotect(Err(vmsyscall::Error::Errno(ENOSYS.into()))),
+                    KvmSyscallRet::Mmap(Ok(region.mmap_start.as_u64() as _))
+                    */
+                }
+                VmSyscall::Madvise {
+                    addr: _,
+                    length: _,
+                    advice: _,
+                } => VmSyscallRet::Madvise(Err(vmsyscall::Error::Errno(ENOSYS.into()))),
+                VmSyscall::Mremap {
+                    old_address: _,
+                    old_size: _,
+                    new_size: _,
+                    flags: _,
+                } => VmSyscallRet::Mremap(Err(vmsyscall::Error::Errno(ENOSYS.into()))),
+                VmSyscall::Munmap { addr: _, length: _ } => {
+                    VmSyscallRet::Munmap(Err(vmsyscall::Error::Errno(ENOSYS.into())))
+                }
+                VmSyscall::Mprotect {
+                    addr: _,
+                    length: _,
+                    prot: _,
+                } => VmSyscallRet::Mprotect(Err(vmsyscall::Error::Errno(ENOSYS.into()))),
+            });
         }
+        Ok(())
     }
 
     fn create_irqchip(&mut self) -> Result<(), Error> {
@@ -582,11 +634,7 @@ impl KvmVm {
         Ok(())
     }
 
-    pub fn vm_create_default(
-        program_invocation_name: &str,
-        vcpuid: u8,
-        entry_symbol: Option<&str>,
-    ) -> Result<Self, Error> {
+    pub fn vm_create_default(kernel_name: &str, elf_name: &str, vcpuid: u8) -> Result<Self, Error> {
         /* Create VM */
         let mut vm = KvmVm::vm_create((DEFAULT_GUEST_MEM / DEFAULT_GUEST_PAGE_SIZE as u64) as _)?;
 
@@ -594,10 +642,13 @@ impl KvmVm {
         vm.create_irqchip()?;
 
         /* Setup guest code */
-        let guest_code = vm.elf_load(program_invocation_name, entry_symbol)?;
+        let (elf_code, elf_phdr, elf_phnum) = vm.elf_load(elf_name)?;
+
+        /* Setup guest code */
+        let (guest_code, _, _) = vm.elf_load(kernel_name)?;
 
         /* Add the first vCPU. */
-        vm.vcpu_add_default(vcpuid, guest_code)?;
+        vm.vcpu_add_default(vcpuid, guest_code, elf_code, elf_phdr, elf_phnum)?;
 
         /* Set CPUID */
         let cpuid = vm

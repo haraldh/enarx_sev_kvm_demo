@@ -1,5 +1,5 @@
 use crate::arch::x86_64::PAGESIZE;
-use vmbootspec::layout::{BOOTINFO_PHYS_ADDR, PHYSICAL_MEMORY_OFFSET, SYSCALL_PHYS_ADDR};
+use vmbootspec::layout::{BOOTINFO_PHYS_ADDR, SYSCALL_PHYS_ADDR};
 use vmbootspec::{BootInfo, FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
 use x86_64::PhysAddr;
 
@@ -60,9 +60,9 @@ impl HvmMemmapTableEntry {
     }
 }
 
-#[cfg(feature = "allocator")]
-impl alloc::fmt::Debug for HvmMemmapTableEntry {
-    fn fmt(&self, f: &mut alloc::fmt::Formatter<'_>) -> Result<(), alloc::fmt::Error> {
+//#[cfg(feature = "allocator")]
+impl core::fmt::Debug for HvmMemmapTableEntry {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> Result<(), core::fmt::Error> {
         unsafe {
             write!(
                 f,
@@ -88,8 +88,6 @@ pub enum HvmMemmapTableEntryType {
 }
 
 extern "C" {
-    static _app_start_addr: usize;
-    static _app_size: usize;
     static _kernel_start: usize;
     static _kernel_end: usize;
     static pvh_stack: usize;
@@ -98,8 +96,6 @@ extern "C" {
 #[export_name = "_start_e820"]
 pub unsafe extern "C" fn rust_start_820(hvm_start_info: *const HvmStartInfo) -> ! {
     //eprintln!("rust_start_820");
-    let app_start_ptr = &_app_start_addr as *const _ as u64;
-    let app_end_ptr = &_app_start_addr as *const _ as u64 + &_app_size as *const _ as u64;
     let kernel_start_ptr = &_kernel_start as *const _ as u64;
     let kernel_end_ptr = &_kernel_end as *const _ as u64;
     let pvh_stack_ptr = &pvh_stack as *const _ as u64;
@@ -113,7 +109,12 @@ pub unsafe extern "C" fn rust_start_820(hvm_start_info: *const HvmStartInfo) -> 
 
     core::ptr::write(
         BOOTINFO_PHYS_ADDR as *mut BootInfo,
-        BootInfo::new(MemoryMap::new()),
+        BootInfo {
+            memory_map: MemoryMap::new(),
+            entry_point: core::ptr::null(),
+            load_addr: core::ptr::null(),
+            elf_phnum: 0,
+        },
     );
 
     let boot_info: *mut BootInfo = BOOTINFO_PHYS_ADDR as _;
@@ -165,13 +166,6 @@ pub unsafe extern "C" fn rust_start_820(hvm_start_info: *const HvmStartInfo) -> 
     (*boot_info).memory_map.mark_allocated_region(MemoryRegion {
         range: FrameRange::new(pvh_stack_ptr, pvh_stack_ptr + 0xF000),
         region_type: MemoryRegionType::KernelStack,
-    });
-    (*boot_info).memory_map.mark_allocated_region(MemoryRegion {
-        range: FrameRange::new(
-            app_start_ptr - PHYSICAL_MEMORY_OFFSET,
-            app_end_ptr - PHYSICAL_MEMORY_OFFSET,
-        ),
-        region_type: MemoryRegionType::App,
     });
 
     _start_main(boot_info)

@@ -105,7 +105,6 @@ _before_jump:
     andq   $0xFFFFFFFFFFFFFFC0, %rbp
     subq   $8, %rbp
 
-
     # jump into kernel address space
     jmpq *%rax
 

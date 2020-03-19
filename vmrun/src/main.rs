@@ -1,14 +1,9 @@
 use kvm_ioctls::{Kvm, VcpuExit};
-use serde::ser::Serialize;
-use serde_cbor;
-use serde_cbor::ser::SliceWrite;
-use serde_cbor::Serializer;
 use std::path::Path;
 use std::process::{exit, Command};
 use std::time::Instant;
 use vmbootspec::layout::SYSCALL_TRIGGER_PORT;
 use vmrun::kvmvm;
-use vmsyscall::VmSyscall;
 
 const PORT_QEMU_EXIT: u16 = 0xF4;
 
@@ -17,20 +12,25 @@ fn main() {
     let kvm = Kvm::new();
 
     match args.len() {
-        3..=std::usize::MAX if args[1].eq("--force-qemu") => main_qemu(&args[2], &args[3..]),
-        3..=std::usize::MAX if args[1].eq("--fallback-qemu") => match kvm {
-            Ok(_) => main_kvm(&args[2]),
-            Err(_) => main_qemu(&args[2], &args[3..]),
+        4..=std::usize::MAX if args[1].eq("--force-qemu") => {
+            main_qemu(&args[2], &args[3], &args[4..])
+        }
+        4..=std::usize::MAX if args[1].eq("--fallback-qemu") => match kvm {
+            Ok(_) => main_kvm(&args[2], &args[3]),
+            Err(_) => main_qemu(&args[2], &args[3], &args[4..]),
         },
-        2 => main_kvm(&args[1]),
+        3 => main_kvm(&args[1], &args[2]),
         _ => {
-            eprintln!("Usage: {} [--fallback-qemu] <kernelblob>", args[0],);
+            eprintln!(
+                "Usage: {} [--fallback-qemu] <elf binary> <kernelblob>",
+                args[0],
+            );
             exit(1);
         }
     }
 }
 
-fn main_qemu(kernel_blob: &str, extra_args: &[String]) -> ! {
+fn main_qemu(_elf_binary: &str, kernel_blob: &str, extra_args: &[String]) -> ! {
     if !Path::new(kernel_blob).exists() {
         eprintln!("Kernel image `{}` not found!", kernel_blob);
         exit(1);
@@ -93,7 +93,7 @@ fn main_qemu(kernel_blob: &str, extra_args: &[String]) -> ! {
     }
 }
 
-fn main_kvm(kernel_blob: &str) {
+fn main_kvm(elf_blob: &str, kernel_blob: &str) {
     let start = Instant::now();
 
     if !Path::new(kernel_blob).exists() {
@@ -101,17 +101,14 @@ fn main_kvm(kernel_blob: &str) {
         exit(1);
     }
 
-    eprintln!("Starting {}", kernel_blob);
+    if !Path::new(elf_blob).exists() {
+        eprintln!("Application elf binary `{}` not found!", elf_blob);
+        exit(1);
+    }
 
-    let mut kvm = kvmvm::KvmVm::vm_create_default(&kernel_blob, 0, None /*"_start"*/).unwrap();
+    eprintln!("Starting {} with {}", kernel_blob, elf_blob);
 
-    let mut syscall_request: Option<VmSyscall> = None;
-    let mut syscall_reply_size: Option<usize> = None;
-
-    let mut portio = vmrun::device_manager::legacy::PortIODeviceManager::new().unwrap();
-    let _ = portio.register_devices().unwrap();
-    let _ = kvm.kvm_fd.register_irqfd(&portio.com_evt_1_3, 4).unwrap();
-    let _ = kvm.kvm_fd.register_irqfd(&portio.com_evt_2_4, 3).unwrap();
+    let mut kvm = kvmvm::KvmVm::vm_create_default(&kernel_blob, &elf_blob, 0).unwrap();
 
     loop {
         let ret = kvm
@@ -120,18 +117,8 @@ fn main_kvm(kernel_blob: &str) {
             .unwrap()
             .run()
             .expect("Hypervisor: VM run failed");
+
         match ret {
-            VcpuExit::IoIn(port, data) => match port {
-                SYSCALL_TRIGGER_PORT => {
-                    let size = syscall_reply_size.take().unwrap();
-                    data[0] = (size & 0xFF) as _;
-                    data[1] = ((size >> 8) & 0xFF) as _;
-                    continue;
-                }
-                _ => {
-                    portio.io_bus.read(port as _, data);
-                } //_ => panic!("Hypervisor: Unexpected IO port {:#X}!", port),
-            },
             VcpuExit::IoOut(port, data) => match port {
                 // Qemu exit simulation
                 PORT_QEMU_EXIT if data.eq(&[0x10, 0, 0, 0]) => {
@@ -143,24 +130,17 @@ fn main_kvm(kernel_blob: &str) {
                     std::process::exit(1);
                 }
                 SYSCALL_TRIGGER_PORT => {
-                    let syscall_page = kvm.syscall_hostvaddr.unwrap();
-
-                    let mut syscall_slice = unsafe {
-                        core::slice::from_raw_parts_mut(
-                            syscall_page.as_u64() as *mut u8,
-                            (data[0] as u16 + data[1] as u16 * 256) as _,
-                        )
-                    };
-
-                    let s: VmSyscall = serde_cbor::de::from_mut_slice(&mut syscall_slice).unwrap();
-
-                    syscall_request.replace(s);
-
-                    //eprintln!("syscall in: {:#?}", syscall_request);
+                    if let Err(e) = kvm.handle_syscall() {
+                        panic!("Handle syscall: {:#?}", e);
+                    }
                 }
                 _ => {
-                    portio.io_bus.write(port as _, data);
-                } //_ => panic!("Hypervisor: Unexpected IO port {:#X} {:#?}!", port, data),
+                    let regs = kvm.cpu_fd.get(0).unwrap().get_regs().unwrap();
+                    panic!(
+                        "Hypervisor: Unexpected IO port {:#X} {:#?}!\n{:#?}",
+                        port, data, regs
+                    )
+                }
             },
             VcpuExit::Hlt => {
                 let elapsed = start.elapsed();
@@ -169,27 +149,13 @@ fn main_kvm(kernel_blob: &str) {
                 break;
             }
             exit_reason => {
-                eprintln!("Hypervisor: unexpected exit reason: {:?}", exit_reason);
+                let regs = kvm.cpu_fd.get(0).unwrap().get_regs().unwrap();
+                eprintln!(
+                    "Hypervisor: unexpected exit reason: {:?}\n{:#?}",
+                    exit_reason, regs
+                );
                 std::process::exit(1);
             }
-        }
-
-        // Handle syscall request
-        if let Some(syscall) = syscall_request.take() {
-            let syscall_page = kvm.syscall_hostvaddr.unwrap();
-
-            let mut syscall_slice = unsafe {
-                core::slice::from_raw_parts_mut(syscall_page.as_u64() as *mut u8, 4096 as _)
-            };
-
-            let ret = kvm.handle_syscall(syscall);
-
-            let writer = SliceWrite::new(&mut syscall_slice);
-            let mut ser = Serializer::new(writer);
-
-            ret.serialize(&mut ser).unwrap();
-            let writer = ser.into_inner();
-            syscall_reply_size.replace(writer.bytes_written());
         }
     }
     eprintln!("Hypervisor: Done");
