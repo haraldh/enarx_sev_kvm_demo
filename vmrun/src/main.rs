@@ -108,10 +108,6 @@ fn main_kvm(elf_blob: &str, kernel_blob: &str) {
 
     eprintln!("Starting {} with {}", kernel_blob, elf_blob);
 
-    let mut portio = vmrun::device_manager::legacy::PortIODeviceManager::new().unwrap();
-    let _ = portio.register_devices().unwrap();
-    let _ = kvm.kvm_fd.register_irqfd(&portio.com_evt_1_3, 4).unwrap();
-    let _ = kvm.kvm_fd.register_irqfd(&portio.com_evt_2_4, 3).unwrap();
     let mut kvm = kvmvm::KvmVm::vm_create_default(&kernel_blob, &elf_blob, 0).unwrap();
 
     loop {
@@ -121,18 +117,8 @@ fn main_kvm(elf_blob: &str, kernel_blob: &str) {
             .unwrap()
             .run()
             .expect("Hypervisor: VM run failed");
+
         match ret {
-            VcpuExit::IoIn(port, data) => match port {
-                SYSCALL_TRIGGER_PORT => {
-                    let size = syscall_reply_size.take().unwrap();
-                    data[0] = (size & 0xFF) as _;
-                    data[1] = ((size >> 8) & 0xFF) as _;
-                    continue;
-                }
-                _ => {
-                    portio.io_bus.read(port as _, data);
-                } //_ => panic!("Hypervisor: Unexpected IO port {:#X}!", port),
-            },
             VcpuExit::IoOut(port, data) => match port {
                 // Qemu exit simulation
                 PORT_QEMU_EXIT if data.eq(&[0x10, 0, 0, 0]) => {
@@ -149,8 +135,12 @@ fn main_kvm(elf_blob: &str, kernel_blob: &str) {
                     }
                 }
                 _ => {
-                    portio.io_bus.write(port as _, data);
-                } //_ => panic!("Hypervisor: Unexpected IO port {:#X} {:#?}!", port, data),
+                    let regs = kvm.cpu_fd.get(0).unwrap().get_regs().unwrap();
+                    panic!(
+                        "Hypervisor: Unexpected IO port {:#X} {:#?}!\n{:#?}",
+                        port, data, regs
+                    )
+                }
             },
             VcpuExit::Hlt => {
                 let elapsed = start.elapsed();
