@@ -286,7 +286,12 @@ impl KvmVm {
                         load_addr.replace(VirtAddr::new(segment.virtual_addr) - segment.offset);
                     }
 
-                    //dbg!(segment);
+                    // dbg!(segment);
+
+                    if segment.mem_size == 0 {
+                        continue;
+                    }
+
                     let start_phys = PhysAddr::new(segment.physical_addr);
                     let start_frame: PhysFrame =
                         PhysFrame::from_start_address(start_phys.align_down(self.page_size as u64))
