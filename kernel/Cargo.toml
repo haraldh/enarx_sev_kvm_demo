@@ -38,8 +38,6 @@ path = "../vmsyscall"
 
 [build-dependencies]
 cc = "1.0.37"
-llvm-tools = "0.1.1"
-version_check = "0.9.1"
 
 [features]
 default = [ ]
