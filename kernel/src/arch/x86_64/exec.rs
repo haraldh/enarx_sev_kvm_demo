@@ -3,6 +3,7 @@ use crate::arch::x86_64::structures::paging::{
     mapper::MapToError, FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags, Size4KiB,
 };
 use crate::memory::BootInfoFrameAllocator;
+use crate::{exit_hypervisor, HyperVisorExitCode};
 use crt0stack::{self, Builder, Entry};
 use vmbootspec::layout::{USER_STACK_OFFSET, USER_STACK_SIZE};
 use x86_64::instructions::random::RdRand;
@@ -102,7 +103,14 @@ pub fn exec_elf(
         eprintln!("USER_STACK_OFFSET={:#X}", USER_STACK_OFFSET);
         eprintln!("\n========= APP START =============\n");
     }
-    unsafe {
-        syscall::usermode(app_entry_point as usize, sp, 0);
+
+    if app_entry_point.is_null() {
+        eprintln!("app_entry_point.is_null()");
+        exit_hypervisor(HyperVisorExitCode::Success);
+        crate::hlt_loop()
+    } else {
+        unsafe {
+            syscall::usermode(app_entry_point as usize, sp, 0);
+        }
     }
 }

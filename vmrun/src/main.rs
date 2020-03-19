@@ -74,9 +74,9 @@ fn main_qemu(_elf_binary: &str, kernel_blob: &str, extra_args: &[String]) -> ! {
     }
     args.push("-kernel");
     args.push(kernel_blob);
-    if !extra_args.is_empty() {
+    if !extra_args.is_empty() && extra_args[0].eq("--") {
         eprintln!("Extra args! {:#?}", extra_args);
-        args.extend(extra_args.iter().map(String::as_str));
+        args.extend(extra_args.iter().skip(1).map(String::as_str));
     }
     cmd.args(args);
     let mut child = cmd.spawn().expect("Unable to start qemu-system-x86_64");

@@ -12,7 +12,14 @@ use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 entry_point!(main);
 
 fn main(boot_info: &'static mut BootInfo) -> ! {
-    fn inner(_mapper: &mut OffsetPageTable, _frame_allocator: &mut BootInfoFrameAllocator) -> ! // trigger a stack overflow
+    fn inner(
+        _mapper: &mut OffsetPageTable,
+        _frame_allocator: &mut BootInfoFrameAllocator,
+        _app_entry_point: *const u8,
+        _app_load_addr: *const u8,
+        _app_phnum: usize,
+    ) -> !
+// trigger a stack overflow
     {
         serial_println!("check stack_overflow");
         init_test_idt();

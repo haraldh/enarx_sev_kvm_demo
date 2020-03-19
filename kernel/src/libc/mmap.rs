@@ -2,11 +2,6 @@ use super::{c_void, vm_syscall};
 pub use vmsyscall::Error;
 use vmsyscall::{VmSyscall, VmSyscallRet};
 
-#[cfg(test)]
-use crate::{serial_print, serial_println};
-#[cfg(test)]
-use linux_errno::*;
-
 pub fn madvise(addr: *mut c_void, length: usize, advice: i32) -> Result<i32, Error> {
     let s = VmSyscall::Madvise {
         addr: addr as usize,

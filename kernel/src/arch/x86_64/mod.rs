@@ -1,5 +1,6 @@
 #[macro_use]
 pub mod serial;
+
 pub mod gdt;
 
 #[cfg(feature = "nightly")]
