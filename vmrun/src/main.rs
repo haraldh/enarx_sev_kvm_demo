@@ -1,14 +1,9 @@
 use kvm_ioctls::{Kvm, VcpuExit};
-use serde::ser::Serialize;
-use serde_cbor;
-use serde_cbor::ser::SliceWrite;
-use serde_cbor::Serializer;
 use std::path::Path;
 use std::process::{exit, Command};
 use std::time::Instant;
 use vmbootspec::layout::SYSCALL_TRIGGER_PORT;
 use vmrun::kvmvm;
-use vmsyscall::VmSyscall;
 
 const PORT_QEMU_EXIT: u16 = 0xF4;
 
@@ -111,8 +106,7 @@ fn main_kvm(elf_blob: &str, kernel_blob: &str) {
         exit(1);
     }
 
-    let mut syscall_request: Option<VmSyscall> = None;
-    let mut syscall_reply_size: Option<usize> = None;
+    eprintln!("Starting {} with {}", kernel_blob, elf_blob);
 
     let mut portio = vmrun::device_manager::legacy::PortIODeviceManager::new().unwrap();
     let _ = portio.register_devices().unwrap();
@@ -150,20 +144,9 @@ fn main_kvm(elf_blob: &str, kernel_blob: &str) {
                     std::process::exit(1);
                 }
                 SYSCALL_TRIGGER_PORT => {
-                    let syscall_page = kvm.syscall_hostvaddr.unwrap();
-
-                    let mut syscall_slice = unsafe {
-                        core::slice::from_raw_parts_mut(
-                            syscall_page.as_u64() as *mut u8,
-                            (data[0] as u16 + data[1] as u16 * 256) as _,
-                        )
-                    };
-
-                    let s: VmSyscall = serde_cbor::de::from_mut_slice(&mut syscall_slice).unwrap();
-
-                    syscall_request.replace(s);
-
-                    //eprintln!("syscall in: {:#?}", syscall_request);
+                    if let Err(e) = kvm.handle_syscall() {
+                        panic!("Handle syscall: {:#?}", e);
+                    }
                 }
                 _ => {
                     portio.io_bus.write(port as _, data);
@@ -176,27 +159,13 @@ fn main_kvm(elf_blob: &str, kernel_blob: &str) {
                 break;
             }
             exit_reason => {
-                eprintln!("Hypervisor: unexpected exit reason: {:?}", exit_reason);
+                let regs = kvm.cpu_fd.get(0).unwrap().get_regs().unwrap();
+                eprintln!(
+                    "Hypervisor: unexpected exit reason: {:?}\n{:#?}",
+                    exit_reason, regs
+                );
                 std::process::exit(1);
             }
-        }
-
-        // Handle syscall request
-        if let Some(syscall) = syscall_request.take() {
-            let syscall_page = kvm.syscall_hostvaddr.unwrap();
-
-            let mut syscall_slice = unsafe {
-                core::slice::from_raw_parts_mut(syscall_page.as_u64() as *mut u8, 4096 as _)
-            };
-
-            let ret = kvm.handle_syscall(syscall);
-
-            let writer = SliceWrite::new(&mut syscall_slice);
-            let mut ser = Serializer::new(writer);
-
-            ret.serialize(&mut ser).unwrap();
-            let writer = ser.into_inner();
-            syscall_reply_size.replace(writer.bytes_written());
         }
     }
     eprintln!("Hypervisor: Done");

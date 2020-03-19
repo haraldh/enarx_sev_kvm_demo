@@ -20,14 +20,6 @@ pub fn madvise(addr: *mut c_void, length: usize, advice: i32) -> Result<i32, Err
     }
 }
 
-#[test_case]
-fn test_madvise() {
-    serial_print!("test_madvise...");
-    let ret = madvise(core::ptr::null_mut(), 0, 0).unwrap_err();
-    assert_eq!(ret, Error::Errno(ENOSYS.into()));
-    serial_println!("[ok]");
-}
-
 pub fn mmap(addr: *mut c_void, length: usize, prot: i32, flags: i32) -> Result<*mut c_void, Error> {
     let s = VmSyscall::Mmap {
         addr: addr as usize,
@@ -43,14 +35,6 @@ pub fn mmap(addr: *mut c_void, length: usize, prot: i32, flags: i32) -> Result<*
         },
         _ => panic!("Unknown KvmSyscallRet"),
     }
-}
-
-#[test_case]
-fn test_mmap() {
-    serial_print!("test_mmap...");
-    let ret = mmap(core::ptr::null_mut(), 0, 0, 0).unwrap_err();
-    assert_eq!(ret, Error::Errno(ENOSYS.into()));
-    serial_println!("[ok]");
 }
 
 pub fn mremap(
@@ -75,14 +59,6 @@ pub fn mremap(
     }
 }
 
-#[test_case]
-fn test_mremap() {
-    serial_print!("test_mremap...");
-    let ret = mremap(core::ptr::null_mut(), 0, 0, 0).unwrap_err();
-    assert_eq!(ret, Error::Errno(ENOSYS.into()));
-    serial_println!("[ok]");
-}
-
 pub fn munmap(addr: *mut c_void, length: usize) -> Result<i32, Error> {
     let s = VmSyscall::Munmap {
         addr: addr as usize,
@@ -93,14 +69,6 @@ pub fn munmap(addr: *mut c_void, length: usize) -> Result<i32, Error> {
         VmSyscallRet::Munmap(res) => res,
         _ => panic!("Unknown KvmSyscallRet"),
     }
-}
-
-#[test_case]
-fn test_munmap() {
-    serial_print!("test_munmap...");
-    let ret = munmap(core::ptr::null_mut(), 0).unwrap_err();
-    assert_eq!(ret, Error::Errno(ENOSYS.into()));
-    serial_println!("[ok]");
 }
 
 pub fn mprotect(addr: *mut c_void, length: usize, prot: i32) -> Result<i32, Error> {
@@ -114,14 +82,6 @@ pub fn mprotect(addr: *mut c_void, length: usize, prot: i32) -> Result<i32, Erro
         VmSyscallRet::Mprotect(res) => res,
         _ => panic!("Unknown KvmSyscallRet"),
     }
-}
-
-#[test_case]
-fn test_mprotect() {
-    serial_print!("test_mprotect...");
-    let ret = mprotect(core::ptr::null_mut(), 0, 0).unwrap_err();
-    assert_eq!(ret, Error::Errno(ENOSYS.into()));
-    serial_println!("[ok]");
 }
 
 pub const MREMAP_MAYMOVE: i32 = 1;

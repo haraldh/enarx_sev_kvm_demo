@@ -12,10 +12,11 @@ use kvm_bindings::{
 };
 use kvm_ioctls::{Kvm, VcpuFd, VmFd};
 use linux_errno::*;
+use std::io::Write;
 use vmbootspec::{layout::*, BootInfo, FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
 use vmsyscall::{VmSyscall, VmSyscallRet};
 
-const DEFAULT_GUEST_MEM: u64 = 100 * 1024 * 1024;
+const DEFAULT_GUEST_MEM: u64 = 2 * 1024 * 1024 * 1024; // 2GiB
 const DEFAULT_GUEST_PAGE_SIZE: usize = 4096;
 
 struct UserspaceMemRegion {
@@ -491,78 +492,129 @@ impl KvmVm {
         Ok(())
     }
 
-    pub fn handle_syscall(&mut self, syscall: VmSyscall) -> VmSyscallRet {
-        match syscall {
-            VmSyscall::Mmap {
-                addr: _,
-                length: _,
-                prot: _,
-                flags: _,
-            } => {
-                return VmSyscallRet::Mmap(Err(vmsyscall::Error::Errno(ENOSYS.into())));
-                /*
-                let ret = unsafe {
-                    mmap(
-                        null_mut(),
-                        len,
-                        ProtFlags::from_bits_truncate(prot),
-                        MapFlags::from_bits_truncate(flags),
-                        -1,
-                        0,
-                    )
-                };
-                let mmap_start = match ret {
-                    Err(nix::Error::Sys(e)) if e == nix::errno::Errno::ENOMEM => {
-                        return KvmSyscallRet::Mmap(Err(vmsyscall::Error::ENOMEM))
+    pub fn handle_syscall(&mut self) -> Result<(), ()> {
+        unsafe {
+            let syscall_page = self.syscall_hostvaddr.unwrap();
+            let request: *mut VmSyscall = syscall_page.as_mut_ptr();
+            let reply: *mut VmSyscallRet = syscall_page.as_mut_ptr();
+
+            //eprintln!("vmsyscall in: {:#?}", &*request);
+
+            reply.write_volatile(match request.read_volatile() {
+                VmSyscall::Write { fd, count, data } => match fd {
+                    1 => {
+                        let mut count: usize = count;
+                        if count > 4000 {
+                            count = 4000;
+                        }
+                        VmSyscallRet::Write(
+                            std::io::stdout()
+                                .write_all(&data[..count])
+                                .map(|_| count as _)
+                                .map_err(|e| {
+                                    vmsyscall::Error::Errno(
+                                        e.raw_os_error()
+                                            .unwrap_or(Into::<i64>::into(EBADF) as _)
+                                            .into(),
+                                    )
+                                }),
+                        )
                     }
-                    Err(_) => return KvmSyscallRet::Mmap(Err(vmsyscall::Error::OTHERERROR)),
-                    Ok(v) => v,
-                };
-                let mut region = UserspaceMemRegion {
-                    region: Default::default(),
-                    used_phy_pages: Default::default(),
-                    host_mem: PhysAddr::new(mmap_start as u64),
-                    mmap_start: PhysAddr::new(mmap_start as u64),
-                    mmap_size: len as _,
-                };
+                    2 => {
+                        let mut count: usize = count;
+                        if count > 4000 {
+                            count = 4000;
+                        }
+                        VmSyscallRet::Write(
+                            std::io::stderr()
+                                .write_all(&data[..count])
+                                .map(|_| count as _)
+                                .map_err(|e| {
+                                    vmsyscall::Error::Errno(
+                                        e.raw_os_error()
+                                            .unwrap_or(Into::<i64>::into(EBADF) as _)
+                                            .into(),
+                                    )
+                                }),
+                        )
+                    }
+                    _ => VmSyscallRet::Write(Err(vmsyscall::Error::Errno(EBADF.into()))),
+                },
+                VmSyscall::Read { fd: _, count: _ } => {
+                    VmSyscallRet::Read(Err(vmsyscall::Error::Errno(EBADF.into())))
+                }
+                VmSyscall::Mmap {
+                    addr: _,
+                    length: _,
+                    prot: _,
+                    flags: _,
+                } => {
+                    VmSyscallRet::Mmap(Err(vmsyscall::Error::Errno(ENOSYS.into())))
+                    /*
+                    let ret = unsafe {
+                        mmap(
+                            null_mut(),
+                            len,
+                            ProtFlags::from_bits_truncate(prot),
+                            MapFlags::from_bits_truncate(flags),
+                            -1,
+                            0,
+                        )
+                    };
+                    let mmap_start = match ret {
+                        Err(nix::Error::Sys(e)) if e == nix::errno::Errno::ENOMEM => {
+                            return KvmSyscallRet::Mmap(Err(vmsyscall::Error::ENOMEM))
+                        }
+                        Err(_) => return KvmSyscallRet::Mmap(Err(vmsyscall::Error::OTHERERROR)),
+                        Ok(v) => v,
+                    };
+                    let mut region = UserspaceMemRegion {
+                        region: Default::default(),
+                        used_phy_pages: Default::default(),
+                        host_mem: PhysAddr::new(mmap_start as u64),
+                        mmap_start: PhysAddr::new(mmap_start as u64),
+                        mmap_size: len as _,
+                    };
 
-                region.region.slot = 0;
-                region.region.flags = flags as _;
-                region.region.guest_phys_addr = addr as _;
-                region.region.memory_size = len as _;
-                region.region.userspace_addr = region.host_mem.as_u64();
+                    region.region.slot = 0;
+                    region.region.flags = flags as _;
+                    region.region.guest_phys_addr = addr as _;
+                    region.region.memory_size = len as _;
+                    region.region.userspace_addr = region.host_mem.as_u64();
 
-                unsafe {
-                    self.kvm_fd
-                        .set_user_memory_region(region.region)
-                        .map_err(map_context!())?
-                };
+                    unsafe {
+                        self.kvm_fd
+                            .set_user_memory_region(region.region)
+                            .map_err(map_context!())?
+                    };
 
-                //self.userspace_mem_regions.push(region);
+                    //self.userspace_mem_regions.push(region);
 
-                KvmSyscallRet::Mmap(Ok(region.mmap_start.as_u64() as _))
-                */
-            }
-            VmSyscall::Madvise {
-                addr: _,
-                length: _,
-                advice: _,
-            } => VmSyscallRet::Madvise(Err(vmsyscall::Error::Errno(ENOSYS.into()))),
-            VmSyscall::Mremap {
-                old_address: _,
-                old_size: _,
-                new_size: _,
-                flags: _,
-            } => VmSyscallRet::Mremap(Err(vmsyscall::Error::Errno(ENOSYS.into()))),
-            VmSyscall::Munmap { addr: _, length: _ } => {
-                VmSyscallRet::Munmap(Err(vmsyscall::Error::Errno(ENOSYS.into())))
-            }
-            VmSyscall::Mprotect {
-                addr: _,
-                length: _,
-                prot: _,
-            } => VmSyscallRet::Mprotect(Err(vmsyscall::Error::Errno(ENOSYS.into()))),
+                    KvmSyscallRet::Mmap(Ok(region.mmap_start.as_u64() as _))
+                    */
+                }
+                VmSyscall::Madvise {
+                    addr: _,
+                    length: _,
+                    advice: _,
+                } => VmSyscallRet::Madvise(Err(vmsyscall::Error::Errno(ENOSYS.into()))),
+                VmSyscall::Mremap {
+                    old_address: _,
+                    old_size: _,
+                    new_size: _,
+                    flags: _,
+                } => VmSyscallRet::Mremap(Err(vmsyscall::Error::Errno(ENOSYS.into()))),
+                VmSyscall::Munmap { addr: _, length: _ } => {
+                    VmSyscallRet::Munmap(Err(vmsyscall::Error::Errno(ENOSYS.into())))
+                }
+                VmSyscall::Mprotect {
+                    addr: _,
+                    length: _,
+                    prot: _,
+                } => VmSyscallRet::Mprotect(Err(vmsyscall::Error::Errno(ENOSYS.into()))),
+            });
         }
+        Ok(())
     }
 
     fn create_irqchip(&mut self) -> Result<(), Error> {
