@@ -1,14 +1,13 @@
-//! print to serial port
-//use lazy_static::lazy_static;
-//use spin::Mutex;
-//use uart_16550::SerialPort;
+//! print via vmsyscall
+
+use vmsyscall::WRITE_BUF_LEN;
 
 pub struct DummySerialPort(u32);
 
 impl core::fmt::Write for DummySerialPort {
     #[inline(always)]
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        for c in s.as_bytes().chunks(4000) {
+        for c in s.as_bytes().chunks(WRITE_BUF_LEN) {
             crate::libc::write(self.0, c)
                 .map(|_| ())
                 .map_err(|_| core::fmt::Error)?;
@@ -23,7 +22,7 @@ pub fn _print(args: ::core::fmt::Arguments) {
 
     DummySerialPort(1)
         .write_fmt(args)
-        .expect("Printing to serial failed");
+        .expect("Printing via vmsyscall fd 1 failed");
 }
 
 #[doc(hidden)]
@@ -31,7 +30,7 @@ pub fn _eprint(args: ::core::fmt::Arguments) {
     use core::fmt::Write;
     DummySerialPort(2)
         .write_fmt(args)
-        .expect("Printing to serial failed");
+        .expect("Printing via vmsyscall fd 2 failed");
 }
 
 /// Prints to the host through the serial interface.

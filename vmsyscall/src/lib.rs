@@ -25,8 +25,10 @@ impl Debug for VmSyscall {
     }
 }
 
-/// The syscalls to be serialized/deserialized via serde
-/// for the Hypervisor <-> VM syscall proxy
+/// maximum length of write(2) buffer
+pub const WRITE_BUF_LEN: usize = 4000;
+
+/// The syscalls for the Hypervisor <-> VM syscall proxy
 pub enum VmSyscall {
     /// ssize_t read(int fd, void *buf, size_t count);
     Read {
@@ -42,7 +44,7 @@ pub enum VmSyscall {
         /// see write(2)
         count: usize,
         /// see write(2)
-        data: [u8; 4000],
+        data: [u8; WRITE_BUF_LEN],
     },
     /// int madvise(void *addr, size_t length, int advice);
     Madvise {
@@ -113,7 +115,7 @@ pub enum VmSyscallRet {
     Mprotect(Result<i32, Error>),
 }
 
-/// The error codes of the syscalls to be serialized/deserialized via serde
+/// The error codes of the syscalls
 /// for the Hypervisor <-> VM syscall proxy
 #[derive(Debug, PartialEq)]
 pub enum Error {

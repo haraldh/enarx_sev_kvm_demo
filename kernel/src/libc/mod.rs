@@ -1,6 +1,6 @@
 use vmbootspec::layout::{SYSCALL_PHYS_ADDR, SYSCALL_TRIGGER_PORT};
 pub use vmsyscall::Error;
-use vmsyscall::{VmSyscall, VmSyscallRet};
+use vmsyscall::{VmSyscall, VmSyscallRet, WRITE_BUF_LEN};
 use x86_64::instructions::port::Port;
 use x86_64::VirtAddr;
 
@@ -15,7 +15,7 @@ pub fn write(fd: u32, bytes: &[u8]) -> Result<i32, Error> {
     unsafe {
         let syscall_page = VirtAddr::new(SYSCALL_PHYS_ADDR);
         let request = syscall_page.as_u64() as *mut VmSyscall;
-        let mut data = [0u8; 4000];
+        let mut data = [0u8; WRITE_BUF_LEN];
         data[..bytes.len()].copy_from_slice(bytes);
 
         request.write_volatile(VmSyscall::Write {
