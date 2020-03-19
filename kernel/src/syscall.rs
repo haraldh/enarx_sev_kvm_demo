@@ -2,14 +2,14 @@ use crate::arch::x86_64::{brk_user, mmap_user, NEXT_MMAP};
 //use crate::arch::SyscallStack;
 use crate::{eprintln, exit_hypervisor, print, HyperVisorExitCode};
 //use vmbootspec::layout::USER_HEAP_OFFSET;
-use linux_errno::*;
-use linux_syscall::*;
+use linux_errno::ErrNo;
+use linux_syscall::SysCall;
 
 trait NegAsUsize {
     fn neg_as_usize(self) -> usize;
 }
 
-impl NegAsUsize for Errno {
+impl NegAsUsize for ErrNo {
     fn neg_as_usize(self) -> usize {
         -Into::<i64>::into(self) as _
     }
@@ -49,8 +49,8 @@ pub extern "C" fn handle_syscall(
     //eprintln!("stackpointer: {:#X}", read_rsp());
     //eprintln!("stackpointer initial: {:#X}", f);
 
-    match (nr as u64).into() {
-        SYSCALL_EXIT => {
+    match SysCall::from(nr as u64) {
+        SysCall::EXIT => {
             eprintln!("SC> exit({})", a);
             exit_hypervisor(if a == 0 {
                 HyperVisorExitCode::Success
@@ -59,7 +59,7 @@ pub extern "C" fn handle_syscall(
             });
             loop {}
         }
-        SYSCALL_EXIT_GROUP => {
+        SysCall::EXIT_GROUP => {
             eprintln!("SC> exit_group({})", a);
             exit_hypervisor(if a == 0 {
                 HyperVisorExitCode::Success
@@ -68,7 +68,7 @@ pub extern "C" fn handle_syscall(
             });
             loop {}
         }
-        SYSCALL_WRITE => {
+        SysCall::WRITE => {
             let fd = a;
             let data = b as *const u8;
             let len = c;
@@ -83,17 +83,17 @@ pub extern "C" fn handle_syscall(
                         }
                         Err(_) => {
                             eprintln!("SC> write({}, …) = -EINVAL", fd);
-                            EINVAL.neg_as_usize()
+                            ErrNo::EINVAL.neg_as_usize()
                         }
                     }
                 }
                 _ => {
                     eprintln!("SC> write({}, \"…\") = -EBADFD", a);
-                    EBADFD.neg_as_usize()
+                    ErrNo::EBADFD.neg_as_usize()
                 }
             }
         }
-        SYSCALL_WRITEV => {
+        SysCall::WRITEV => {
             struct Iovec {
                 iov_base: u64,  /* Starting address */
                 iov_len: usize, /* Number of bytes to transfer */
@@ -120,7 +120,7 @@ pub extern "C" fn handle_syscall(
                             }
                             Err(_) => {
                                 eprintln!("SC> writev({}, …) = -EINVAL", fd);
-                                return EINVAL.neg_as_usize();
+                                return ErrNo::EINVAL.neg_as_usize();
                             }
                         }
                     }
@@ -128,11 +128,11 @@ pub extern "C" fn handle_syscall(
                 }
                 _ => {
                     eprintln!("SC> write({}, \"…\") = -EBADFD", a);
-                    EBADFD.neg_as_usize()
+                    ErrNo::EBADFD.neg_as_usize()
                 }
             }
         }
-        SYSCALL_ARCH_PRCTL => {
+        SysCall::ARCH_PRCTL => {
             const ARCH_SET_GS: usize = 0x1001;
             const ARCH_SET_FS: usize = 0x1002;
             const ARCH_GET_FS: usize = 0x1003;
@@ -152,16 +152,16 @@ pub extern "C" fn handle_syscall(
                 ARCH_GET_GS => unimplemented!(),
                 x => {
                     eprintln!("SC> arch_prctl({:#X}, {:#X}) = -EINVAL", x, b);
-                    EINVAL.neg_as_usize()
+                    ErrNo::EINVAL.neg_as_usize()
                 }
             }
         }
-        SYSCALL_MUNMAP => {
+        SysCall::MUNMAP => {
             let ret = 0;
             eprintln!("SC> dummy munmap({:#X}, {}, …) = {:#?}", a, b, ret);
             ret
         }
-        SYSCALL_MMAP => {
+        SysCall::MMAP => {
             if a == 0 {
                 let ret = mmap_user(b);
                 eprintln!("SC> mmap({:#X}, {}, …) = {:#?}", a, b, ret);
@@ -171,7 +171,7 @@ pub extern "C" fn handle_syscall(
                 todo!();
             }
         }
-        SYSCALL_BRK => unsafe {
+        SysCall::BRK => unsafe {
             match a {
                 0 => {
                     eprintln!("SC> brk({:#X}) = {:#X}", a, NEXT_MMAP);
@@ -184,12 +184,12 @@ pub extern "C" fn handle_syscall(
                 }
             }
         },
-        SYSCALL_MPROTECT => {
+        SysCall::MPROTECT => {
             let ret = 0;
             eprintln!("SC> mprotect({:#X}, {}, {}) = {:#?}", a, b, c, ret);
             ret as _
         }
-        SYSCALL_UNAME => {
+        SysCall::UNAME => {
             eprintln!(
                 r##"SC> uname({{sysname="Linux", nodename="enarx", release="5.4.8", version="1", machine="x86_64", domainname="(none)"}}) = 0"##
             );
@@ -213,7 +213,7 @@ pub extern "C" fn handle_syscall(
             }
             0
         }
-        SYSCALL_READLINK => {
+        SysCall::READLINK => {
             let pathname = unsafe {
                 let mut len = 0;
                 let ptr: *const u8 = a as _;
@@ -227,7 +227,7 @@ pub extern "C" fn handle_syscall(
             };
 
             if !pathname.eq("/proc/self/exe") {
-                return ENOENT.neg_as_usize();
+                return ErrNo::ENOENT.neg_as_usize();
             }
 
             let outbuf = unsafe { core::slice::from_raw_parts_mut(b as _, c as _) };
@@ -236,23 +236,23 @@ pub extern "C" fn handle_syscall(
             5
         }
 
-        SYSCALL_RT_SIGACTION => {
+        SysCall::RT_SIGACTION => {
             eprintln!("SC> rt_sigaction(…) = 0");
             0
         }
-        SYSCALL_RT_SIGPROCMASK => {
+        SysCall::RT_SIGPROCMASK => {
             eprintln!("SC> rt_sigprocmask(…) = 0");
             0
         }
-        SYSCALL_SIGALTSTACK => {
+        SysCall::SIGALTSTACK => {
             eprintln!("SC> sigaltstack(…) = 0");
             0
         }
-        SYSCALL_SET_TID_ADDRESS => {
+        SysCall::SET_TID_ADDRESS => {
             eprintln!("SC> set_tid_address(…) = 63618");
             63618
         }
-        SYSCALL_IOCTL => match a {
+        SysCall::IOCTL => match a {
             1 => {
                 match b {
                     0x5413 /* TIOCGWINSZ */ => {
@@ -276,12 +276,12 @@ pub extern "C" fn handle_syscall(
                         eprintln!("SC> ioctl(1, TIOCGWINSZ, {{ws_row=40, ws_col=80, ws_xpixel=0, ws_ypixel=0}}) = 0");
                         0
                     },
-                    _ => EINVAL.neg_as_usize(),
+                    _ => ErrNo::EINVAL.neg_as_usize(),
                 }
             }
-            _ => EINVAL.neg_as_usize(),
+            _ => ErrNo::EINVAL.neg_as_usize(),
         },
-        SYSCALL_FSTAT => match a {
+        SysCall::FSTAT => match a {
             1 => {
                 fn makedev(x: u64, y: u64) -> u64 {
                     (((x) & 0xffff_f000u64) << 32)
@@ -337,7 +337,7 @@ pub extern "C" fn handle_syscall(
  = 0");
                 0
             }
-            _ => EBADF.neg_as_usize(),
+            _ => ErrNo::EBADF.neg_as_usize(),
         },
         _ => {
             eprintln!("syscall({}, {}, {}, {}, {}, {}, {})", nr, a, b, c, d, e, f);
