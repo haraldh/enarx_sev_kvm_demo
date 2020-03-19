@@ -12,6 +12,7 @@ pub enum ErrorKind {
     NoMappingForVirtualAddress,
     NoVirtualAddressAvailable,
     GuestCodeNotFound,
+    NotAStaticBinary,
     Errno(i32),
     Io(::std::io::ErrorKind),
     Str(&'static str),
@@ -39,6 +40,7 @@ impl ::std::fmt::Display for ErrorKind {
             ErrorKind::VMModeUnsupported => write!(f, "VM mode currently unsupported"),
             ErrorKind::NoMappingForVirtualAddress => write!(f, "no mapping for virtual address"),
             ErrorKind::GuestCodeNotFound => write!(f, "guest code not found"),
+            ErrorKind::NotAStaticBinary => write!(f, "not a static binary"),
             ErrorKind::NoVirtualAddressAvailable => {
                 write!(f, "No vaddr of specified pages available")
             }

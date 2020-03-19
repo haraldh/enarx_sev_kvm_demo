@@ -217,10 +217,15 @@ impl KvmVm {
 
         // Entry covering VA [0..1GB)
         page_tables.pml3t_ident[0] = boot_pde_addr as u64 | 0x7;
-
+        /*
+                page_tables.pml3t_ident[1] = (0x1000 + boot_pde_addr as u64) | 0x7;
+                page_tables.pml3t_ident[2] = (0x2000 + boot_pde_addr as u64) | 0x7;
+                page_tables.pml3t_ident[3] = (0x3000 + boot_pde_addr as u64) | 0x7;
+        */
         // 512 2MB entries together covering VA [0..1GB). Note we are assuming
         // CPU supports 2MB pages (/proc/cpuinfo has 'pse'). All modern CPUs do.
-        page_tables.pml2t_ident[0] = 0x183u64;
+        (0..2).for_each(|i| page_tables.pml2t_ident[i] = (i << 21) as u64 + 0x183u64);
+        (2..512).for_each(|i| page_tables.pml2t_ident[i] = (i << 21) as u64 + 0x187u64);
 
         let guest_pg_addr: *mut PageTables = self
             .addr_gpa2hva(PhysAddr::new(PML4_START as _))?
@@ -237,13 +242,10 @@ impl KvmVm {
     pub fn elf_load(
         &mut self,
         program_invocation_name: &str,
-        start_symbol: Option<&str>,
-    ) -> Result<VirtAddr, Error> {
+    ) -> Result<(VirtAddr, VirtAddr, usize), Error> {
         use std::fs::File;
         use std::os::unix::io::AsRawFd;
         use xmas_elf::program::{self, ProgramHeader};
-        use xmas_elf::sections;
-        use xmas_elf::symbol_table::Entry;
         use xmas_elf::ElfFile;
 
         let file = File::open(program_invocation_name).map_err(map_context!())?;
@@ -263,37 +265,9 @@ impl KvmVm {
 
         xmas_elf::header::sanity_check(&elf_file).map_err(map_context!())?;
 
-        let mut guest_code: Option<VirtAddr> = None;
-
-        match start_symbol {
-            Some(start_symbol) => {
-                let mut sect_iter = elf_file.section_iter();
-                // Skip the first (dummy) section
-                sect_iter.next();
-                for sect in sect_iter {
-                    sections::sanity_check(sect, &elf_file).unwrap();
-
-                    if sect.get_type() == Ok(sections::ShType::SymTab) {
-                        if let Ok(sections::SectionData::SymbolTable64(data)) =
-                            sect.get_data(&elf_file)
-                        {
-                            for datum in data {
-                                if datum.get_name(&elf_file).unwrap().eq(start_symbol) {
-                                    guest_code = Some(VirtAddr::new(datum.value()));
-                                }
-                            }
-                        } else {
-                            unreachable!();
-                        }
-                    }
-                }
-
-                if guest_code.is_none() {
-                    return Err(context!(ErrorKind::GuestCodeNotFound));
-                }
-            }
-            None => guest_code = Some(VirtAddr::new(elf_file.header.pt2.entry_point())),
-        }
+        let guest_code: VirtAddr = VirtAddr::new(elf_file.header.pt2.entry_point());
+        let mut load_addr: Option<VirtAddr> = None;
+        let phnum: usize = elf_file.program_iter().count();
 
         for program_header in elf_file.program_iter() {
             match program_header {
@@ -301,8 +275,16 @@ impl KvmVm {
                     let segment = *header;
                     match segment.get_type().unwrap() {
                         program::Type::Load => {}
+                        program::Type::Interp => {
+                            return Err(ErrorKind::NotAStaticBinary.into());
+                        }
                         _ => continue,
                     }
+
+                    if load_addr.is_none() {
+                        load_addr.replace(VirtAddr::new(segment.virtual_addr) - segment.offset);
+                    }
+
                     //dbg!(segment);
                     let start_phys = PhysAddr::new(segment.physical_addr);
                     let start_frame: PhysFrame =
@@ -337,15 +319,21 @@ impl KvmVm {
                             ..(segment.offset + segment.file_size) as usize],
                     );
 
-                    host_slice[segment.file_size as _..]
-                        .iter_mut()
-                        .for_each(|i| *i = 0);
+                    unsafe {
+                        if segment.mem_size > segment.file_size {
+                            core::ptr::write_bytes(
+                                &mut host_slice[segment.file_size as usize] as *mut u8,
+                                0u8,
+                                segment.mem_size as usize - segment.file_size as usize,
+                            );
+                        }
+                    }
                 }
                 ProgramHeader::Ph32(_) => panic!("does not support 32 bit elf files"),
             }
         }
 
-        Ok(guest_code.unwrap())
+        Ok((guest_code, load_addr.unwrap(), phnum))
     }
 
     fn write_gdt_table(&self, table: &[u64]) -> Result<(), Error> {
@@ -450,13 +438,25 @@ impl KvmVm {
         Ok(())
     }
 
-    fn vcpu_add_default(&mut self, vcpuid: u8, guest_code: VirtAddr) -> Result<(), Error> {
+    fn vcpu_add_default(
+        &mut self,
+        vcpuid: u8,
+        guest_code: VirtAddr,
+        elf_code: VirtAddr,
+        elf_phdr: VirtAddr,
+        elf_phnum: usize,
+    ) -> Result<(), Error> {
         let boot_info_vaddr = PhysAddr::new(BOOTINFO_PHYS_ADDR);
         let syscall_vaddr = PhysAddr::new(SYSCALL_PHYS_ADDR);
 
         self.syscall_hostvaddr = Some(self.addr_gpa2hva(syscall_vaddr)?);
 
-        let mut boot_info = BootInfo::new(self.memory_map.clone());
+        let mut boot_info = BootInfo {
+            memory_map: self.memory_map.clone(),
+            entry_point: elf_code.as_ptr(),
+            load_addr: elf_phdr.as_ptr(),
+            elf_phnum: elf_phnum,
+        };
 
         boot_info.memory_map.sort();
         // Write boot info to boot info page.
@@ -582,11 +582,7 @@ impl KvmVm {
         Ok(())
     }
 
-    pub fn vm_create_default(
-        program_invocation_name: &str,
-        vcpuid: u8,
-        entry_symbol: Option<&str>,
-    ) -> Result<Self, Error> {
+    pub fn vm_create_default(kernel_name: &str, elf_name: &str, vcpuid: u8) -> Result<Self, Error> {
         /* Create VM */
         let mut vm = KvmVm::vm_create((DEFAULT_GUEST_MEM / DEFAULT_GUEST_PAGE_SIZE as u64) as _)?;
 
@@ -594,10 +590,13 @@ impl KvmVm {
         vm.create_irqchip()?;
 
         /* Setup guest code */
-        let guest_code = vm.elf_load(program_invocation_name, entry_symbol)?;
+        let (elf_code, elf_phdr, elf_phnum) = vm.elf_load(elf_name)?;
+
+        /* Setup guest code */
+        let (guest_code, _, _) = vm.elf_load(kernel_name)?;
 
         /* Add the first vCPU. */
-        vm.vcpu_add_default(vcpuid, guest_code)?;
+        vm.vcpu_add_default(vcpuid, guest_code, elf_code, elf_phdr, elf_phnum)?;
 
         /* Set CPUID */
         let cpuid = vm

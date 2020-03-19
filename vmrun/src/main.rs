@@ -17,20 +17,25 @@ fn main() {
     let kvm = Kvm::new();
 
     match args.len() {
-        3..=std::usize::MAX if args[1].eq("--force-qemu") => main_qemu(&args[2], &args[3..]),
-        3..=std::usize::MAX if args[1].eq("--fallback-qemu") => match kvm {
-            Ok(_) => main_kvm(&args[2]),
-            Err(_) => main_qemu(&args[2], &args[3..]),
+        4..=std::usize::MAX if args[1].eq("--force-qemu") => {
+            main_qemu(&args[2], &args[3], &args[4..])
+        }
+        4..=std::usize::MAX if args[1].eq("--fallback-qemu") => match kvm {
+            Ok(_) => main_kvm(&args[2], &args[3]),
+            Err(_) => main_qemu(&args[2], &args[3], &args[4..]),
         },
-        2 => main_kvm(&args[1]),
+        3 => main_kvm(&args[1], &args[2]),
         _ => {
-            eprintln!("Usage: {} [--fallback-qemu] <kernelblob>", args[0],);
+            eprintln!(
+                "Usage: {} [--fallback-qemu] <elf binary> <kernelblob>",
+                args[0],
+            );
             exit(1);
         }
     }
 }
 
-fn main_qemu(kernel_blob: &str, extra_args: &[String]) -> ! {
+fn main_qemu(_elf_binary: &str, kernel_blob: &str, extra_args: &[String]) -> ! {
     if !Path::new(kernel_blob).exists() {
         eprintln!("Kernel image `{}` not found!", kernel_blob);
         exit(1);
@@ -93,7 +98,7 @@ fn main_qemu(kernel_blob: &str, extra_args: &[String]) -> ! {
     }
 }
 
-fn main_kvm(kernel_blob: &str) {
+fn main_kvm(elf_blob: &str, kernel_blob: &str) {
     let start = Instant::now();
 
     if !Path::new(kernel_blob).exists() {
@@ -101,9 +106,10 @@ fn main_kvm(kernel_blob: &str) {
         exit(1);
     }
 
-    eprintln!("Starting {}", kernel_blob);
-
-    let mut kvm = kvmvm::KvmVm::vm_create_default(&kernel_blob, 0, None /*"_start"*/).unwrap();
+    if !Path::new(elf_blob).exists() {
+        eprintln!("Application elf binary `{}` not found!", elf_blob);
+        exit(1);
+    }
 
     let mut syscall_request: Option<VmSyscall> = None;
     let mut syscall_reply_size: Option<usize> = None;
@@ -112,6 +118,7 @@ fn main_kvm(kernel_blob: &str) {
     let _ = portio.register_devices().unwrap();
     let _ = kvm.kvm_fd.register_irqfd(&portio.com_evt_1_3, 4).unwrap();
     let _ = kvm.kvm_fd.register_irqfd(&portio.com_evt_2_4, 3).unwrap();
+    let mut kvm = kvmvm::KvmVm::vm_create_default(&kernel_blob, &elf_blob, 0).unwrap();
 
     loop {
         let ret = kvm

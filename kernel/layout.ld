@@ -30,29 +30,21 @@ pml3t = 0xa000;
 pml2t = 0xb000;
 pml3to = 0xf000;
 
-MEMORY {
-    rom : ORIGIN = 1M, LENGTH = 1M
-    kernel: ORIGIN = (2M + 0x80000000000), LENGTH = 2M
-    app : ORIGIN = (4M + 0x80000000000), LENGTH = 4M
-}
-
 SECTIONS
 {
     . = 1M;
-    .pvh_notes  : { KEEP(*(.notes .notes.* .notes)) } >rom :pvh_notes :pvh_text
+    .pvh_notes  : { KEEP(*(.notes .notes.* .notes)) } :pvh_notes :pvh_text
     .pvh_text   : { KEEP(*(.ram64 .ram32))
-                    KEEP(*(.entry64))             } >rom :pvh_text
-    .pvh_bss    : { KEEP(*(.bss.stack))           } >rom :pvh_bss
+                    KEEP(*(.entry64))             } :pvh_text
+    .pvh_bss    : { KEEP(*(.bss.stack))           } :pvh_bss
 
-    .rodata : AT(ADDR(.rodata) - KERNEL_OFFSET) { *(.rodata .rodata.*)            } >kernel :rodata
-    .data   : AT(ADDR(.data)   - KERNEL_OFFSET) { *(.data .data.*) *(.got .got.*) } >kernel :data
-    .text   : AT(ADDR(.text)   - KERNEL_OFFSET) { *(.text .text.*)                } >kernel :text
-    .bss    : AT(ADDR(.bss)    - KERNEL_OFFSET) { *(.bss .bss.*)                  } >kernel :bss
+    . = 2M + KERNEL_OFFSET;
+    .rodata : AT(ADDR(.rodata) - KERNEL_OFFSET) { *(.rodata .rodata.*)            } :rodata
+    .text   : AT(ADDR(.text)   - KERNEL_OFFSET) { *(.text .text.*)                } :text
+    .data   : AT(ADDR(.data)   - KERNEL_OFFSET) { *(.data .data.*) *(.got .got.*) *(.bss .bss.*) } :data
 
     _kernel_start = ADDR(.rodata) - KERNEL_OFFSET;
     _kernel_end = . - KERNEL_OFFSET;
-
-    .appdata  : AT(ADDR(.appdata) - KERNEL_OFFSET) { KEEP(*(.app)) } >app :app
 
     /DISCARD/ : {
         *(.eh_frame*)

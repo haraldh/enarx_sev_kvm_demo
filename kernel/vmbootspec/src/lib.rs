@@ -38,15 +38,9 @@ pub struct BootInfo {
     /// the memory map before passing it to the kernel. Regions marked as usable can be freely
     /// used by the kernel.
     pub memory_map: MemoryMap,
-}
-
-impl BootInfo {
-    /// Create a new boot information structure. This function is only for internal purposes.
-    #[allow(unused_variables)]
-    #[doc(hidden)]
-    pub const fn new(memory_map: MemoryMap) -> Self {
-        BootInfo { memory_map }
-    }
+    pub entry_point: *const u8,
+    pub load_addr: *const u8,
+    pub elf_phnum: usize,
 }
 
 impl fmt::Debug for BootInfo {
