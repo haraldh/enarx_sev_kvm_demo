@@ -4,14 +4,17 @@
 * Sets up kvm in x86 64bit mode with pagetables
 * Boots to a modified [blog_os kernel](https://os.phil-opp.com/)
 * Exception handling
-* Serial print to stdout and stderr
+* Print to stdout and stderr
 * Exit codes
 * Simple static ELF app execution in Ring3 with syscalls
-  * glibc
-  * musl
+  * C with glibc
+  * C with musl
   * rust with `--target x86_64-unknown-linux-musl`
 * Start elf binary in Ring 3
 * Handle syscalls
+
+* qemu running and debugging broken, because of no more serial line support
+  and no dynamic app loading via qemu
 
 ## TODO
 ### vmrun
@@ -54,7 +57,7 @@ $ cargo run --package vmrun -- target/x86_64-unknown-linux-musl/debug/kernel
 ```
 
 
-## Run with qemu
+## Run with qemu - **NOTE**: CURRENTLY BROKEN
 
 ```console
 $ cargo build --all
@@ -74,7 +77,7 @@ $ cargo test -p vmrun
 $ (cd kernel; cargo +nightly test --features qemu)
 ```
 
-## gdb debugging with the kernel
+## gdb debugging with the kernel  - **NOTE**: CURRENTLY BROKEN
 
 Currently, we need nightly for timers and interrupts.
 
