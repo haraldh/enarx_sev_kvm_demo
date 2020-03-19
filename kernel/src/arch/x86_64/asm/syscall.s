@@ -8,24 +8,24 @@ XSAVE_STACK_OFFSET = (16*64 + 3 * 8)
 .p2align 4
 _syscall_enter:
     cli
-    swapgs                 // Set gs segment to TSS
-    mov    %rsp,%gs:0x1c   // Save userspace rsp
-    mov    %gs:0x4,%rsp    // Load kernel rsp
-    pushq  $0x1b           // Push userspace data segment  ((gdt::USER_DATA_SEG << 3) | 3)
-    pushq  %gs:0x1c        // Push userspace rsp
-    movq   $0x0,%gs:0x1c   // Clear userspace rs
-    push   %r11            // Push rflags stored in r11
-    pushq  $0x23           // Push userspace code segment  ((gdt::USER_CODE_SEG << 3) | 3)
-    push   %rcx            // Push userspace return pointer
-    swapgs                 // Restore gs
+    swapgs                 # Set gs segment to TSS
+    mov    %rsp,%gs:0x1c   # Save userspace rsp
+    mov    %gs:0x4,%rsp    # Load kernel rsp
+    pushq  $0x1b           # Push userspace data segment  ((gdt::USER_DATA_SEG << 3) | 3)
+    pushq  %gs:0x1c        # Push userspace rsp
+    movq   $0x0,%gs:0x1c   # Clear userspace rs
+    push   %r11            # Push rflags stored in r11
+    pushq  $0x23           # Push userspace code segment  ((gdt::USER_CODE_SEG << 3) | 3)
+    push   %rcx            # Push userspace return pointer
+    swapgs                 # Restore gs
 
-    // xsave
+    # xsave
     movq   %rax, %r11
     movq   %rdx, %rcx
 
     subq   $XSAVE_STACK_OFFSET, %rsp
 
-    // memzero xsave array
+    # memzero xsave array
     xorq    %rax, %rax
 .L2C:
     movq    $0, (%rsp,%rax,8)
@@ -39,12 +39,12 @@ _syscall_enter:
 
     movq   %r11, %rax
     movq   %rcx, %rdx
-    // xsave end
+    # xsave end
 
     sti
 
-    // SYSV:    rdi, rsi, rdx, rcx, r8, r9
-    // SYSCALL: rdi, rsi, rdx, r10, r8, r9
+    # SYSV:    rdi, rsi, rdx, rcx, r8, r9
+    # SYSCALL: rdi, rsi, rdx, r10, r8, r9
     mov    %r10, %rcx
 
     pushq   %rdi
@@ -69,7 +69,7 @@ _syscall_enter:
 
     cli
 
-    // xrstor
+    # xrstor
     movq   %rax, %r11
     movq   %rdx, %rcx
 
@@ -80,21 +80,21 @@ _syscall_enter:
 
     movq   %r11, %rax
     movq   %rcx, %rdx
-    // xrstor end
+    # xrstor end
 
-    // FIXME: want to protect the kernel against userspace?
-    // https://www.kernel.org/doc/Documentation/x86/entry_64.txt
-    // use:
+    # FIXME: want to protect the kernel against userspace?
+    # https:#www.kernel.org/doc/Documentation/x86/entry_64.txt
+    # use:
     iretq
 
-    // FIXME: comment out iretq for fast return with sysretq
+    # FIXME: comment out iretq for fast return with sysretq
     cli
     swapgs
-    pop    %rcx             // Pop userspace return pointer
-    add    $0x8,%rsp        // Pop userspace code segment
-    pop    %r11             // pop rflags to r11
-    popq   %gs:0x1c         // Pop userspace rsp
-    mov    %gs:0x1c,%rsp    // Restore userspace rsp
+    pop    %rcx             # Pop userspace return pointer
+    add    $0x8,%rsp        # Pop userspace code segment
+    pop    %r11             # pop rflags to r11
+    popq   %gs:0x1c         # Pop userspace rsp
+    mov    %gs:0x1c,%rsp    # Restore userspace rsp
     swapgs
     sti
     sysretq
