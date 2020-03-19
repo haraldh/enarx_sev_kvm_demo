@@ -17,16 +17,15 @@ use std::ffi::OsString;
 use std::{env, fs, path::PathBuf};
 
 fn main() {
-    if env::var_os("CC").is_none() {
-        env::set_var("CC", "clang");
-    }
-
     let manifest_dir = env::var_os("CARGO_MANIFEST_DIR").unwrap();
     let manifest_dir = manifest_dir.to_string_lossy();
 
+    /*
     for (k, v) in env::vars_os() {
         eprintln!("{:#?}={:#?}", k, v);
     }
+    */
+
     let mut asm_dir = PathBuf::from(manifest_dir.as_ref());
     asm_dir.push("src/arch/x86_64/asm");
     let entries = fs::read_dir(asm_dir)
@@ -36,6 +35,7 @@ fn main() {
                 let path = e.path();
                 match path.extension() {
                     Some(ext) if ext.eq(&OsString::from("s")) => Some(path),
+                    Some(ext) if ext.eq(&OsString::from("S")) => Some(path),
                     _ => None,
                 }
             })
