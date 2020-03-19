@@ -56,6 +56,12 @@ or:
 $ cargo run --package vmrun -- target/x86_64-unknown-linux-musl/debug/kernel
 ```
 
+## Test
+
+```console
+$ cargo test -p vmrun
+$ (cd kernel; cargo +nightly test --features test_kvm)
+```
 
 ## Run with qemu
 
