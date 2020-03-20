@@ -1,5 +1,4 @@
 use super::gdt;
-#[cfg(feature = "nightly")]
 use super::interrupts;
 use super::syscall;
 use super::xcr0::{XCr0, XCr0Flags};
@@ -64,7 +63,7 @@ pub fn init(
     gdt::init();
     unsafe { syscall::init() };
 
-    #[cfg(feature = "nightly")]
+    //    #[cfg(feature = "nightly")]
     interrupts::init();
 
     eprintln!("{:#?}", boot_info);

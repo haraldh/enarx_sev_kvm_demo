@@ -71,6 +71,7 @@ pub fn timer_init() {
 }
 
 pub fn timer_set_idt(idt: &mut InterruptDescriptorTable) {
+    eprintln!("timer_set_idt");
     idt[InterruptIndex::Timer.as_usize()].set_handler_fn(timer_interrupt_handler);
     idt[InterruptIndex::LapicTimer.as_usize()].set_handler_fn(lapic_timer_interrupt_handler);
     idt[InterruptIndex::Error.as_usize()].set_handler_fn(error_interrupt_handler);

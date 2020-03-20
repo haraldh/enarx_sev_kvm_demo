@@ -3,7 +3,7 @@ pub mod serial;
 
 pub mod gdt;
 
-#[cfg(feature = "nightly")]
+pub mod idt;
 pub mod interrupts;
 
 mod start_e820;

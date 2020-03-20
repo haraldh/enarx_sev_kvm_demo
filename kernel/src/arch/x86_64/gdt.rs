@@ -79,7 +79,7 @@ pub fn init() {
                 static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
 
                 let stack_start = VirtAddr::from_ptr(&STACK);
-                stack_start + STACK_SIZE
+                (stack_start + STACK_SIZE).align_down(64u64)
             };
             tss.interrupt_stack_table[DOUBLE_FAULT_IST_INDEX as usize] = {
                 const STACK_SIZE: usize = 4096 * 5;
@@ -87,21 +87,49 @@ pub fn init() {
 
                 let stack_start = VirtAddr::from_ptr(&STACK);
                 //println!("double fault stack: {:#X}", stack_start.as_u64());
-                stack_start + STACK_SIZE
+                (stack_start + STACK_SIZE).align_down(64u64)
             };
             tss.interrupt_stack_table[1_usize] = {
                 const STACK_SIZE: usize = 4096 * 5;
                 static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
 
                 let stack_start = VirtAddr::from_ptr(&STACK);
-                stack_start + STACK_SIZE
+                (stack_start + STACK_SIZE).align_down(64u64)
             };
             tss.interrupt_stack_table[2_usize] = {
                 const STACK_SIZE: usize = 4096 * 5;
                 static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
 
                 let stack_start = VirtAddr::from_ptr(&STACK);
-                stack_start + STACK_SIZE
+                (stack_start + STACK_SIZE).align_down(64u64)
+            };
+            tss.interrupt_stack_table[3_usize] = {
+                const STACK_SIZE: usize = 4096 * 5;
+                static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+
+                let stack_start = VirtAddr::from_ptr(&STACK);
+                (stack_start + STACK_SIZE).align_down(64u64)
+            };
+            tss.interrupt_stack_table[4_usize] = {
+                const STACK_SIZE: usize = 4096 * 5;
+                static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+
+                let stack_start = VirtAddr::from_ptr(&STACK);
+                (stack_start + STACK_SIZE).align_down(64u64)
+            };
+            tss.interrupt_stack_table[5_usize] = {
+                const STACK_SIZE: usize = 4096 * 5;
+                static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+
+                let stack_start = VirtAddr::from_ptr(&STACK);
+                (stack_start + STACK_SIZE).align_down(64u64)
+            };
+            tss.interrupt_stack_table[6_usize] = {
+                const STACK_SIZE: usize = 4096 * 5;
+                static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+
+                let stack_start = VirtAddr::from_ptr(&STACK);
+                (stack_start + STACK_SIZE).align_down(64u64)
             };
             tss
         });
