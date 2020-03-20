@@ -293,3 +293,13 @@ fn unknown_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
     hlt_loop();
 }
 */
+
+#[cfg(test)]
+#[test_case]
+fn test_breakpoint_exception() {
+    use crate::{print, println};
+    print!("test_breakpoint_exception...");
+    // invoke a breakpoint exception
+    x86_64::instructions::interrupts::int3();
+    println!("[ok]");
+}
