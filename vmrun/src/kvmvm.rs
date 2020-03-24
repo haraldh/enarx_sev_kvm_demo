@@ -13,11 +13,43 @@ use kvm_bindings::{
 use kvm_ioctls::{Kvm, VcpuFd, VmFd};
 use linux_errno::ErrNo;
 use std::io::Write;
-use vmbootspec::{layout::*, BootInfo, FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
+use vmsyscall::bootinfo::BootInfo;
+use vmsyscall::memory_map::{FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
 use vmsyscall::{VmSyscall, VmSyscallRet};
 
 const DEFAULT_GUEST_MEM: u64 = 2 * 1024 * 1024 * 1024; // 2GiB
 const DEFAULT_GUEST_PAGE_SIZE: usize = 4096;
+
+pub const HIMEM_START: usize = 0x0010_0000; //1 MB.
+
+pub const SYSCALL_PHYS_ADDR: u64 = 0x1000;
+pub const SYSCALL_TRIGGER_PORT: u16 = 0xFF;
+
+// Initial pagetables.
+pub const PML4_START: usize = 0x9000;
+pub const PDPTE_START: usize = 0xA000;
+pub const PDE_START: usize = 0xB000;
+pub const PAGETABLE_LEN: u64 = core::mem::size_of::<PageTables>() as _;
+
+pub const BOOT_GDT_OFFSET: usize = 0x500;
+pub const BOOT_IDT_OFFSET: usize = 0x520;
+
+#[repr(C)]
+pub struct PageTables {
+    pub pml4t: [u64; 512],
+    pub pml3t_ident: [u64; 512],
+    pub pml2t_ident: [u64; 512],
+}
+
+impl Default for PageTables {
+    fn default() -> Self {
+        PageTables {
+            pml4t: [0u64; 512],
+            pml3t_ident: [0u64; 512],
+            pml2t_ident: [0u64; 512],
+        }
+    }
+}
 
 struct UserspaceMemRegion {
     region: kvm_userspace_memory_region,
@@ -66,59 +98,17 @@ impl KvmVm {
             vm.vm_userspace_mem_region_add(PhysAddr::new(0), 0, phy_pages, 0)?;
 
             let zero_frame: PhysFrame = PhysFrame::from_start_address(PhysAddr::new(0)).unwrap();
-            let page_table_frame: PhysFrame =
-                PhysFrame::from_start_address(PhysAddr::new(PML4_START as _)).unwrap();
 
             vm.memory_map.mark_allocated_region(MemoryRegion {
                 range: frame_range(PhysFrame::range(zero_frame, zero_frame + 1)),
                 region_type: MemoryRegionType::FrameZero,
             });
 
-            vm.memory_map.mark_allocated_region(MemoryRegion {
-                range: frame_range(PhysFrame::range(zero_frame + 1, page_table_frame)),
-                region_type: MemoryRegionType::Reserved,
-            });
-
-            vm.memory_map.mark_allocated_region(MemoryRegion {
-                range: frame_range(PhysFrame::range(
-                    page_table_frame,
-                    page_table_frame + PAGETABLE_LEN / vm.page_size as u64,
-                )),
-                region_type: MemoryRegionType::PageTable,
-            });
-
-            let bootinfo_frame: PhysFrame =
-                PhysFrame::from_start_address(PhysAddr::new(BOOTINFO_PHYS_ADDR)).unwrap();
-            vm.memory_map.mark_allocated_region(MemoryRegion {
-                range: frame_range(PhysFrame::range(bootinfo_frame, bootinfo_frame + 1)),
-                region_type: MemoryRegionType::BootInfo,
-            });
-
             let syscall_frame: PhysFrame =
                 PhysFrame::from_start_address(PhysAddr::new(SYSCALL_PHYS_ADDR)).unwrap();
             vm.memory_map.mark_allocated_region(MemoryRegion {
                 range: frame_range(PhysFrame::range(syscall_frame, syscall_frame + 1)),
-                region_type: MemoryRegionType::SysCall,
-            });
-
-            let stack_frame: PhysFrame = PhysFrame::from_start_address(PhysAddr::new(
-                BOOT_STACK_POINTER - BOOT_STACK_POINTER_SIZE,
-            ))
-            .unwrap();
-
-            if syscall_frame + 1 < stack_frame {
-                vm.memory_map.mark_allocated_region(MemoryRegion {
-                    range: frame_range(PhysFrame::range(syscall_frame + 1, stack_frame)),
-                    region_type: MemoryRegionType::Reserved,
-                });
-            }
-
-            let stack_frame_end: PhysFrame =
-                PhysFrame::from_start_address(PhysAddr::new(HIMEM_START as u64)).unwrap();
-
-            vm.memory_map.mark_allocated_region(MemoryRegion {
-                range: frame_range(PhysFrame::range(stack_frame, stack_frame_end)),
-                region_type: MemoryRegionType::KernelStack,
+                region_type: MemoryRegionType::InUse,
             });
 
             vm.setup_page_tables()?;
@@ -209,24 +199,10 @@ impl KvmVm {
     fn setup_page_tables(&mut self) -> Result<(), Error> {
         let mut page_tables = PageTables::default();
 
-        // Puts PML4 right after zero page but aligned to 4k.
-        let boot_pdpte_addr = PDPTE_START;
-        let boot_pde_addr = PDE_START;
-
-        // Entry covering VA [0..512GB)
-        page_tables.pml4t[0] = boot_pdpte_addr as u64 | 0x7;
-
-        // Entry covering VA [0..1GB)
-        page_tables.pml3t_ident[0] = boot_pde_addr as u64 | 0x7;
-        /*
-                page_tables.pml3t_ident[1] = (0x1000 + boot_pde_addr as u64) | 0x7;
-                page_tables.pml3t_ident[2] = (0x2000 + boot_pde_addr as u64) | 0x7;
-                page_tables.pml3t_ident[3] = (0x3000 + boot_pde_addr as u64) | 0x7;
-        */
-        // 512 2MB entries together covering VA [0..1GB). Note we are assuming
-        // CPU supports 2MB pages (/proc/cpuinfo has 'pse'). All modern CPUs do.
-        (0..2).for_each(|i| page_tables.pml2t_ident[i] = (i << 21) as u64 + 0x183u64);
-        (2..512).for_each(|i| page_tables.pml2t_ident[i] = (i << 21) as u64 + 0x187u64);
+        // Note we are assuming CPU supports 2MB pages. All modern CPUs do.
+        page_tables.pml4t[0] = PDPTE_START as u64 | 0x7;
+        page_tables.pml3t_ident[0] = PDE_START as u64 | 0x7;
+        page_tables.pml2t_ident[0] = 0x183u64;
 
         let guest_pg_addr: *mut PageTables = self
             .addr_gpa2hva(PhysAddr::new(PML4_START as _))?
@@ -243,6 +219,7 @@ impl KvmVm {
     pub fn elf_load(
         &mut self,
         program_invocation_name: &str,
+        region_type: MemoryRegionType,
     ) -> Result<(VirtAddr, VirtAddr, usize), Error> {
         use std::fs::File;
         use std::os::unix::io::AsRawFd;
@@ -305,7 +282,7 @@ impl KvmVm {
 
                     let region = MemoryRegion {
                         range: frame_range(PhysFrame::range(start_frame, end_frame)),
-                        region_type: MemoryRegionType::Kernel,
+                        region_type,
                     };
 
                     //dbg!(region);
@@ -452,7 +429,6 @@ impl KvmVm {
         elf_phdr: VirtAddr,
         elf_phnum: usize,
     ) -> Result<(), Error> {
-        let boot_info_vaddr = PhysAddr::new(BOOTINFO_PHYS_ADDR);
         let syscall_vaddr = PhysAddr::new(SYSCALL_PHYS_ADDR);
 
         self.syscall_hostvaddr = Some(self.addr_gpa2hva(syscall_vaddr)?);
@@ -462,13 +438,17 @@ impl KvmVm {
             entry_point: elf_code.as_ptr(),
             load_addr: elf_phdr.as_ptr(),
             elf_phnum: elf_phnum,
+            syscall_trigger_port: SYSCALL_TRIGGER_PORT,
         };
 
         boot_info.memory_map.sort();
-        // Write boot info to boot info page.
-        let boot_info_addr = self.addr_gpa2hva(boot_info_vaddr)?;
-        //serial_println!("stage4: boot_info_addr={:#?}", boot_info);
-        unsafe { boot_info_addr.as_mut_ptr::<BootInfo>().write(boot_info) };
+        // Write boot info to syscall page.
+        unsafe {
+            self.syscall_hostvaddr
+                .unwrap()
+                .as_mut_ptr::<BootInfo>()
+                .write(boot_info)
+        };
 
         /* Create VCPU */
         self.vcpu_add(vcpuid)?;
@@ -478,11 +458,8 @@ impl KvmVm {
             .get_regs()
             .map_err(|e| ErrorKind::from(&e))?;
         regs.rflags |= 0x2;
-        //dbg!(BOOT_STACK_POINTER, guest_code, boot_info_vaddr);
-        regs.rsp = BOOT_STACK_POINTER;
-        regs.rbp = BOOT_STACK_POINTER;
         regs.rip = guest_code.as_u64();
-        regs.rdi = boot_info_vaddr.as_u64();
+        regs.rdi = syscall_vaddr.as_u64();
 
         self.cpu_fd[vcpuid as usize]
             .set_regs(&regs)
@@ -646,11 +623,11 @@ impl KvmVm {
         /* Setup IRQ Chip */
         vm.create_irqchip()?;
 
-        /* Setup guest code */
-        let (elf_code, elf_phdr, elf_phnum) = vm.elf_load(elf_name)?;
+        /* Setup app guest code */
+        let (elf_code, elf_phdr, elf_phnum) = vm.elf_load(elf_name, MemoryRegionType::App)?;
 
-        /* Setup guest code */
-        let (guest_code, _, _) = vm.elf_load(kernel_name)?;
+        /* Setup kernel guest code */
+        let (guest_code, _, _) = vm.elf_load(kernel_name, MemoryRegionType::Kernel)?;
 
         /* Add the first vCPU. */
         vm.vcpu_add_default(vcpuid, guest_code, elf_code, elf_phdr, elf_phnum)?;

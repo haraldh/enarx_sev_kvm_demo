@@ -9,13 +9,11 @@ PHDRS
     pvh_notes   PT_NOTE FLAGS(0);
     pvh_text    PT_LOAD;
     pvh_bss     PT_LOAD;
+    pml_data    PT_LOAD;
 
-    rodata  PT_LOAD;
-    data    PT_LOAD;
-    text    PT_LOAD;
-    bss     PT_LOAD;
-
-    app     PT_LOAD;
+    rodata      PT_LOAD;
+    data        PT_LOAD;
+    text        PT_LOAD;
 }
 
 KERNEL_OFFSET = 0x80000000000;
@@ -24,12 +22,6 @@ KERNEL_OFFSET = 0x80000000000;
 ram_min = 1M;
 ram_max = 4M;
 
-/* Pagetable locations loaded by crosvm/Firecracker/cloud-hypervisor/enarx */
-pml4t = 0x9000;
-pml3t = 0xa000;
-pml2t = 0xb000;
-pml3to = 0xf000;
-
 SECTIONS
 {
     . = 1M;
@@ -37,6 +29,7 @@ SECTIONS
     .pvh_text   : { KEEP(*(.ram64 .ram32))
                     KEEP(*(.entry64))             } :pvh_text
     .pvh_bss    : { KEEP(*(.bss.stack))           } :pvh_bss
+    .pml_data   : { KEEP(*(.pmldata))           } :pml_data
 
     . = 2M + KERNEL_OFFSET;
     .rodata : AT(ADDR(.rodata) - KERNEL_OFFSET) { *(.rodata .rodata.*)            } :rodata

@@ -1,4 +1,5 @@
 use super::gdt;
+use super::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 use crate::{eprintln, exit_hypervisor, hlt_loop, HyperVisorExitCode};
 
 extern "C" {
@@ -31,7 +32,6 @@ extern "C" {
 */
 }
 
-use super::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 pub static mut IDT: Option<InterruptDescriptorTable> = None;
 
 #[no_mangle]

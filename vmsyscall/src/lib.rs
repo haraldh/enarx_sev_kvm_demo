@@ -7,7 +7,11 @@
 
 #![deny(missing_docs)]
 #![deny(clippy::all)]
+#![deny(improper_ctypes)]
 #![no_std]
+
+pub mod bootinfo;
+pub mod memory_map;
 
 use core::fmt::{Debug, Formatter};
 

@@ -3,8 +3,8 @@ use super::interrupts;
 use super::syscall;
 use super::xcr0::{XCr0, XCr0Flags};
 use crate::memory::BootInfoFrameAllocator;
-use vmbootspec::layout::PHYSICAL_MEMORY_OFFSET;
-use vmbootspec::{BootInfo, MemoryRegionType};
+use vmsyscall::bootinfo::BootInfo;
+use vmsyscall::memory_map::MemoryRegionType;
 
 use crate::arch::x86_64::structures::paging::{
     mapper::MapToError, FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags, Size4KiB,
@@ -21,6 +21,8 @@ use super::NEXT_MMAP;
 use super::STACK_SIZE;
 use super::STACK_START;
 use crate::arch::x86_64::PAGESIZE;
+
+const PHYSICAL_MEMORY_OFFSET: u64 = 0x800_0000_0000;
 
 static mut ENTRY_POINT: Option<
     fn(
@@ -42,6 +44,13 @@ pub fn init(
         app_phnum: usize,
     ) -> !,
 ) -> ! {
+    crate::arch::init_syscall(boot_info);
+    let boot_info = boot_info.clone();
+
+    // *********************************
+    // NO println! before this point!!
+    // *********************************
+
     unsafe {
         let xsave_supported = (core::arch::x86_64::__cpuid(1).ecx & (1 << 26)) != 0;
         assert!(xsave_supported);
@@ -90,7 +99,7 @@ pub fn init(
         eprintln!("NEXT_MMAP = {:#X}", NEXT_MMAP);
     }
 
-    let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&mut boot_info.memory_map) };
+    let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(boot_info.memory_map) };
 
     #[cfg(feature = "allocator")]
     init_heap(unsafe { MAPPER.as_mut().unwrap() }, &mut frame_allocator)
@@ -156,7 +165,7 @@ pub fn init_stack(
 
     let page_range = { Page::range_inclusive(stack_start_page + 1, stack_end_page - 1) };
 
-    eprintln!("Trying to allocate heap: {:#?}", page_range);
+    eprintln!("Trying to allocate stack: {:#?}", page_range);
 
     for page in page_range {
         let frame = frame_allocator
@@ -213,7 +222,6 @@ extern "C" fn init_after_stack_swap() -> ! {
     let mapper = unsafe { MAPPER.as_mut().unwrap() };
     let entry_point = unsafe { ENTRY_POINT.as_ref().unwrap() };
 
-    frame_allocator.set_region_type_usable(MemoryRegionType::KernelStack);
     unsafe {
         entry_point(
             mapper,

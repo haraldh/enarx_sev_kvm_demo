@@ -1,19 +1,11 @@
 .section .entry64, "ax"
 .global _start
 .global _setup_pto
+.global _pml3to
 .code64
 
 .p2align 4
 _start:
-    # Indicate (via serial) that we are in long/64-bit mode
-    /*
-    movw $0x2f8, %dx
-    movb $'L', %al
-    outb %al, %dx
-    movb $'\n', %al
-    outb %al, %dx
-    */
-
     movabs $_start_main,%rax
 
 
@@ -66,44 +58,34 @@ _setup_pto:
     mov    $0xc0000080,%ecx
     wrmsr
 
-    # setup physical offset page table
-    movl $pml3to, %eax
-    orb  $0b00000011, %al # writable (bit 1), present (bit 0)
-    movl $pml4t, %edx
-    addl $128, %edx
+    mov  $_pml2ident, %eax
+    orb  $0b00000111, %al # writable (bit 1), present (bit 0)
+    mov  $_pml3ident, %edx
     movl %eax, (%edx)
 
-    # setup pml3to
-    movabs $0x100000000,%r8
-    mov    $pml3to,%ecx
-    lea    -0x3ffffe7d(%r8),%rdx
-    mov    $0x3,%esi
-    mov    $0x183,%edi
-.L2:
-    mov    %rdi,-0x18(%rcx,%rsi,8)
-    lea    -0x80000000(%rdx),%rax
-    mov    %rax,-0x10(%rcx,%rsi,8)
-    lea    -0x40000000(%rdx),%rax
-    mov    %rax,-0x8(%rcx,%rsi,8)
-    mov    %rdx,(%rcx,%rsi,8)
-    add    %r8,%rdx
-    add    $0x4,%rsi
-    add    %r8,%rdi
-    cmp    $0x203,%rsi
-    jne    .L2
+    mov  $_pml3ident, %edx
+    orb  $0b00000111, %dl # writable (bit 1), present (bit 0)
+    mov  $_pml4t, %eax
+    mov  %edx, (%eax)
+    mov  %rax, %cr3
+
+    invlpg (%eax)
+
+    # setup physical offset page table
+    movabs $_pml3to, %rax
+    orb  $0b00000011, %al # writable (bit 1), present (bit 0)
+    movabs  $_pml4t, %rdx
+    addl $128, %edx
+    movl %eax, (%edx)
+    invlpg (%rax)
 
 _before_jump:
     mov    %r11, %rdi
     mov    %r12, %rax
 
-    # align stack
-    addq   $8, %rsp
-    andq   $0xFFFFFFFFFFFFFFC0, %rsp
-    subq   $8, %rsp
-    # align rbp
-    addq   $8, %rbp
-    andq   $0xFFFFFFFFFFFFFFC0, %rbp
-    subq   $8, %rbp
+    # Setup some stack
+    movq $(first_kernel_stack_end - 8), %rsp
+    movq %rsp, %rbp
 
     # jump into kernel address space
     jmpq *%rax
@@ -111,3 +93,12 @@ _before_jump:
 .pto_halt_loop:
     hlt
     jmp .pto_halt_loop
+
+stack_size = 0x10000
+
+.section .bss.stack, "aw"
+.global pvh_stack
+.align 4096
+first_kernel_stack:
+.space stack_size
+first_kernel_stack_end:

@@ -1,14 +1,17 @@
 #![no_std]
 #![cfg_attr(test, no_main)]
-#![cfg_attr(feature = "nightly", feature(custom_test_frameworks))]
-#![cfg_attr(feature = "nightly", feature(abi_x86_interrupt))]
-#![cfg_attr(feature = "nightly", feature(alloc_error_handler))]
-#![cfg_attr(feature = "nightly", test_runner(crate::test_runner))]
-#![cfg_attr(feature = "nightly", feature(lang_items))]
-#![cfg_attr(feature = "nightly", reexport_test_harness_main = "test_main")]
+#![cfg_attr(any(feature = "nightly", test), feature(custom_test_frameworks))]
+#![cfg_attr(any(feature = "nightly", test), feature(abi_x86_interrupt))]
+#![cfg_attr(any(feature = "nightly", test), feature(alloc_error_handler))]
+#![cfg_attr(any(feature = "nightly", test), test_runner(crate::test_runner))]
+#![cfg_attr(any(feature = "nightly", test), feature(lang_items))]
+#![cfg_attr(
+    any(feature = "nightly", test),
+    reexport_test_harness_main = "test_main"
+)]
 #![allow(clippy::empty_loop)]
 
-#[cfg(not(feature = "nightly"))]
+#[cfg(not(any(feature = "nightly", test)))]
 #[cfg(test)]
 fn foo() {
     compile_error!("testing only on nightly");
@@ -29,13 +32,13 @@ pub mod memory;
 pub mod strlen;
 pub mod syscall;
 
-#[cfg(feature = "nightly")]
+#[cfg(any(feature = "nightly", test))]
 #[lang = "eh_personality"]
 extern "C" fn eh_personality() {
     exit_hypervisor(HyperVisorExitCode::Failed);
 }
 
-#[cfg(not(feature = "nightly"))]
+#[cfg(not(any(feature = "nightly", test)))]
 #[no_mangle]
 pub extern "C" fn rust_eh_personality() {
     exit_hypervisor(HyperVisorExitCode::Failed);
@@ -96,7 +99,7 @@ entry_point!(test_lib_main);
 
 /// Entry point for `cargo xtest`
 #[cfg(test)]
-fn test_lib_main(boot_info: &'static mut vmbootspec::BootInfo) -> ! {
+fn test_lib_main(boot_info: &'static mut vmsyscall::bootinfo::BootInfo) -> ! {
     use crate::arch::OffsetPageTable;
     use crate::memory::BootInfoFrameAllocator;
 

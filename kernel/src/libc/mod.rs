@@ -1,4 +1,3 @@
-use vmbootspec::layout::{SYSCALL_PHYS_ADDR, SYSCALL_TRIGGER_PORT};
 pub use vmsyscall::Error;
 use vmsyscall::{VmSyscall, VmSyscallRet, WRITE_BUF_LEN};
 use x86_64::instructions::port::Port;
@@ -6,6 +5,8 @@ use x86_64::VirtAddr;
 
 mod mmap;
 pub use mmap::*;
+
+use crate::arch::{SYSCALL_PHYS_ADDR, SYSCALL_TRIGGER_PORT};
 
 #[cfg(test)]
 mod test;
@@ -37,7 +38,7 @@ pub fn write(fd: u32, bytes: &[u8]) -> Result<i32, Error> {
 
 #[inline(always)]
 pub fn vm_syscall(syscall: VmSyscall) -> Result<VmSyscallRet, Error> {
-    let syscall_page = VirtAddr::new(SYSCALL_PHYS_ADDR);
+    let syscall_page = VirtAddr::new(unsafe { SYSCALL_PHYS_ADDR });
     let request = syscall_page.as_u64() as *mut VmSyscall;
     let reply = syscall_page.as_u64() as *mut VmSyscallRet;
 

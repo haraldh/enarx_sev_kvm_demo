@@ -1,13 +1,13 @@
 use crate::arch::x86_64::PAGESIZE;
-use vmbootspec::layout::{BOOTINFO_PHYS_ADDR, SYSCALL_PHYS_ADDR};
-use vmbootspec::{BootInfo, FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
+use vmsyscall::bootinfo::BootInfo;
+use vmsyscall::memory_map::{FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
 use x86_64::PhysAddr;
 
 extern "C" {
     fn _start_main(bootinfo: *mut BootInfo) -> !;
 }
 
-#[repr(C, packed)]
+#[repr(C)]
 pub struct HvmStartInfo {
     magic: u32, /* Contains the magic value 0x336ec578       */
     /* ("xEn3" with the 0x80 bit of the "E" set).*/
@@ -29,7 +29,7 @@ pub struct HvmStartInfo {
 }
 
 /// https://github.com/Xilinx/xen/blob/master/xen/include/public/arch-x86/hvm/start_info.h#L105
-#[repr(C, packed)]
+#[repr(C)]
 pub struct HvmMemmapTableEntry {
     addr: u64,       /* Base address of the memory region         */
     size: u64,       /* Size of the memory region in bytes        */
@@ -63,15 +63,13 @@ impl HvmMemmapTableEntry {
 //#[cfg(feature = "allocator")]
 impl core::fmt::Debug for HvmMemmapTableEntry {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> Result<(), core::fmt::Error> {
-        unsafe {
-            write!(
-                f,
-                "HvmMemmapTableEntry({:#?} {:#x}..{:#x})",
-                self.get_type(),
-                self.addr,
-                self.addr + self.size
-            )
-        }
+        write!(
+            f,
+            "HvmMemmapTableEntry({:#?} {:#x}..{:#x})",
+            self.get_type(),
+            self.addr,
+            self.addr + self.size
+        )
     }
 }
 
@@ -90,22 +88,26 @@ pub enum HvmMemmapTableEntryType {
 extern "C" {
     static _kernel_start: usize;
     static _kernel_end: usize;
-    static pvh_stack: usize;
 }
 
 #[export_name = "_start_e820"]
 pub unsafe extern "C" fn rust_start_820(hvm_start_info: *const HvmStartInfo) -> ! {
-    //eprintln!("rust_start_820");
+    eprintln!("rust_start_820, magic={:#X}", (*hvm_start_info).magic);
     let kernel_start_ptr = &_kernel_start as *const _ as u64;
     let kernel_end_ptr = &_kernel_end as *const _ as u64;
-    let pvh_stack_ptr = &pvh_stack as *const _ as u64;
 
     let e820_count = (*hvm_start_info).memmap_entries;
-    let e820_table = core::slice::from_raw_parts_mut(
-        (*hvm_start_info).memmap_paddr as *mut HvmMemmapTableEntry,
+    let entry = (*hvm_start_info).memmap_paddr as *const HvmMemmapTableEntry;
+    eprintln!("addr={}", (*entry).addr);
+    let e820_table = core::slice::from_raw_parts(
+        (*hvm_start_info).memmap_paddr as *const HvmMemmapTableEntry,
         e820_count as _,
     );
-    //eprintln!("e820_count={}", e820_count);
+    eprintln!("e820_table={:#X}", (*hvm_start_info).memmap_paddr);
+    eprintln!("e820_count={}", e820_count);
+    eprintln!("{:#?}", e820_table);
+
+    pub const BOOTINFO_PHYS_ADDR: u64 = 0x8000;
 
     core::ptr::write(
         BOOTINFO_PHYS_ADDR as *mut BootInfo,
@@ -114,12 +116,11 @@ pub unsafe extern "C" fn rust_start_820(hvm_start_info: *const HvmStartInfo) -> 
             entry_point: core::ptr::null(),
             load_addr: core::ptr::null(),
             elf_phnum: 0,
+            syscall_trigger_port: 0,
         },
     );
 
     let boot_info: *mut BootInfo = BOOTINFO_PHYS_ADDR as _;
-
-    //eprintln!("{:#?}", e820_table);
 
     for entry in e820_table {
         let end = entry.addr + entry.size;
@@ -135,7 +136,7 @@ pub unsafe extern "C" fn rust_start_820(hvm_start_info: *const HvmStartInfo) -> 
                     region_type: MemoryRegionType::Usable,
                 });
             }
-            /*
+
             HvmMemmapTableEntryType::Reserved => {
                 (*boot_info).memory_map.add_region(MemoryRegion {
                     range: FrameRange::new(
@@ -145,27 +146,25 @@ pub unsafe extern "C" fn rust_start_820(hvm_start_info: *const HvmStartInfo) -> 
                     region_type: MemoryRegionType::Reserved,
                 });
             }
-            */
+
             _ => {}
         }
     }
     //eprintln!("{:#?}", (*boot_info).memory_map);
 
     (*boot_info).memory_map.mark_allocated_region(MemoryRegion {
-        range: FrameRange::new(0, 0x1_0000),
+        range: FrameRange::new(0, 0x1000),
         region_type: MemoryRegionType::Reserved,
     });
+    /* FIXME
     (*boot_info).memory_map.mark_allocated_region(MemoryRegion {
         range: FrameRange::new(SYSCALL_PHYS_ADDR, SYSCALL_PHYS_ADDR + 0x1000),
-        region_type: MemoryRegionType::SysCall,
+        region_type: MemoryRegionType::InUse,
     });
+    */
     (*boot_info).memory_map.mark_allocated_region(MemoryRegion {
         range: FrameRange::new(kernel_start_ptr, kernel_end_ptr),
         region_type: MemoryRegionType::Kernel,
-    });
-    (*boot_info).memory_map.mark_allocated_region(MemoryRegion {
-        range: FrameRange::new(pvh_stack_ptr, pvh_stack_ptr + 0xF000),
-        region_type: MemoryRegionType::KernelStack,
     });
 
     _start_main(boot_info)

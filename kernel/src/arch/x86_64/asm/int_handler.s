@@ -17,22 +17,26 @@ _isr_\num:
     pushq   %r9
     pushq   %r10
     pushq   %r11
+    pushq   %rbx
 
-    movq    72(%rsp), %rsi
-
-    # add xsave area and align stack
-.if \has_error
-    subq   $(XSAVE_STACK_OFFSET + 8), %rsp
-.else
-    subq   $(XSAVE_STACK_OFFSET + 2 * 8), %rsp
-.endif
+    movq    %rsp, %rbx
+    movq    80(%rsp), %rsi
 
     # rsp is first argument
     movq    %rsp, %rdi
-    addq    $(11*8 + XSAVE_STACK_OFFSET), %rdi
+    subq   $(XSAVE_STACK_OFFSET), %rsp
+
+    # add xsave area and align stack
+.if \has_error
+    addq    $(11*8), %rdi
+.else
+    addq    $(10*8), %rdi
+.endif
+
+    # align stack
+    andq   $(~(0x40-1)), %rsp
 
     # xsave
-
     # memzero xsave array
     xorq    %rax, %rax
 1:
@@ -54,14 +58,11 @@ _isr_\num:
     movl   $-1, %edx
     movl   $-1, %eax
     xrstor (%rsp)
-.if \has_error
-    addq   $(XSAVE_STACK_OFFSET + 8), %rsp
-.else
-    addq   $(XSAVE_STACK_OFFSET + 2 * 8), %rsp
-.endif
 
     # xrstor end
+    movq    %rbx, %rsp
 
+    popq    %rbx
     popq    %r11
     popq    %r10
     popq    %r9

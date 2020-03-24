@@ -39,9 +39,9 @@ pub use x86_64::{PhysAddr, VirtAddr};
 macro_rules! entry_point {
     ($path:path) => {
         #[export_name = "_start_main"]
-        pub extern "C" fn __impl_start(boot_info: &'static mut vmbootspec::BootInfo) -> ! {
+        pub extern "C" fn __impl_start(boot_info: &'static mut vmsyscall::bootinfo::BootInfo) -> ! {
             // validate the signature of the program entry point
-            let f: fn(&'static mut vmbootspec::BootInfo) -> ! = $path;
+            let f: fn(&'static mut vmsyscall::bootinfo::BootInfo) -> ! = $path;
             f(boot_info)
         }
     };
@@ -49,7 +49,7 @@ macro_rules! entry_point {
 
 pub const PAGESIZE: usize = 4096;
 pub const STACK_START: usize = 0x7F48_4800_0000;
-pub const STACK_SIZE: usize = 1 * 1024 * 1024; // 1 MiB
+pub const STACK_SIZE: usize = 1 * 1024 * 1024; // 100 KiB
 
 static mut APP_ENTRY_POINT: *const u8 = core::ptr::null();
 static mut APP_LOAD_ADDR: *const u8 = core::ptr::null();

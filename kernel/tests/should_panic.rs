@@ -5,7 +5,8 @@ use core::panic::PanicInfo;
 use kernel::{exit_hypervisor, serial_print, serial_println, HyperVisorExitCode};
 
 #[no_mangle]
-pub extern "C" fn _start_main() -> ! {
+pub extern "C" fn _start_main(boot_info: &'static mut vmsyscall::bootinfo::BootInfo) -> ! {
+    kernel::arch::init_syscall(boot_info);
     should_fail();
     serial_println!("[test did not panic]");
     exit_hypervisor(HyperVisorExitCode::Failed);

@@ -1,5 +1,3 @@
-stack_size = 0xF000
-
 .section .ram64, "ax"
 .global ram64_start
 .code64
@@ -14,9 +12,6 @@ ram64_start:
     outb %al, %dx
     */
 
-    # Setup some stack
-    movq $pvh_stack, %rsp
-    addq $stack_size, %rsp
 
     # HvmStartInfo is in %rbp
     # move to first C argument
@@ -28,8 +23,3 @@ ram64_start:
     hlt
     jmp .halt_loop
 
-.section .bss.stack, "a"
-.global pvh_stack
-.align 4096
-pvh_stack: .skip stack_size
-pvh_stack_end:

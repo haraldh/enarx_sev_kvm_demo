@@ -2,8 +2,7 @@ use kvm_ioctls::{Kvm, VcpuExit};
 use std::path::Path;
 use std::process::{exit, Command};
 use std::time::Instant;
-use vmbootspec::layout::SYSCALL_TRIGGER_PORT;
-use vmrun::kvmvm;
+use vmrun::kvmvm::{self, SYSCALL_TRIGGER_PORT};
 
 const PORT_QEMU_EXIT: u16 = 0xF4;
 

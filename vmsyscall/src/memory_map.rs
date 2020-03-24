@@ -7,7 +7,7 @@ use core::cmp::Ordering;
 use core::fmt;
 use core::ops::{Deref, DerefMut};
 
-const PAGE_SIZE: u64 = 4096;
+pub(crate) const PAGE_SIZE: u64 = 4096;
 
 const MAX_MEMORY_MAP_SIZE: usize = 64;
 
@@ -39,13 +39,13 @@ impl MemoryMap {
     }
 
     pub fn add_region(&mut self, region: MemoryRegion) {
-        if let Err(true) = self.entries.iter_mut().try_for_each(|last_region| {
+        if let Err(()) = self.entries.iter_mut().try_for_each(|last_region| {
             if last_region.region_type == region.region_type
                 && last_region.range.end_frame_number >= region.range.start_frame_number
                 && last_region.range.end_frame_number <= region.range.end_frame_number
             {
                 last_region.range.end_frame_number = region.range.end_frame_number;
-                return Err(true);
+                return Err(());
             }
             Ok(())
         }) {
@@ -263,6 +263,7 @@ impl FrameRange {
         self.start_frame_number == self.end_frame_number
     }
 
+    /// Length of the frame range
     pub fn len(&self) -> u64 {
         self.end_frame_number - self.start_frame_number
     }
@@ -309,12 +310,6 @@ pub enum MemoryRegionType {
     Kernel,
     /// Memory used for loading the ELF app.
     App,
-    /// Memory used for the kernel stack.
-    KernelStack,
-    /// Memory used for GDT table.
-    Gdt,
-    /// Memory used for creating page tables.
-    PageTable,
     /// Memory used by the bootloader.
     Bootloader,
     /// Frame at address zero.
@@ -323,12 +318,6 @@ pub enum MemoryRegionType {
     FrameZero,
     /// An empty region with size 0
     Empty,
-    /// Memory used for storing the boot information.
-    BootInfo,
-    /// Memory used for storing the boot information.
-    SysCall,
-    /// Memory used for storing the supplied package
-    Package,
     /// Additional variant to ensure that we can add more variants in the future without
     /// breaking backwards compatibility.
     #[doc(hidden)]

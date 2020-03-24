@@ -9,7 +9,8 @@ use core::panic::PanicInfo;
 use kernel::{println, serial_print, serial_println};
 
 #[no_mangle] // don't mangle the name of this function
-pub extern "C" fn _start_main() -> ! {
+pub extern "C" fn _start_main(boot_info: &'static mut vmsyscall::bootinfo::BootInfo) -> ! {
+    kernel::arch::init_syscall(boot_info);
     test_main();
     loop {}
 }

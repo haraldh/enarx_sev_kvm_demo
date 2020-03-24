@@ -1,16 +1,19 @@
 #![no_std]
 #![no_main]
 #![warn(dead_code)]
-#![cfg_attr(feature = "nightly", feature(custom_test_frameworks))]
-#![cfg_attr(feature = "nightly", test_runner(kernel::test_runner))]
-#![cfg_attr(feature = "nightly", reexport_test_harness_main = "test_main")]
+#![cfg_attr(any(feature = "nightly", test), feature(custom_test_frameworks))]
+#![cfg_attr(any(feature = "nightly", test), test_runner(kernel::test_runner))]
+#![cfg_attr(
+    any(feature = "nightly", test),
+    reexport_test_harness_main = "test_main"
+)]
 #![allow(clippy::empty_loop)]
 
 use core::panic::PanicInfo;
 use kernel::arch::OffsetPageTable;
 use kernel::memory::BootInfoFrameAllocator;
 use kernel::{entry_point, exit_hypervisor, println, HyperVisorExitCode};
-use vmbootspec::BootInfo;
+use vmsyscall::bootinfo::BootInfo;
 
 entry_point!(kernel_main);
 
@@ -31,7 +34,6 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
             app_phnum,
         );
     }
-
     kernel::arch::init(boot_info, with_stack_protection)
 }
 

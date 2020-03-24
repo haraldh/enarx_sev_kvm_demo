@@ -11,7 +11,7 @@ use core::panic::PanicInfo;
 use kernel::arch::OffsetPageTable;
 use kernel::memory::BootInfoFrameAllocator;
 use kernel::{entry_point, serial_print, serial_println};
-use vmbootspec::BootInfo;
+use vmsyscall::bootinfo::BootInfo;
 
 entry_point!(main);
 
@@ -27,7 +27,6 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
         test_main();
         loop {}
     }
-
     kernel::arch::init(boot_info, inner)
 }
 

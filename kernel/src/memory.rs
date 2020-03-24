@@ -2,7 +2,7 @@ use crate::arch::x86_64::{
     structures::paging::{FrameAllocator, OffsetPageTable, PageTable, PhysFrame, Size4KiB},
     PhysAddr, VirtAddr,
 };
-use vmbootspec::{FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
+use vmsyscall::memory_map::{FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
 use x86_64::structures::paging::{FrameDeallocator, UnusedPhysFrame};
 
 /// Initialize a new OffsetPageTable.
@@ -40,7 +40,7 @@ unsafe fn active_level_4_table(physical_memory_offset: VirtAddr) -> &'static mut
 
 /// A FrameAllocator that returns usable frames from the bootloader's memory map.
 pub struct BootInfoFrameAllocator {
-    memory_map: &'static mut MemoryMap,
+    memory_map: MemoryMap,
     next: usize,
 }
 
@@ -53,7 +53,7 @@ impl BootInfoFrameAllocator {
     ///
     /// # Safety
     /// FIXME
-    pub unsafe fn init(memory_map: &'static mut MemoryMap) -> Self {
+    pub unsafe fn init(memory_map: MemoryMap) -> Self {
         BootInfoFrameAllocator {
             memory_map,
             next: 0,

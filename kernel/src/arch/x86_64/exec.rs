@@ -5,9 +5,13 @@ use crate::arch::x86_64::structures::paging::{
 use crate::memory::BootInfoFrameAllocator;
 use crate::{exit_hypervisor, HyperVisorExitCode};
 use crt0stack::{self, Builder, Entry};
-use vmbootspec::layout::{USER_STACK_OFFSET, USER_STACK_SIZE};
 use x86_64::instructions::random::RdRand;
 use x86_64::VirtAddr;
+
+const PML4_SIZE: usize = 0x0000_0080_0000_0000;
+const USER_STACK_SIZE: usize = 8 * 1024 * 1024; // 8 MB
+const USER_STACK_OFFSET: usize = PML4_SIZE * 4;
+//const USER_HEAP_OFFSET: usize = PML4_SIZE;
 
 pub fn exec_elf(
     mapper: &mut OffsetPageTable,

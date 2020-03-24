@@ -32,19 +32,19 @@ ram32_start:
 
 #setup_page_tables:
     # First PML2 entry identity maps [0, 2 MiB)
-    movl $0b10000011, (pml2t) # huge (bit 7), writable (bit 1), present (bit 0)
+    movl $0b10000011, (_pml2ident) # huge (bit 7), writable (bit 1), present (bit 0)
     # First PML3 entry points to PML2 table
-    movl $pml2t, %eax
+    movl $_pml2ident, %eax
     orb  $0b00000011, %al # writable (bit 1), present (bit 0)
-    movl %eax, (pml3t)
+    movl %eax, (_pml3ident)
     # First PML4 entry points to PML3 table
-    movl $pml3t, %eax
+    movl $_pml3ident, %eax
     orb  $0b00000011, %al # writable (bit 1), present (bit 0)
-    movl %eax, (pml4t)
+    movl %eax, (_pml4t)
 
 #enable_paging:
     # Load page table root into CR3
-    movl $pml4t, %eax
+    movl $_pml4t, %eax
     movl %eax, %cr3
 
     # Set CR4.PAE (Physical Address Extension)
