@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 15
     steps:
     - uses: actions/checkout@v2
-    - name: Hello world action
+    - name: Hello world actions
       env: # Set the secret as an input
         SUPER_SECRET: ${{ secrets.SSH_KEY }}
       run: |
