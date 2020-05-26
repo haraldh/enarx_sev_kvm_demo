@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'workflow_test'
+  pull_request:
 
 jobs:
   build:
