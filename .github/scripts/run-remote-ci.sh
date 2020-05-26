@@ -5,4 +5,4 @@ $SUPER_SECRET
 EOF
 chmod 0600 .ssh/id_github_test
 set -x
-ssh -vvv -p 22222 -T -i .ssh/id_github_test fedorabook@hoyer.xyz
+ssh -vvv -p 22222 -T -o "StrictHostKeyChecking no" -i .ssh/id_github_test fedorabook@hoyer.xyz
