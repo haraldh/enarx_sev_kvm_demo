@@ -14,5 +14,6 @@ jobs:
     - name: Hello world actions
       env: # Set the secret as an input
         SUPER_SECRET: ${{ secrets.SSH_KEY }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         ./.github/scripts/run-remote-ci.sh
