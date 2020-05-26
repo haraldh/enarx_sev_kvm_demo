@@ -3,55 +3,16 @@ name: Rust
 on:
   push:
     branches:
-      - 'master'
-    tags:
-      - '*'
-  schedule:
-    - cron: '40 4 * * *'   # every day at 4:40
-  pull_request:
+      - 'workflow_test'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    container:
-      image: quay.io/haraldh/rust-nightly-qemu-x86:latest
-      options: "--privileged"
-    env:
-      RUSTUP_HOME: /root/.rustup
-      CARGO_HOME:  /root/.cargo
-
     steps:
-    - name: "Print Versions"
+    - uses: actions/checkout@v2
+    - name: Hello world action
+      env: # Set the secret as an input
+        SUPER_SECRET: ${{ secrets.SSH_KEY }}
       run: |
-        qemu-system-x86_64 --version
-        which rustup
-        which cargo
-        rustup show
-        cargo +nightly -Vv
-
-    - name: "Checkout Repository"
-      uses: actions/checkout@v2
-
-    - name: Cache binaries
-      id: cache-bin
-      uses: actions/cache@v1
-      with:
-        path: binaries
-        key: ${{ runner.OS }}-binaries
-
-    - name: Add binaries/bin to PATH
-      run: echo ::add-path::$GITHUB_WORKSPACE/binaries/bin
-      shell: bash
-
-    - name: "Run cargo build"
-      run: cargo build --all
-
-    - name: "Run Vmrun Test Framework"
-      run: cargo test -p vmrun
-
-    - name: "Run Kernel Test Framework"
-      run: (cd kernel; cargo +nightly test --features qemu)
-
-    - name: "Run App in Kernel"
-      run: (cd kernel; cargo +nightly run --features qemu)
+        ./.github/scripts/run-remote-ci.sh
