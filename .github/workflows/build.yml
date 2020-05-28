@@ -13,7 +13,8 @@ jobs:
     - uses: actions/checkout@v2
     - name: Hello world actions
       env: # Set the secret as an input
-        SUPER_SECRET: ${{ secrets.SSH_KEY }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        ./.github/scripts/run-remote-ci.sh
+        chmod 0700 .ssh
+        chmod 0600 .ssh/id_github_test
+        exec ssh -T -o "StrictHostKeyChecking no" -i .ssh/id_github_test <YOUR_CI_HOSTNAME> -- "$GITHUB_TOKEN" "$GITHUB_REPOSITORY" "$GITHUB_SHA" "$GITHUB_REF"
